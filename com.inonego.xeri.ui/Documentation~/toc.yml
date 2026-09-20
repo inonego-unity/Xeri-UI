@@ -6,7 +6,7 @@
     href: getting-started/installation.md
 - name: 개념
   items:
-  - name: 구조와 의존 방향
+  - name: 구조
     href: concepts/architecture.md
 - name: UI Core
   items:

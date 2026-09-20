@@ -21,16 +21,6 @@ inonego.Xeri.UI.Window.Editor
 inonego.Xeri.UI.Tray
 ```
 
-## 의존 방향
-
-```text
-com.inonego.xeri.ui
-        ↓
-com.inonego.xeri
-```
-
-base Xeri가 이 패키지를 역참조하지 않는 단방향 경계를 유지합니다.
-
 ## 문서
 
 자세한 사용법은 [Documentation~/index.md](Documentation~/index.md)에서 시작합니다.

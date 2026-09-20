@@ -41,13 +41,18 @@ Unity 개발 환경에서 Manual과 API Reference를 함께 갱신합니다.
 ./build-docs.ps1 -UnityProjectRoot "<UnityProject>"
 ```
 
-지정한 Unity 프로젝트는 `inonego.Xeri.csproj`, Unity/package reference와 compiled base Xeri assembly를 제공해야 합니다.
-빌드 스크립트는 해당 Unity 프로젝트의 manifest나 source를 수정하지 않습니다.
+지정한 Unity 프로젝트에는 현재 Xeri UI package가 설치되어 있어야 하며 Unity가 생성한 다음 프로젝트 파일을 사용할 수 있어야 합니다.
+
+- `inonego.Xeri.UI.csproj`
+- `inonego.Xeri.UI.Editor.csproj`
+
+metadata helper는 이 프로젝트 파일의 Unity define과 assembly reference를 사용하고, API 대상 source는 Xeri UI package의 production Runtime/Editor source에서 다시 구성합니다.
+빌드 스크립트는 Unity 프로젝트의 manifest나 source를 수정하지 않습니다.
 
 ## API snapshot
 
 GitHub hosted runner에는 Unity 개발 환경이 없으므로 API metadata를 CI에서 직접 재생성하지 않습니다.
-개발 환경의 full build가 Xeri UI의 production Runtime/Editor source와 asmdef를 기준으로 snapshot과 hash를 갱신합니다.
+개발 환경의 full build가 production Runtime/Editor source와 asmdef를 기준으로 snapshot과 hash를 갱신합니다.
 
 public API 또는 assembly/package 구성이 바뀌면 개발 환경에서 `build-docs.ps1`을 실행해 snapshot을 갱신합니다.
 
@@ -72,7 +77,7 @@ Checkout
 → GitHub Pages 배포
 ```
 
-저장소가 `inonego-unity/Xeri-UI`로 게시되면 Pages 기본 주소는 다음 형식을 사용합니다.
+Pages 주소:
 
 `https://inonego-unity.github.io/Xeri-UI/`
 

@@ -148,6 +148,23 @@ namespace inonego.Xeri.UI.TEST.Core
             field.SetValue(target, value);
         }
 
+        // ----------------------------------------------------------------------
+        /// <summary>
+        /// EditMode에서 DraggableUI의 Unity lifecycle 초기화를 테스트용으로 수행한다.
+        /// </summary>
+        // ----------------------------------------------------------------------
+        private static void InitializeDraggable(DraggableUI draggable)
+        {
+            var method = typeof(DraggableUI).GetMethod
+            (
+                "InitializeRuntime",
+                BindingFlags.Instance | BindingFlags.NonPublic
+            );
+
+            Assert.IsNotNull(method, "DraggableUI 초기화 진입점을 찾지 못했습니다.");
+            method.Invoke(draggable, null);
+        }
+
         // ------------------------------------------------------------
         /// <summary>
         /// EventSystem Pointer 입력 데이터를 생성한다.
@@ -228,7 +245,7 @@ namespace inonego.Xeri.UI.TEST.Core
             draggable = targetObject.GetComponent<DraggableUI>();
 
             // EditMode에서는 Unity가 Awake를 호출하지 않으므로 같은 초기화 진입점을 사용한다.
-            draggable.InitializeRuntime();
+            InitializeDraggable(draggable);
 
             var asset = ScriptableObject.CreateInstance<PresentationLayerAsset>();
             ownedObjects.Add(asset);
@@ -417,7 +434,7 @@ namespace inonego.Xeri.UI.TEST.Core
             );
             ownedObjects.Add(otherObject);
             var otherDraggable = otherObject.GetComponent<DraggableUI>();
-            otherDraggable.InitializeRuntime();
+            InitializeDraggable(otherDraggable);
 
             Assert.Throws<InvalidOperationException>
             (

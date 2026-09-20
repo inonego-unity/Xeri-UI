@@ -126,17 +126,6 @@ function New-DocFxMetadataProjects
         throw "Unity project root not found: $unityProjectRoot"
     }
 
-    $templateProject = Join-Path $unityProjectRoot 'inonego.Xeri.csproj'
-    $baseAssembly = Join-Path $unityProjectRoot 'Library/ScriptAssemblies/inonego.Xeri.dll'
-    if (-not (Test-Path $templateProject))
-    {
-        throw "Unity-generated template project not found: $templateProject"
-    }
-    if (-not (Test-Path $baseAssembly))
-    {
-        throw "Compiled Xeri assembly not found: $baseAssembly"
-    }
-
     if (Test-Path $metadataProjectDir)
     {
         Remove-Item $metadataProjectDir -Recurse -Force
@@ -175,6 +164,12 @@ function New-DocFxMetadataProjects
 
     foreach ($definition in $definitions)
     {
+        $templateProject = Join-Path $unityProjectRoot ($definition.Name + '.csproj')
+        if (-not (Test-Path $templateProject))
+        {
+            throw "Unity-generated template project not found: $templateProject"
+        }
+
         [xml]$project = [System.IO.File]::ReadAllText($templateProject)
         foreach ($node in @($project.SelectNodes('//AssemblyName')))
         {
@@ -190,11 +185,23 @@ function New-DocFxMetadataProjects
             }
         }
 
+        foreach ($projectReference in @($project.SelectNodes('//ProjectReference')))
+        {
+            $include = $projectReference.GetAttribute('Include')
+            if (-not [System.IO.Path]::IsPathRooted($include))
+            {
+                $projectReference.SetAttribute(
+                    'Include',
+                    [System.IO.Path]::GetFullPath(
+                        (Join-Path $unityProjectRoot $include)))
+            }
+        }
+
         foreach ($itemGroup in @($project.Project.ItemGroup))
         {
             foreach ($node in @($itemGroup.ChildNodes))
             {
-                if ($node.Name -in @('Compile', 'None', 'ProjectReference', 'Analyzer'))
+                if ($node.Name -in @('Compile', 'None', 'Analyzer'))
                 {
                     [void]$itemGroup.RemoveChild($node)
                 }
@@ -208,30 +215,6 @@ function New-DocFxMetadataProjects
             $compile = $project.CreateElement('Compile')
             $compile.SetAttribute('Include', $sourcePath)
             [void]$compileGroup.AppendChild($compile)
-        }
-
-        foreach ($referenceName in $definition.References)
-        {
-            if ($projectPaths.ContainsKey($referenceName))
-            {
-                $projectReference = $project.CreateElement('ProjectReference')
-                $projectReference.SetAttribute('Include', $projectPaths[$referenceName])
-                [void]$compileGroup.AppendChild($projectReference)
-                continue
-            }
-
-            if ($referenceName -eq 'inonego.Xeri')
-            {
-                $reference = $project.CreateElement('Reference')
-                $reference.SetAttribute('Include', 'inonego.Xeri')
-                $hintPath = $project.CreateElement('HintPath')
-                $hintPath.InnerText = $baseAssembly
-                [void]$reference.AppendChild($hintPath)
-                $private = $project.CreateElement('Private')
-                $private.InnerText = 'False'
-                [void]$reference.AppendChild($private)
-                [void]$compileGroup.AppendChild($reference)
-            }
         }
 
         $settings = [System.Xml.XmlWriterSettings]::new()

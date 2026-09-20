@@ -35,7 +35,7 @@ Package Test Runner에 테스트를 노출해야 하는 개발 프로젝트는 `
 
 ## 다음 단계
 
-- [구조와 의존 방향](../concepts/architecture.md)
+- [구조](../concepts/architecture.md)
 - [UI Core 설정과 시작](../modules/core/setup.md)
 - [Window](../modules/window.md)
 - [Tray](../modules/tray.md)

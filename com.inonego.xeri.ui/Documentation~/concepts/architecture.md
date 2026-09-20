@@ -1,16 +1,6 @@
-# 구조와 의존 방향
+# 구조
 
 Xeri UI는 UI 전용 lifecycle과 표시 시스템을 `com.inonego.xeri.ui`에 모으고, UI 밖에서도 재사용되는 기반 기능은 `com.inonego.xeri`에 유지합니다.
-
-## Package 경계
-
-```text
-com.inonego.xeri.ui
-        ↓
-com.inonego.xeri
-```
-
-의존 방향은 단방향입니다. base Xeri는 Xeri UI 타입을 참조하지 않습니다.
 
 ## Xeri UI가 소유하는 것
 

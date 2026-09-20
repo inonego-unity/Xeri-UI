@@ -42,6 +42,7 @@ namespace inonego.Xeri.UI
 
         private DragVisualController owner = null;
         private DragVisualHandle activeHandle = null;
+        private Lease dragEndCleanupLease = null;
         private readonly DragVisualParams parameters;
 
     #endregion
@@ -65,7 +66,7 @@ namespace inonego.Xeri.UI
             this.parameters = parameters;
 
             draggable.OnDragBegin += HandleDragBegin;
-            draggable.AddDragEndCleanup(ReleaseDragVisual);
+            dragEndCleanupLease = draggable.RegisterDragEndCleanup(ReleaseDragVisual);
         }
 
     #endregion
@@ -134,8 +135,10 @@ namespace inonego.Xeri.UI
 
             var currentOwner = owner;
             var currentDraggable = draggable;
+            var currentDragEndCleanupLease = dragEndCleanupLease;
             owner = null;
             draggable = null;
+            dragEndCleanupLease = null;
 
             if (removeFromBindings)
             {
@@ -150,7 +153,7 @@ namespace inonego.Xeri.UI
             finally
             {
                 currentDraggable.OnDragBegin -= HandleDragBegin;
-                currentDraggable.RemoveDragEndCleanup(ReleaseDragVisual);
+                currentDragEndCleanupLease?.Dispose();
                 ReleaseDragVisual();
             }
         }

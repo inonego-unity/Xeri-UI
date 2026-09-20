@@ -20,16 +20,6 @@
 
 범용 Drag/Drop과 Picker는 `com.inonego.xeri`가 소유하며 Xeri UI가 필요할 때 소비합니다.
 
-## 의존 방향
-
-```text
-com.inonego.xeri.ui
-        ↓
-com.inonego.xeri
-```
-
-base Xeri는 Xeri UI를 역참조하지 않습니다.
-
 ## 문서
 
 - [Manual](com.inonego.xeri.ui/Documentation~/index.md)
