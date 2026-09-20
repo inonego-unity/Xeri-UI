@@ -1,0 +1,94 @@
+.xeri-window--theme-windows {
+    --xeri-window-windows-background-color: rgb(32, 32, 32);
+    --xeri-window-windows-border-color: rgb(76, 76, 76);
+    --xeri-window-windows-title-bar-color: rgb(45, 45, 45);
+    --xeri-window-windows-title-icon-color: rgb(0, 120, 215);
+    --xeri-window-windows-text-color: rgb(235, 235, 235);
+    --xeri-window-windows-button-background-color: rgba(0, 0, 0, 0);
+    --xeri-window-windows-button-hover-color: rgb(66, 66, 66);
+    --xeri-window-windows-button-active-color: rgb(82, 82, 82);
+    --xeri-window-windows-close-hover-color: rgb(210, 52, 38);
+    --xeri-window-windows-close-active-color: rgb(164, 36, 28);
+    --xeri-window-windows-content-color: rgb(36, 36, 36);
+    --xeri-window-windows-transparent-color: rgba(0, 0, 0, 0);
+
+    background-color: var(--xeri-window-windows-background-color);
+    border-top-width: 1px;
+    border-left-width: 1px;
+    border-right-width: 1px;
+    border-bottom-width: 1px;
+    border-color: var(--xeri-window-windows-border-color);
+}
+
+.xeri-window--theme-windows .xeri-window__title-bar {
+    background-color: var(--xeri-window-windows-title-bar-color);
+    border-bottom-width: 0;
+}
+
+.xeri-window--theme-windows .xeri-window__title-icon {
+    background-color: var(--xeri-window-windows-title-icon-color);
+    width: 14px;
+    height: 14px;
+    margin-right: 0;
+}
+
+.xeri-window--theme-windows .xeri-window__title-label {
+    color: var(--xeri-window-windows-text-color);
+    padding-left: 6px;
+}
+
+.xeri-window--theme-windows .xeri-window__button {
+    color: var(--xeri-window-windows-text-color);
+    background-color: var(--xeri-window-windows-button-background-color);
+    height: 100%;
+    margin-left: 0;
+    margin-right: 0;
+    font-size: 14px;
+    -unity-font-style: bold;
+}
+
+.xeri-window--theme-windows .xeri-window__button .xeri-window__button-icon {
+    color: var(--xeri-window-windows-text-color);
+}
+
+.xeri-window--theme-windows .xeri-window__button.xeri-window__button--maximize,
+.xeri-window--theme-windows .xeri-window__button.xeri-window__button--close {
+    margin-left: 1px;
+}
+
+.xeri-window--theme-windows .xeri-window__button:hover {
+    background-color: var(--xeri-window-windows-button-hover-color);
+}
+
+.xeri-window--theme-windows .xeri-window__button:active {
+    background-color: var(--xeri-window-windows-button-active-color);
+}
+
+.xeri-window--theme-windows .xeri-window__button.xeri-window__button--close {
+    background-color: var(--xeri-window-windows-button-background-color);
+}
+
+.xeri-window--theme-windows .xeri-window__button.xeri-window__button--close:hover {
+    background-color: var(--xeri-window-windows-close-hover-color);
+}
+
+.xeri-window--theme-windows .xeri-window__button.xeri-window__button--close:active {
+    background-color: var(--xeri-window-windows-close-active-color);
+}
+
+.xeri-window--theme-windows .xeri-window__content {
+    color: var(--xeri-window-windows-text-color);
+    background-color: var(--xeri-window-windows-content-color);
+}
+
+.xeri-window--theme-windows.xeri-window--maximized {
+    border-top-width: 0;
+    border-left-width: 0;
+    border-right-width: 0;
+    border-bottom-width: 0;
+    border-top-left-radius: 0;
+    border-top-right-radius: 0;
+    border-bottom-left-radius: 0;
+    border-bottom-right-radius: 0;
+    border-color: var(--xeri-window-windows-transparent-color);
+}

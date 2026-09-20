@@ -1,0 +1,6 @@
+- name: Home
+  href: index.md
+- name: Manual
+  href: com.inonego.xeri.ui/Documentation~/index.md
+- name: API Reference
+  href: Docs/api-bridge/index.md

@@ -1,0 +1,22 @@
+<ui:UXML xmlns:ui="UnityEngine.UIElements">
+    <ui:VisualElement name="xeri-window" class="xeri-window">
+        <ui:VisualElement name="title-bar" class="xeri-window__title-bar">
+            <ui:VisualElement name="title-icon" class="xeri-window__title-icon" />
+            <ui:Label name="title-label" class="xeri-window__title-label" />
+            <ui:VisualElement name="title-actions" class="xeri-window__title-actions">
+                <ui:Button name="minimize-button" text="-" class="xeri-window__button xeri-window__button--minimize" />
+                <ui:Button name="maximize-button" text="+" class="xeri-window__button xeri-window__button--maximize" />
+                <ui:Button name="close-button" text="X" class="xeri-window__button xeri-window__button--close" />
+            </ui:VisualElement>
+        </ui:VisualElement>
+        <ui:VisualElement name="content" class="xeri-window__content" />
+        <ui:VisualElement name="resize-left" class="xeri-window__resize xeri-window__resize--left" />
+        <ui:VisualElement name="resize-top" class="xeri-window__resize xeri-window__resize--top" />
+        <ui:VisualElement name="resize-right" class="xeri-window__resize xeri-window__resize--right" />
+        <ui:VisualElement name="resize-bottom" class="xeri-window__resize xeri-window__resize--bottom" />
+        <ui:VisualElement name="resize-top-left" class="xeri-window__resize xeri-window__resize--top-left" />
+        <ui:VisualElement name="resize-top-right" class="xeri-window__resize xeri-window__resize--top-right" />
+        <ui:VisualElement name="resize-bottom-left" class="xeri-window__resize xeri-window__resize--bottom-left" />
+        <ui:VisualElement name="resize-bottom-right" class="xeri-window__resize xeri-window__resize--bottom-right" />
+    </ui:VisualElement>
+</ui:UXML>

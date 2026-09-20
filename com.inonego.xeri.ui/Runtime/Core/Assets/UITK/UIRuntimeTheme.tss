@@ -1,0 +1,10 @@
+/* BLOCK_HEADER_BEGIN =======================================================================
+파일명 : UIRuntimeTheme.tss
+수정일 : 2026-09-16
+
+# 설명
+Unity Runtime Theme의 표준 Control 기능과 Xeri UI의 예측 가능한
+Layout Baseline을 함께 제공한다.
+========================================================================= BLOCK_HEADER_END */
+@import url("unity-theme://default");
+@import url("../../Backends/UITK/Resources/Xeri/UI/Core/UIRuntimeBaseline.uss");

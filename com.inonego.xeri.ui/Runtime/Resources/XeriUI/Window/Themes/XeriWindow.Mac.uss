@@ -1,0 +1,135 @@
+.xeri-window--theme-mac {
+    --xeri-window-mac-background-color: rgb(37, 37, 40);
+    --xeri-window-mac-border-color: rgb(92, 92, 96);
+    --xeri-window-mac-title-bar-color: rgb(58, 58, 62);
+    --xeri-window-mac-text-color: rgb(235, 235, 235);
+    --xeri-window-mac-transparent-color: rgba(0, 0, 0, 0);
+    --xeri-window-mac-close-color: rgb(255, 95, 86);
+    --xeri-window-mac-close-hover-color: rgb(255, 118, 112);
+    --xeri-window-mac-close-active-color: rgb(224, 72, 65);
+    --xeri-window-mac-minimize-color: rgb(255, 189, 46);
+    --xeri-window-mac-minimize-hover-color: rgb(255, 207, 76);
+    --xeri-window-mac-minimize-active-color: rgb(226, 158, 28);
+    --xeri-window-mac-maximize-color: rgb(39, 201, 63);
+    --xeri-window-mac-maximize-hover-color: rgb(72, 222, 92);
+    --xeri-window-mac-maximize-active-color: rgb(26, 166, 48);
+    --xeri-window-mac-button-border-hover-color: rgba(0, 0, 0, 0.35);
+    --xeri-window-mac-content-color: rgb(42, 42, 46);
+
+    background-color: var(--xeri-window-mac-background-color);
+    border-top-width: 1px;
+    border-left-width: 1px;
+    border-right-width: 1px;
+    border-bottom-width: 1px;
+    border-color: var(--xeri-window-mac-border-color);
+}
+
+.xeri-window--theme-mac .xeri-window__title-bar {
+    background-color: var(--xeri-window-mac-title-bar-color);
+    border-bottom-width: 0;
+}
+
+.xeri-window--theme-mac .xeri-window__title-actions {
+    position: absolute;
+    left: 8px;
+    top: 0;
+    bottom: 0;
+    height: 100%;
+    flex-direction: row;
+    align-items: center;
+}
+
+.xeri-window--theme-mac .xeri-window__title-icon {
+    position: absolute;
+    top: 10px;
+    right: 8px;
+    margin-left: 0;
+    margin-right: 0;
+    display: none;
+}
+
+.xeri-window--theme-mac .xeri-window__title-label {
+    color: var(--xeri-window-mac-text-color);
+    margin-left: 66px;
+    margin-right: 66px;
+    -unity-text-align: middle-center;
+}
+
+.xeri-window--theme-mac .xeri-window__button {
+    width: 12px;
+    height: 12px;
+    min-width: 12px;
+    margin-left: 0;
+    margin-right: 8px;
+    border-top-left-radius: 6px;
+    border-top-right-radius: 6px;
+    border-bottom-left-radius: 6px;
+    border-bottom-right-radius: 6px;
+    font-size: 0;
+    color: var(--xeri-window-mac-transparent-color);
+}
+
+.xeri-window--theme-mac .xeri-window__button .xeri-window__button-icon {
+    color: var(--xeri-window-mac-transparent-color);
+}
+
+.xeri-window--theme-mac .xeri-window__button.xeri-window__button--close {
+    background-color: var(--xeri-window-mac-close-color);
+}
+
+.xeri-window--theme-mac .xeri-window__button.xeri-window__button--close:hover {
+    background-color: var(--xeri-window-mac-close-hover-color);
+}
+
+.xeri-window--theme-mac .xeri-window__button.xeri-window__button--close:active {
+    background-color: var(--xeri-window-mac-close-active-color);
+}
+
+.xeri-window--theme-mac .xeri-window__button.xeri-window__button--minimize {
+    background-color: var(--xeri-window-mac-minimize-color);
+}
+
+.xeri-window--theme-mac .xeri-window__button.xeri-window__button--minimize:hover {
+    background-color: var(--xeri-window-mac-minimize-hover-color);
+}
+
+.xeri-window--theme-mac .xeri-window__button.xeri-window__button--minimize:active {
+    background-color: var(--xeri-window-mac-minimize-active-color);
+}
+
+.xeri-window--theme-mac .xeri-window__button.xeri-window__button--maximize {
+    background-color: var(--xeri-window-mac-maximize-color);
+}
+
+.xeri-window--theme-mac .xeri-window__button.xeri-window__button--maximize:hover {
+    background-color: var(--xeri-window-mac-maximize-hover-color);
+}
+
+.xeri-window--theme-mac .xeri-window__button.xeri-window__button--maximize:active {
+    background-color: var(--xeri-window-mac-maximize-active-color);
+}
+
+.xeri-window--theme-mac .xeri-window__button:hover {
+    border-top-width: 1px;
+    border-left-width: 1px;
+    border-right-width: 1px;
+    border-bottom-width: 1px;
+    border-color: var(--xeri-window-mac-button-border-hover-color);
+}
+
+.xeri-window--theme-mac .xeri-window__content {
+    color: var(--xeri-window-mac-text-color);
+    background-color: var(--xeri-window-mac-content-color);
+}
+
+.xeri-window--theme-mac.xeri-window--maximized {
+    border-top-width: 0;
+    border-left-width: 0;
+    border-right-width: 0;
+    border-bottom-width: 0;
+    border-top-left-radius: 0;
+    border-top-right-radius: 0;
+    border-bottom-left-radius: 0;
+    border-bottom-right-radius: 0;
+    border-color: var(--xeri-window-mac-transparent-color);
+}

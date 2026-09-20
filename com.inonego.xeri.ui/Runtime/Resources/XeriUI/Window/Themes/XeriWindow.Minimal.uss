@@ -1,0 +1,80 @@
+.xeri-window--theme-minimal {
+    --xeri-window-minimal-background-color: rgb(26, 26, 26);
+    --xeri-window-minimal-border-color: rgb(64, 64, 64);
+    --xeri-window-minimal-title-icon-color: rgb(160, 160, 160);
+    --xeri-window-minimal-text-color: rgb(230, 230, 230);
+    --xeri-window-minimal-button-text-color: rgb(220, 220, 220);
+    --xeri-window-minimal-button-background-color: rgba(0, 0, 0, 0);
+    --xeri-window-minimal-button-hover-color: rgb(48, 48, 48);
+    --xeri-window-minimal-close-hover-color: rgb(176, 32, 24);
+    --xeri-window-minimal-transparent-color: rgba(0, 0, 0, 0);
+
+    background-color: var(--xeri-window-minimal-background-color);
+    border-top-width: 1px;
+    border-left-width: 1px;
+    border-right-width: 1px;
+    border-bottom-width: 1px;
+    border-color: var(--xeri-window-minimal-border-color);
+}
+
+.xeri-window--theme-minimal .xeri-window__title-bar {
+    background-color: var(--xeri-window-minimal-background-color);
+    border-bottom-width: 0;
+}
+
+.xeri-window--theme-minimal .xeri-window__title-icon {
+    background-color: var(--xeri-window-minimal-title-icon-color);
+}
+
+.xeri-window--theme-minimal .xeri-window__title-label {
+    color: var(--xeri-window-minimal-text-color);
+}
+
+.xeri-window--theme-minimal .xeri-window__button {
+    width: 22px;
+    min-width: 22px;
+    color: var(--xeri-window-minimal-button-text-color);
+    background-color: var(--xeri-window-minimal-button-background-color);
+    height: 100%;
+    margin-left: 0;
+    margin-right: 0;
+    font-size: 13px;
+}
+
+.xeri-window--theme-minimal .xeri-window__button .xeri-window__button-icon {
+    color: var(--xeri-window-minimal-button-text-color);
+}
+
+.xeri-window--theme-minimal .xeri-window__button.xeri-window__button--maximize,
+.xeri-window--theme-minimal .xeri-window__button.xeri-window__button--close {
+    margin-left: 1px;
+}
+
+.xeri-window--theme-minimal .xeri-window__button:hover {
+    background-color: var(--xeri-window-minimal-button-hover-color);
+}
+
+.xeri-window--theme-minimal .xeri-window__button.xeri-window__button--close {
+    background-color: var(--xeri-window-minimal-button-background-color);
+}
+
+.xeri-window--theme-minimal .xeri-window__button.xeri-window__button--close:hover {
+    background-color: var(--xeri-window-minimal-close-hover-color);
+}
+
+.xeri-window--theme-minimal .xeri-window__content {
+    color: var(--xeri-window-minimal-text-color);
+    background-color: var(--xeri-window-minimal-background-color);
+}
+
+.xeri-window--theme-minimal.xeri-window--maximized {
+    border-top-width: 0;
+    border-left-width: 0;
+    border-right-width: 0;
+    border-bottom-width: 0;
+    border-top-left-radius: 0;
+    border-top-right-radius: 0;
+    border-bottom-left-radius: 0;
+    border-bottom-right-radius: 0;
+    border-color: var(--xeri-window-minimal-transparent-color);
+}

@@ -1,0 +1,55 @@
+.xeri-tray-button {
+    --xeri-tray-button-state-marker-color: rgb(80, 150, 255);
+
+    flex-direction: row;
+    align-items: center;
+    height: 24px;
+    min-width: 24px;
+    padding-left: 4px;
+    padding-right: 4px;
+    transition-property: translate, background-color, border-color;
+    transition-duration: 0.08s;
+    transition-timing-function: ease-out;
+}
+
+.xeri-tray-button--reordering {
+    transition-duration: 0s;
+}
+
+.xeri-tray-button--reorder-proxy {
+    transition-duration: 0s;
+}
+
+.xeri-tray-button__state-marker {
+    width: 3px;
+    height: 14px;
+    margin-right: 4px;
+    background-color: var(--xeri-tray-button-state-marker-color);
+}
+
+.xeri-tray-button__icon {
+    width: 16px;
+    height: 16px;
+    margin-right: 4px;
+}
+
+.xeri-tray-button__title {
+    unity-text-align: middle-left;
+}
+
+.xeri-tray-button__badge {
+    min-width: 14px;
+    height: 14px;
+    margin-left: 4px;
+    padding-left: 3px;
+    padding-right: 3px;
+    unity-text-align: middle-center;
+}
+
+.xeri-tray-button__close-button {
+    width: 18px;
+    height: 18px;
+    margin-left: 4px;
+    padding-left: 0;
+    padding-right: 0;
+}

@@ -1,0 +1,9 @@
+<ui:UXML xmlns:ui="UnityEngine.UIElements">
+    <ui:VisualElement name="tray-button" class="xeri-tray-button">
+        <ui:VisualElement name="entry-state-marker" class="xeri-tray-button__state-marker" />
+        <ui:VisualElement name="entry-icon" class="xeri-tray-button__icon" />
+        <ui:Label name="entry-title" class="xeri-tray-button__title" />
+        <ui:Label name="entry-badge" class="xeri-tray-button__badge" />
+        <ui:Button name="entry-close-button" class="xeri-tray-button__close-button" text="x" />
+    </ui:VisualElement>
+</ui:UXML>

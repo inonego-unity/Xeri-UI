@@ -1,0 +1,86 @@
+.xeri-tray--manual-test {
+    --xeri-test-tray-background-color: rgba(30, 30, 36, 0.94);
+    --xeri-test-tray-border-color: rgb(72, 72, 78);
+    --xeri-test-tray-button-background-color: rgb(54, 54, 64);
+    --xeri-test-tray-button-hover-color: rgb(62, 62, 70);
+    --xeri-test-tray-text-color: rgb(235, 235, 235);
+    --xeri-test-tray-badge-text-color: white;
+    --xeri-test-tray-close-hover-color: rgb(190, 48, 48);
+
+    min-width: 180px;
+    min-height: 44px;
+    flex-shrink: 0;
+    justify-content: center;
+    padding-left: 14px;
+    padding-right: 14px;
+    padding-top: 5px;
+    padding-bottom: 5px;
+    border-top-left-radius: 8px;
+    border-top-right-radius: 8px;
+    border-bottom-left-radius: 8px;
+    border-bottom-right-radius: 8px;
+    background-color: var(--xeri-test-tray-background-color);
+    border-left-width: 1px;
+    border-right-width: 1px;
+    border-top-width: 1px;
+    border-bottom-width: 1px;
+    border-left-color: var(--xeri-test-tray-border-color);
+    border-right-color: var(--xeri-test-tray-border-color);
+    border-top-color: var(--xeri-test-tray-border-color);
+    border-bottom-color: var(--xeri-test-tray-border-color);
+}
+
+.xeri-tray--manual-test .xeri-tray__entry-container {
+    height: 100%;
+    flex-grow: 1;
+    align-items: center;
+    justify-content: center;
+}
+
+.xeri-tray--manual-test .xeri-tray-button {
+    width: 32px;
+    height: 32px;
+    min-width: 32px;
+    margin-left: 3px;
+    margin-right: 3px;
+    padding-left: 3px;
+    padding-right: 3px;
+    justify-content: center;
+    border-top-left-radius: 6px;
+    border-top-right-radius: 6px;
+    border-bottom-left-radius: 6px;
+    border-bottom-right-radius: 6px;
+    background-color: var(--xeri-test-tray-button-background-color);
+    color: var(--xeri-test-tray-text-color);
+    transition-property: translate, background-color;
+    transition-duration: 0.08s;
+}
+
+.xeri-tray--manual-test .xeri-tray-button__icon {
+    width: 24px;
+    height: 24px;
+    margin-right: 0;
+}
+
+.xeri-tray--manual-test .xeri-tray-button:hover {
+    background-color: var(--xeri-test-tray-button-hover-color);
+}
+
+.xeri-tray--manual-test .xeri-tray-button__title {
+    color: var(--xeri-test-tray-text-color);
+    margin-right: 4px;
+}
+
+.xeri-tray--manual-test .xeri-tray-button__badge {
+    color: var(--xeri-test-tray-badge-text-color);
+    margin-right: 2px;
+}
+
+.xeri-tray--manual-test .xeri-tray-button__close-button {
+    color: var(--xeri-test-tray-text-color);
+    background-color: transparent;
+}
+
+.xeri-tray--manual-test .xeri-tray-button__close-button:hover {
+    background-color: var(--xeri-test-tray-close-hover-color);
+}

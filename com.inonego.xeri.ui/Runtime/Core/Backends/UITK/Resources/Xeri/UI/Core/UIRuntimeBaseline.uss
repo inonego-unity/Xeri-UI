@@ -1,0 +1,31 @@
+/* BLOCK_HEADER_BEGIN =======================================================================
+파일명 : UIRuntimeBaseline.uss
+수정일 : 2026-08-02
+
+# 설명
+Xeri UI Layer 아래의 표준 UI Toolkit Control에 예측 가능한 외부
+배치 기준을 적용한다.
+
+# 특이사항, 제약사항
+Scroller, Slider Tracker, Popup Arrow 등 Control 동작에 필요한 내부 간격은
+Unity Runtime Theme에 위임한다.
+========================================================================= BLOCK_HEADER_END */
+.xeri-ui .unity-label,
+.xeri-ui .unity-button {
+    margin-left: 0;
+    margin-right: 0;
+    margin-top: 0;
+    margin-bottom: 0;
+    padding-left: 0;
+    padding-right: 0;
+    padding-top: 0;
+    padding-bottom: 0;
+}
+
+.xeri-ui .unity-base-field,
+.xeri-ui .unity-progress-bar {
+    margin-left: 0;
+    margin-right: 0;
+    margin-top: 0;
+    margin-bottom: 0;
+}

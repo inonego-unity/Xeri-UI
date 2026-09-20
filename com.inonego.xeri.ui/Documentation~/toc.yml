@@ -1,0 +1,34 @@
+- name: Xeri UI
+  href: index.md
+- name: Getting Started
+  items:
+  - name: 설치
+    href: getting-started/installation.md
+- name: 개념
+  items:
+  - name: 구조와 의존 방향
+    href: concepts/architecture.md
+- name: UI Core
+  items:
+  - name: 구조와 수명
+    href: modules/core/architecture.md
+  - name: 설정과 시작
+    href: modules/core/setup.md
+  - name: Screen과 입력
+    href: modules/core/screens.md
+  - name: 표시와 배치
+    href: modules/core/presentation.md
+  - name: 문제 해결
+    href: modules/core/troubleshooting.md
+- name: Window
+  items:
+  - name: Window
+    href: modules/window.md
+  - name: Tray
+    href: modules/tray.md
+  - name: Window View
+    href: modules/window-view.md
+- name: 가이드
+  items:
+  - name: Window와 View Source 연결하기
+    href: guides/create-window-view.md

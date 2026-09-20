@@ -1,0 +1,224 @@
+<!-- BLOCK_HEADER_BEGIN =====================================================================
+파일명 : GameUIValidationScreen.uxml
+수정일 : 2026-09-16
+
+# 설명
+Xeri UI Core의 Runtime, Context, Screen, Presentation 상태를 검증하는 Control Plane 화면이다.
+
+# 특이사항, 제약사항
+Runtime C#이 조회하는 name 계약을 유지하며 Web 기준본과 동일한 정보 구조를 사용한다.
+======================================================================= BLOCK_HEADER_END -->
+<ui:UXML xmlns:ui="UnityEngine.UIElements">
+    <ui:VisualElement name="ScreenRoot" class="validation-screen">
+        <ui:VisualElement class="scene-bg" picking-mode="Ignore" />
+        <ui:VisualElement class="scene-grid" picking-mode="Ignore" />
+        <ui:VisualElement class="scene-glow scene-glow--cyan" picking-mode="Ignore" />
+        <ui:VisualElement class="scene-glow scene-glow--violet" picking-mode="Ignore" />
+
+        <ui:VisualElement name="DashboardView" class="dashboard-view">
+            <ui:VisualElement class="app-header surface-glass">
+                <ui:VisualElement class="app-header__brand">
+                    <ui:VisualElement class="brand-symbol"><ui:Label text="X" class="brand-symbol__label" /></ui:VisualElement>
+                    <ui:VisualElement class="app-header__copy">
+                        <ui:Label text="XERI UI CORE" class="app-header__title" />
+                        <ui:Label text="RUNTIME CONTROL PLANE" class="app-header__subtitle" />
+                    </ui:VisualElement>
+                </ui:VisualElement>
+                <ui:VisualElement class="app-header__status-cluster">
+                    <ui:VisualElement class="status-pill">
+                        <ui:VisualElement class="status-pill__dot" />
+                        <ui:Label name="LifecycleState" text="ACTIVE" class="status-pill__value" />
+                    </ui:VisualElement>
+                    <ui:VisualElement class="runtime-pill">
+                        <ui:Label text="RUNTIME" class="runtime-pill__label" />
+                        <ui:Label name="RuntimeMode" text="SHARED RUNTIME / CONTEXT VALIDATION" class="runtime-pill__value" />
+                    </ui:VisualElement>
+                </ui:VisualElement>
+            </ui:VisualElement>
+
+            <ui:VisualElement class="workspace">
+                <ui:VisualElement class="control-panel surface-glass">
+                    <ui:VisualElement class="panel-heading">
+                        <ui:VisualElement>
+                            <ui:Label text="COMPOSITION GRAPH" class="eyebrow" />
+                            <ui:Label text="Runtime → Context → Session" class="panel-heading__title" />
+                            <ui:Label text="Inspect ownership boundaries while exercising the real Screen Stack and presentation handles." class="panel-heading__copy" />
+                        </ui:VisualElement>
+                        <ui:Label text="LIVE" class="live-badge" />
+                    </ui:VisualElement>
+
+                    <ui:VisualElement class="composition-stage">
+                        <ui:VisualElement class="composition-stage__glow" picking-mode="Ignore" />
+                        <ui:VisualElement class="composition-path">
+                            <ui:VisualElement class="core-node">
+                                <ui:Label text="01 / APP" class="core-node__index" />
+                                <ui:Label text="UIRuntime" class="core-node__title" />
+                                <ui:Label text="App composition root" class="core-node__meta" />
+                            </ui:VisualElement>
+                            <ui:VisualElement class="path-link"><ui:VisualElement class="path-link__line" /><ui:Label text="→" class="path-link__arrow" /></ui:VisualElement>
+                            <ui:VisualElement class="core-node">
+                                <ui:Label text="02 / SCOPE" class="core-node__index" />
+                                <ui:Label text="UIContext" class="core-node__title" />
+                                <ui:Label text="Layer + Focus boundary" class="core-node__meta" />
+                            </ui:VisualElement>
+                            <ui:VisualElement class="path-link"><ui:VisualElement class="path-link__line" /><ui:Label text="→" class="path-link__arrow" /></ui:VisualElement>
+                            <ui:VisualElement class="core-node core-node--accent">
+                                <ui:Label text="03 / TOP" class="core-node__index" />
+                                <ui:Label name="TopScreen" text="Dashboard" class="core-node__title" />
+                                <ui:Label text="ScreenSession owner" class="core-node__meta" />
+                            </ui:VisualElement>
+                        </ui:VisualElement>
+
+                        <ui:VisualElement class="stack-dial">
+                            <ui:VisualElement class="stack-dial__shadow" picking-mode="Ignore" />
+                            <ui:VisualElement class="stack-dial__ring" picking-mode="Ignore" />
+                            <ui:VisualElement class="stack-dial__core" />
+                            <ui:Label text="STACK" class="stack-dial__label" />
+                            <ui:Label name="StackCount" text="1" class="stack-dial__value" />
+                            <ui:Label text="DEPTH" class="stack-dial__caption" />
+                        </ui:VisualElement>
+                    </ui:VisualElement>
+
+                    <ui:VisualElement class="layer-strip">
+                        <ui:VisualElement class="layer-cell layer-cell--screen">
+                            <ui:Label text="SCREEN" class="layer-cell__label" />
+                            <ui:Label text="STACK" class="layer-cell__value" />
+                        </ui:VisualElement>
+                        <ui:VisualElement class="layer-cell">
+                            <ui:Label text="MODAL" class="layer-cell__label" />
+                            <ui:Label name="ModalCount" text="0" class="layer-cell__value" />
+                        </ui:VisualElement>
+                        <ui:VisualElement class="layer-cell">
+                            <ui:Label text="FADE" class="layer-cell__label" />
+                            <ui:Label name="FadeState" text="CLEAR" class="layer-cell__value layer-cell__value--text" />
+                        </ui:VisualElement>
+                        <ui:VisualElement class="layer-cell">
+                            <ui:Label text="TRANSITION" class="layer-cell__label" />
+                            <ui:Label text="OWNED" class="layer-cell__value layer-cell__value--text" />
+                        </ui:VisualElement>
+                    </ui:VisualElement>
+
+                    <ui:VisualElement class="primary-actions">
+                        <ui:Button name="PushButton" text="PUSH DETAIL" class="button button--primary" />
+                        <ui:Button name="ModalButton" text="OPEN MODAL" class="button button--secondary" />
+                        <ui:Button name="SpotlightButton" text="SPOTLIGHT TARGET" class="button button--quiet" />
+                    </ui:VisualElement>
+                </ui:VisualElement>
+
+                <ui:VisualElement class="telemetry-panel surface-glass">
+                    <ui:VisualElement class="telemetry-panel__header">
+                        <ui:VisualElement><ui:Label text="LIVE STATE" class="eyebrow" /><ui:Label text="Runtime telemetry" class="telemetry-panel__title" /></ui:VisualElement>
+                        <ui:VisualElement class="telemetry-panel__pulse" />
+                    </ui:VisualElement>
+
+                    <ui:VisualElement class="telemetry-list">
+                        <ui:VisualElement class="telemetry-row">
+                            <ui:Label text="LAST INPUT" class="telemetry-row__label" />
+                            <ui:Label name="InputDevice" text="MOUSE" class="telemetry-row__value" />
+                        </ui:VisualElement>
+                        <ui:VisualElement class="telemetry-row">
+                            <ui:Label text="COLOR PATH" class="telemetry-row__label" />
+                            <ui:Label name="GammaState" text="Linear / Direct panel" class="telemetry-row__value telemetry-row__value--small" />
+                        </ui:VisualElement>
+                        <ui:VisualElement class="telemetry-row">
+                            <ui:Label text="FOCUS" class="telemetry-row__label" />
+                            <ui:Label text="CONTEXT OWNED" class="telemetry-row__value telemetry-row__value--small" />
+                        </ui:VisualElement>
+                        <ui:VisualElement class="telemetry-row telemetry-row--last">
+                            <ui:Label text="INPUT MAP" class="telemetry-row__label" />
+                            <ui:Label text="UI ACTIVE" class="telemetry-row__value telemetry-row__value--small" />
+                        </ui:VisualElement>
+                    </ui:VisualElement>
+
+                    <ui:VisualElement class="feature-matrix">
+                        <ui:Label text="6000.7 RENDER PATH" class="feature-matrix__title" />
+                        <ui:VisualElement class="feature-row"><ui:Label text="GRADIENT" class="feature-row__label" /><ui:Label text="NATIVE L / R" class="feature-row__value feature-row__value--native" /></ui:VisualElement>
+                        <ui:VisualElement class="feature-row"><ui:Label text="PANEL" class="feature-row__label" /><ui:Label text="PANELRENDERER" class="feature-row__value feature-row__value--native" /></ui:VisualElement>
+                        <ui:VisualElement class="feature-row"><ui:Label text="FILTER" class="feature-row__label" /><ui:Label text="DROP SHADOW" class="feature-row__value" /></ui:VisualElement>
+                        <ui:VisualElement class="feature-row feature-row--last"><ui:Label text="LAYOUT" class="feature-row__label" /><ui:Label text="GAP + Z-INDEX" class="feature-row__value" /></ui:VisualElement>
+                    </ui:VisualElement>
+                </ui:VisualElement>
+            </ui:VisualElement>
+
+            <ui:VisualElement class="operation-row">
+                <ui:Button name="FadeButton" class="operation-card">
+                    <ui:VisualElement class="operation-card__index"><ui:Label text="01" /></ui:VisualElement>
+                    <ui:VisualElement class="operation-card__copy"><ui:Label text="SCENE FADE" class="operation-card__title" /><ui:Label text="Cover → hold → reveal" class="operation-card__meta" /></ui:VisualElement>
+                    <ui:Label text="RUN" class="operation-card__action" />
+                </ui:Button>
+                <ui:Button name="OverlayButton" class="operation-card">
+                    <ui:VisualElement class="operation-card__index"><ui:Label text="02" /></ui:VisualElement>
+                    <ui:VisualElement class="operation-card__copy"><ui:Label text="PRESENTATION LEASE" class="operation-card__title" /><ui:Label text="Acquire → release" class="operation-card__meta" /></ui:VisualElement>
+                    <ui:Label text="TOGGLE" class="operation-card__action" />
+                </ui:Button>
+                <ui:Button name="ClearButton" class="operation-card">
+                    <ui:VisualElement class="operation-card__index"><ui:Label text="03" /></ui:VisualElement>
+                    <ui:VisualElement class="operation-card__copy"><ui:Label text="STACK CLEANUP" class="operation-card__title" /><ui:Label text="Clear → restore dashboard" class="operation-card__meta" /></ui:VisualElement>
+                    <ui:Label text="RESET" class="operation-card__action" />
+                </ui:Button>
+            </ui:VisualElement>
+
+            <ui:VisualElement class="activity-strip surface-glass">
+                <ui:VisualElement class="activity-strip__marker" />
+                <ui:Label text="LATEST EVENT" class="activity-strip__label" />
+                <ui:VisualElement class="activity-strip__divider" />
+                <ui:Label name="ActivityText" text="Dashboard · Active" class="activity-strip__text" />
+                <ui:Label text="TAB / D-PAD NAVIGATION" class="activity-strip__hint" />
+            </ui:VisualElement>
+        </ui:VisualElement>
+
+        <ui:VisualElement name="DetailView" class="detail-view">
+            <ui:VisualElement class="detail-header surface-glass">
+                <ui:VisualElement class="detail-header__brand">
+                    <ui:VisualElement class="detail-header__mark" />
+                    <ui:VisualElement><ui:Label text="STACK INSPECTOR" class="detail-header__title" /><ui:Label text="SCREEN SESSION / OWNERSHIP" class="detail-header__subtitle" /></ui:VisualElement>
+                </ui:VisualElement>
+                <ui:VisualElement class="status-pill"><ui:VisualElement class="status-pill__dot" /><ui:Label name="DetailLifecycleState" text="OPENING" class="status-pill__value" /></ui:VisualElement>
+            </ui:VisualElement>
+
+            <ui:VisualElement class="detail-stage">
+                <ui:VisualElement class="detail-stage__halo" picking-mode="Ignore" />
+                <ui:VisualElement class="detail-panel surface-glass">
+                    <ui:VisualElement class="detail-panel__breadcrumbs">
+                        <ui:Label text="RUNTIME" class="breadcrumb" /><ui:Label text="/" class="breadcrumb__separator" />
+                        <ui:Label text="CONTEXT" class="breadcrumb" /><ui:Label text="/" class="breadcrumb__separator" />
+                        <ui:Label name="DetailIndex" text="SCREEN 02" class="breadcrumb breadcrumb--active" />
+                    </ui:VisualElement>
+
+                    <ui:VisualElement class="detail-panel__body">
+                        <ui:VisualElement class="detail-main">
+                            <ui:Label text="SCREEN SESSION" class="detail-main__eyebrow" />
+                            <ui:Label name="DetailTitle" text="A new layer of state." class="detail-main__title" />
+                            <ui:Label name="DetailCopy" text="This instance owns its view, layer usage, input session and transition until the top is popped or replaced." class="detail-main__copy" />
+                            <ui:VisualElement class="detail-main__rule" />
+                            <ui:Label text="The session closes its children in reverse ownership order before the view is released." class="detail-main__note" />
+                        </ui:VisualElement>
+
+                        <ui:VisualElement class="detail-telemetry">
+                            <ui:VisualElement class="detail-stat">
+                                <ui:Label text="DEPTH" class="detail-stat__label" />
+                                <ui:Label name="DetailDepth" text="2" class="detail-stat__value" />
+                            </ui:VisualElement>
+                            <ui:VisualElement class="detail-stat">
+                                <ui:Label text="TOP SCREEN" class="detail-stat__label" />
+                                <ui:Label name="DetailTopScreen" text="DETAIL" class="detail-stat__value detail-stat__value--text" />
+                            </ui:VisualElement>
+                            <ui:VisualElement class="detail-stat detail-stat--last">
+                                <ui:Label text="OPEN MODE" class="detail-stat__label" />
+                                <ui:Label name="DetailMode" text="PUSH" class="detail-stat__value detail-stat__value--text" />
+                            </ui:VisualElement>
+                        </ui:VisualElement>
+                    </ui:VisualElement>
+
+                    <ui:VisualElement class="detail-actions">
+                        <ui:Button name="PushDeeperButton" text="PUSH ANOTHER" class="button button--primary" />
+                        <ui:Button name="ReplaceButton" text="REPLACE TOP" class="button button--secondary" />
+                        <ui:Button name="BackButton" text="POP SCREEN" class="button button--quiet" />
+                    </ui:VisualElement>
+                </ui:VisualElement>
+            </ui:VisualElement>
+
+            <ui:Label text="REAL XERI UI CORE PATH · NO PARALLEL MOCK CONTROLLER" class="detail-footnote" />
+        </ui:VisualElement>
+    </ui:VisualElement>
+</ui:UXML>

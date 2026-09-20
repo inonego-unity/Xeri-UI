@@ -1,0 +1,22 @@
+# Unity / IDE
+[Ll]ibrary/
+[Tt]emp/
+[Oo]bj/
+[Bb]uild/
+[Bb]uilds/
+[Ll]ogs/
+UserSettings/
+.vs/
+.vscode/
+.idea/
+*.csproj
+*.sln
+*.slnx
+
+# Documentation build
+/.docfx/
+/_site/
+
+# OS
+.DS_Store
+Thumbs.db

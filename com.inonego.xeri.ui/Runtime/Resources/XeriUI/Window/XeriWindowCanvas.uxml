@@ -1,0 +1,5 @@
+<ui:UXML xmlns:ui="UnityEngine.UIElements">
+    <ui:VisualElement name="xeri-window-canvas" class="xeri-window-canvas">
+        <ui:VisualElement name="window-layer" class="xeri-window-canvas__window-layer" />
+    </ui:VisualElement>
+</ui:UXML>

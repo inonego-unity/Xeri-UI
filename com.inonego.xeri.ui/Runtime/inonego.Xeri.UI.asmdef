@@ -1,0 +1,18 @@
+{
+    "name": "inonego.Xeri.UI",
+    "rootNamespace": "",
+    "references": [
+        "inonego.Xeri",
+        "DOTween.Modules",
+        "Unity.InputSystem"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

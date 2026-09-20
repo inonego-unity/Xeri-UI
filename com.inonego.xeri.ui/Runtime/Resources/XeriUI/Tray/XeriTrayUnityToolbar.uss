@@ -1,0 +1,18 @@
+.xeri-tray--unity-toolbar {
+    height: 22px;
+    padding-left: 2px;
+    padding-right: 2px;
+}
+
+.xeri-tray--unity-toolbar .xeri-tray-button {
+    height: 20px;
+    min-width: 20px;
+}
+
+.xeri-tray--unity-toolbar .xeri-tray-button__title {
+    display: none;
+}
+
+.xeri-tray--unity-toolbar .xeri-tray-button__close-button {
+    display: none;
+}

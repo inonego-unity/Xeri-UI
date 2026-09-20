@@ -1,0 +1,9 @@
+.xeri-tray {
+    flex-direction: row;
+    align-items: center;
+}
+
+.xeri-tray__entry-container {
+    flex-direction: row;
+    align-items: center;
+}

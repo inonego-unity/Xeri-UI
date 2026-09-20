@@ -1,0 +1,22 @@
+{
+  "name": "com.inonego.xeri.ui",
+  "version": "0.0.1",
+  "displayName": "Xeri UI",
+  "description": "Xeri UI runtime framework with Window, Tray and shared UI utilities.",
+  "unity": "6000.0",
+  "author": {
+    "name": "inonego"
+  },
+  "samples": [
+    {
+      "displayName": "UI Core Validation",
+      "description": "UI runtime validation scene for layers, screens, modal, presentation, focus and input.",
+      "path": "Samples~/GameUIValidation"
+    }
+  ],
+  "dependencies": {
+    "com.inonego.xeri": "0.0.1",
+    "com.unity.inputsystem": "1.18.0",
+    "com.unity.ugui": "2.6.0"
+  }
+}

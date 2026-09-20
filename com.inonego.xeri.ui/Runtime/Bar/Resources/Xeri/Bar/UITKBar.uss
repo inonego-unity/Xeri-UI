@@ -1,0 +1,36 @@
+.xeri-bar {
+    position: relative;
+    width: 160px;
+    height: 20px;
+    overflow: hidden;
+}
+
+.xeri-bar__background {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    background-color: rgba(0, 0, 0, 0.35);
+}
+
+.xeri-bar__change,
+.xeri-bar__foreground {
+    position: absolute;
+}
+
+.xeri-bar__foreground {
+    background-color: rgb(255, 255, 255);
+}
+
+.xeri-bar__change {
+    background-color: rgba(255, 255, 255, 0);
+}
+
+.xeri-bar--increase .xeri-bar__change {
+    background-color: rgb(88, 214, 141);
+}
+
+.xeri-bar--decrease .xeri-bar__change {
+    background-color: rgb(235, 87, 87);
+}
