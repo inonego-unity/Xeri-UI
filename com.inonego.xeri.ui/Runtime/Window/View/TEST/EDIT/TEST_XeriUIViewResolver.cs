@@ -1,13 +1,13 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : TEST_XeriUIViewResolver.cs
-수정일 : 2026-09-20
+수정일 : 2026-09-21
 
 # 설명
 공통 UI view source resolver 테스트.
 
 # 테스트 구성
- R: Resolver 등록과 조회
- S: UI session 전달
+ R: Resolver stable ID 등록과 조회
+ V: View Source scope와 UI session 전달
 ========================================================================= BLOCK_HEADER_END */
 
 using UnityEngine;
@@ -57,9 +57,11 @@ namespace inonego.Xeri.UI.TEST.Window.View
 
             private readonly string id = string.Empty;
 
-            public XeriUIViewScope CreateScope = null;
+            public XeriUIViewScope AcquireScope = null;
+            public XeriUIViewScope ReleaseScope = null;
             public XeriUIViewScope SaveScope = null;
             public XeriUIViewScope LoadScope = null;
+            public VisualElement ReleasedView = null;
 
         #endregion
 
@@ -76,14 +78,25 @@ namespace inonego.Xeri.UI.TEST.Window.View
 
             // ------------------------------------------------------------
             /// <summary>
-            /// 테스트용 Label view를 생성한다.
+            /// 테스트용 Label view를 획득한다.
             /// </summary>
             // ------------------------------------------------------------
-            public VisualElement CreateView(XeriUIViewScope scope)
+            public VisualElement AcquireView(XeriUIViewScope scope)
             {
-                CreateScope = scope;
+                AcquireScope = scope;
 
                 return new Label(ID);
+            }
+
+            // ------------------------------------------------------------
+            /// <summary>
+            /// 반환된 view와 scope를 저장한다.
+            /// </summary>
+            // ------------------------------------------------------------
+            public void ReleaseView(XeriUIViewScope scope, VisualElement view)
+            {
+                ReleaseScope = scope;
+                ReleasedView = view;
             }
 
             // ------------------------------------------------------------
@@ -117,7 +130,7 @@ namespace inonego.Xeri.UI.TEST.Window.View
 
     #endregion
 
-    #region R-1: 조회 성공
+    #region R-1: 해석기 고정 ID 등록과 조회
 
         // ------------------------------------------------------------
         /// <summary>
@@ -138,10 +151,6 @@ namespace inonego.Xeri.UI.TEST.Window.View
             Assert.AreSame(source, result);
         }
 
-    #endregion
-
-    #region R-2: 조회 실패
-
         // ------------------------------------------------------------
         /// <summary>
         /// 같은 ID를 중복 등록하면 예외를 발생시킨다.
@@ -160,10 +169,6 @@ namespace inonego.Xeri.UI.TEST.Window.View
             );
         }
 
-    #endregion
-
-    #region R-3: 조회 실패
-
         // ------------------------------------------------------------
         /// <summary>
         /// 등록되지 않은 ID는 조회 실패를 반환한다.
@@ -180,33 +185,47 @@ namespace inonego.Xeri.UI.TEST.Window.View
             Assert.IsNull(result);
         }
 
-    #endregion
-
-    #region S-1: Null Session
-
         // ------------------------------------------------------------
         /// <summary>
-        /// UI session이 null이어도 view source 호출 scope는 정상 전달된다.
+        /// 공백-only View Source ID는 stable key로 등록할 수 없다.
         /// </summary>
         // ------------------------------------------------------------
         [Test]
-        public void TEST_XeriUIViewSource_CreateView_Null_UISession_허용()
+        public void TEST_XeriUIViewResolver_Register_WhitespaceID_거부()
         {
-            var source = new TestViewSource("test.view");
-            var root   = new VisualElement();
-            var slot   = new VisualElement();
-            var scope  = new XeriUIViewScope("test.view", "view-key", null, root, slot);
+            var resolver = new XeriUIViewResolver();
 
-            var view = source.CreateView(scope);
-
-            Assert.IsNotNull(view);
-            Assert.AreSame(scope, source.CreateScope);
-            Assert.IsNull(source.CreateScope.UISession);
+            Assert.Throws<System.ArgumentException>
+            (
+                () => resolver.Register(new TestViewSource("   "))
+            );
+            Assert.IsFalse
+            (
+                resolver.TryGetViewSource("   ", out _)
+            );
         }
 
     #endregion
 
-    #region S-2: Session Load
+    #region V-1: 뷰 소스 범위와 UI 세션
+
+        // ----------------------------------------------------------------------
+        /// <summary>
+        /// UI session이 null이어도 view source 호출 scope는 정상 전달된다.
+        /// </summary>
+        // ----------------------------------------------------------------------
+        [Test]
+        public void TEST_XeriUIViewSource_AcquireView_NullUISession_허용()
+        {
+            var source = new TestViewSource("test.view");
+            var scope = new XeriUIViewScope("test.view", "view-key", null);
+
+            var view = source.AcquireView(scope);
+
+            Assert.IsNotNull(view);
+            Assert.AreSame(scope, source.AcquireScope);
+            Assert.IsNull(source.AcquireScope.UISession);
+        }
 
         // ------------------------------------------------------------
         /// <summary>
@@ -218,12 +237,35 @@ namespace inonego.Xeri.UI.TEST.Window.View
         {
             var source  = new TestViewSource("test.view");
             var session = new TestSession();
-            var scope   = new XeriUIViewScope("test.view", "view-key", session, null, null);
+            var scope = new XeriUIViewScope("test.view", "view-key", session);
 
             source.LoadSession(scope);
 
             Assert.AreSame(scope, source.LoadScope);
             Assert.AreEqual(1, session.LoadCount);
+        }
+
+        // ----------------------------------------------------------------------
+        /// <summary>
+        /// ReleaseView는 생성한 View와 같은 Scope를 Source 반환 경계에 전달한다.
+        /// </summary>
+        // ----------------------------------------------------------------------
+        [Test]
+        public void TEST_XeriUIViewSource_ReleaseView_Scope와View_전달()
+        {
+            var source = new TestViewSource("test.view");
+            var scope = new XeriUIViewScope
+            (
+                "test.view",
+                "view-key",
+                null
+            );
+            var view = source.AcquireView(scope);
+
+            source.ReleaseView(scope, view);
+
+            Assert.AreSame(scope, source.ReleaseScope);
+            Assert.AreSame(view, source.ReleasedView);
         }
 
     #endregion

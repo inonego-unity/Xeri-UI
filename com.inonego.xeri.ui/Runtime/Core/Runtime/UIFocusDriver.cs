@@ -1,12 +1,15 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : UIFocusDriver.cs
-수정일 : 2026-09-17
+수정일 : 2026-10-03
 # 설명
 같은 Host의 Focus Driver Component를 하나의 Runtime Focus 계약으로 조립한다.
 backend의 native Focus 변경을 모아 실제 Focus 유실만 Runtime에 전달한다.
+Presentation Layer binding은 disposable registration lifetime으로 대칭 관리한다.
 ========================================================================= BLOCK_HEADER_END */
 
 using System;
+using System.Collections;
+using System.Collections.Generic;
 
 using UnityEngine;
 
@@ -19,6 +22,44 @@ namespace inonego.Xeri.UI
     // ============================================================
     public sealed class UIFocusDriver : MonoBehaviour, IFocusDriver
     {
+
+    #region 내부 데이터
+
+        private sealed class LayerBinding : IDisposable
+        {
+            private readonly List<IDisposable> handles = null;
+
+            public LayerBinding(List<IDisposable> handles)
+            {
+                this.handles = handles ?? throw new ArgumentNullException(nameof(handles));
+            }
+
+            public void Dispose()
+            {
+                var errors = new List<Exception>();
+
+                for (var index = handles.Count - 1; index >= 0; index--)
+                {
+                    try
+                    {
+                        handles[index]?.Dispose();
+                    }
+                    catch (Exception exception)
+                    {
+                        errors.Add(exception);
+                    }
+                }
+
+                handles.Clear();
+
+                if (errors.Count > 0)
+                {
+                    throw new AggregateException("Focus Layer binding 해제가 실패했습니다.", errors);
+                }
+            }
+        }
+
+    #endregion
 
     #region 필드
 
@@ -112,29 +153,71 @@ namespace inonego.Xeri.UI
 
     #endregion
 
-    #region Layer 연결
+    #region 레이어 연결
 
-        // ------------------------------------------------------------
+        // --------------------------------------------------------------------------------
         /// <summary>
-        /// Presentation Layer를 관련 Focus Driver에 전달한다.
+        /// Presentation Layer를 관련 Focus backend에 등록하고 대칭 해제 binding을 반환한다.
         /// </summary>
-        // ------------------------------------------------------------
-        internal void RegisterLayer(IPresentationLayerDriver driver)
+        // --------------------------------------------------------------------------------
+        internal IDisposable BindLayer(IPresentationLayerDriver driver)
         {
+            if (driver == null)
+            {
+                throw new ArgumentNullException(nameof(driver));
+            }
+
             if (drivers.Length == 0)
             {
                 CollectDrivers();
             }
 
-            for (var i = 0; i < drivers.Length; i++)
+            var handles = new List<IDisposable>(drivers.Length);
+
+            try
             {
-                drivers[i].RegisterLayer(driver);
+                for (var index = 0; index < drivers.Length; index++)
+                {
+                    handles.Add(drivers[index].RegisterLayer(driver));
+                }
+
+                return new LayerBinding(handles);
+            }
+            catch (Exception exception)
+            {
+                var errors = new List<Exception>
+                {
+                    exception,
+                };
+
+                for (var index = handles.Count - 1; index >= 0; index--)
+                {
+                    try
+                    {
+                        handles[index]?.Dispose();
+                    }
+                    catch (Exception cleanupException)
+                    {
+                        errors.Add(cleanupException);
+                    }
+                }
+
+                if (errors.Count == 1)
+                {
+                    throw;
+                }
+
+                throw new AggregateException
+                (
+                    "Focus Layer binding과 등록 롤백이 모두 실패했습니다.",
+                    errors
+                );
             }
         }
 
     #endregion
 
-    #region IFocusDriver
+    #region 포커스 드라이버 구현
 
         // ------------------------------------------------------------
         /// <summary>
@@ -155,13 +238,47 @@ namespace inonego.Xeri.UI
         public void Select(object target)
         {
             var next = target != null ? FindDriver(target) : null;
+            var previous = currentDriver;
+            var previousTarget = Current;
 
             // 권한을 먼저 확정해 native callback의 재진입이 이전 Driver를 복구하지 않게 한다.
             currentDriver = next;
             focusLossEvaluationRequested = false;
-            ClearDrivers(next);
 
-            next?.Select(target);
+            try
+            {
+                ApplySelection(next, target);
+            }
+            catch (Exception exception)
+            {
+                var errors = new List<Exception>
+                {
+                    exception,
+                };
+
+                currentDriver = previous;
+                focusLossEvaluationRequested = false;
+
+                try
+                {
+                    ApplySelection(previous, previousTarget);
+                }
+                catch (Exception rollbackException)
+                {
+                    errors.Add(rollbackException);
+                }
+
+                if (errors.Count == 1)
+                {
+                    throw;
+                }
+
+                throw new AggregateException
+                (
+                    "공통 Focus 적용과 native rollback이 모두 실패했습니다.",
+                    errors
+                );
+            }
         }
 
         // ----------------------------------------------------------------------
@@ -217,6 +334,61 @@ namespace inonego.Xeri.UI
             return null;
         }
 
+        // ----------------------------------------------------------------------
+        /// <summary>
+        /// 선택 Driver만 남도록 다른 backend를 비운 뒤 목표 Focus를 적용한다.
+        /// </summary>
+        // ----------------------------------------------------------------------
+        private void ApplySelection
+        (
+            FocusDriverBehaviour selected,
+            object target
+        )
+        {
+            var errors = new List<Exception>();
+
+            for (var i = 0; i < drivers.Length; i++)
+            {
+                var driver = drivers[i];
+
+                if (ReferenceEquals(driver, selected)) continue;
+
+                try
+                {
+                    driver.Select(null);
+                }
+                catch (Exception exception)
+                {
+                    errors.Add(exception);
+                }
+            }
+
+            if (selected != null)
+            {
+                try
+                {
+                    selected.Select(target);
+                }
+                catch (Exception exception)
+                {
+                    errors.Add(exception);
+                }
+            }
+
+            if (errors.Count == 0) return;
+
+            if (errors.Count == 1)
+            {
+                throw errors[0];
+            }
+
+            throw new AggregateException
+            (
+                "native Focus backend 적용 중 하나 이상의 선택이 실패했습니다.",
+                errors
+            );
+        }
+
         // ------------------------------------------------------------
         /// <summary>
         /// 활성 Driver를 제외한 native Focus를 비운다.
@@ -224,14 +396,73 @@ namespace inonego.Xeri.UI
         // ------------------------------------------------------------
         private void ClearDrivers(FocusDriverBehaviour except)
         {
+            var errors = new List<Exception>();
+
             for (var i = 0; i < drivers.Length; i++)
             {
                 var driver = drivers[i];
 
                 if (ReferenceEquals(driver, except)) continue;
 
-                driver.Select(null);
+                try
+                {
+                    driver.Select(null);
+                }
+                catch (Exception exception)
+                {
+                    errors.Add(exception);
+                }
             }
+
+            ThrowFocusErrors("native Focus backend 정리", errors);
+        }
+
+        // ----------------------------------------------------------------------
+        /// <summary>
+        /// Runtime Focus observer를 독립적으로 호출하고 실패를 한 번 전달한다.
+        /// </summary>
+        // ----------------------------------------------------------------------
+        private void InvokeFocusChanged(object target)
+        {
+            var handlers = OnFocusChanged;
+            if (handlers == null) return;
+
+            var errors = new List<Exception>();
+
+            foreach (Action<object> handler in handlers.GetInvocationList())
+            {
+                try
+                {
+                    handler.Invoke(target);
+                }
+                catch (Exception exception)
+                {
+                    errors.Add(exception);
+                }
+            }
+
+            ThrowFocusErrors("공통 Focus 변경 observer 처리", errors);
+        }
+
+        // ----------------------------------------------------------------------
+        /// <summary>
+        /// 수집한 Focus 오류를 원래 예외 또는 AggregateException으로 전달한다.
+        /// </summary>
+        // ----------------------------------------------------------------------
+        private static void ThrowFocusErrors
+        (
+            string message,
+            List<Exception> errors
+        )
+        {
+            if (errors.Count == 0) return;
+
+            if (errors.Count == 1)
+            {
+                throw errors[0];
+            }
+
+            throw new AggregateException(message, errors);
         }
 
         // ------------------------------------------------------------
@@ -250,11 +481,11 @@ namespace inonego.Xeri.UI
 
             if (currentDriver.IsValid(current))
             {
-                OnFocusChanged?.Invoke(current);
+                InvokeFocusChanged(current);
                 return;
             }
 
-            OnFocusChanged?.Invoke(null);
+            InvokeFocusChanged(null);
         }
 
     #endregion
@@ -276,8 +507,35 @@ namespace inonego.Xeri.UI
                 // 실제 Focus를 얻은 Driver가 권한을 소유하며 다른 native 선택은 남기지 않는다.
                 currentDriver = driver;
                 focusLossEvaluationRequested = false;
-                ClearDrivers(driver);
-                OnFocusChanged?.Invoke(current);
+                var errors = new List<Exception>();
+
+                try
+                {
+                    ClearDrivers(driver);
+                }
+                catch (AggregateException exception)
+                {
+                    errors.AddRange(exception.InnerExceptions);
+                }
+                catch (Exception exception)
+                {
+                    errors.Add(exception);
+                }
+
+                try
+                {
+                    InvokeFocusChanged(current);
+                }
+                catch (AggregateException exception)
+                {
+                    errors.AddRange(exception.InnerExceptions);
+                }
+                catch (Exception exception)
+                {
+                    errors.Add(exception);
+                }
+
+                ThrowFocusErrors("native Focus 변경 처리", errors);
                 return;
             }
 

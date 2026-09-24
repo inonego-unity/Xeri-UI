@@ -73,7 +73,7 @@ namespace inonego.Xeri.UI
 
     #endregion
 
-    #region IDisposable
+    #region 수명 해제
 
         // ------------------------------------------------------------
         /// <summary>

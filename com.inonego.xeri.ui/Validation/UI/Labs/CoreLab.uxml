@@ -1,0 +1,52 @@
+<!-- BLOCK_HEADER_BEGIN =====================================================================
+파일명 : CoreLab.uxml
+수정일 : 2026-10-07
+
+# 설명
+Transient Presentation, Spotlight와 Scene Fade를 반복 실행하는 Core Lab control surface.
+======================================================================= BLOCK_HEADER_END -->
+<ui:UXML xmlns:ui="UnityEngine.UIElements" editor-extension-mode="False">
+    <Style src="../Shared/XeriValidationTokens.uss" />
+    <Style src="../Shared/XeriValidationComponents.uss" />
+    <Style src="XeriValidationLabs.uss" />
+
+    <ui:VisualElement name="CoreLabRoot" class="xeri-validation-lab">
+        <ui:VisualElement class="xeri-validation-lab__header">
+            <ui:VisualElement class="xeri-validation-lab__heading">
+                <ui:Label text="Core Lab" class="xeri-validation-lab__title" />
+                <ui:Label text="Presentation ownership · Spotlight · System Fade" class="xeri-validation-lab__copy" />
+            </ui:VisualElement>
+            <ui:Label name="CoreLabStatus" text="Ready" class="xeri-validation-lab__status" />
+        </ui:VisualElement>
+
+        <ui:ScrollView mode="Vertical" class="xeri-validation-lab__scroll">
+            <ui:VisualElement class="xeri-validation-lab__group">
+                <ui:Label text="Root screen stack" class="xeri-validation-lab__group-title" />
+                <ui:VisualElement class="xeri-validation-lab__actions">
+                    <ui:Button name="CoreScreenHome" text="Open home" class="xeri-validation-button xeri-validation-button--secondary" />
+                    <ui:Button name="CoreScreenPush" text="Push detail" class="xeri-validation-button xeri-validation-button--primary" />
+                    <ui:Button name="CoreScreenReplace" text="Replace top" class="xeri-validation-button xeri-validation-button--secondary" />
+                    <ui:Button name="CoreScreenPop" text="Pop" class="xeri-validation-button xeri-validation-button--quiet" />
+                    <ui:Button name="CoreScreenClear" text="Clear" class="xeri-validation-button xeri-validation-button--quiet" />
+                </ui:VisualElement>
+            </ui:VisualElement>
+            <ui:VisualElement class="xeri-validation-lab__group">
+                <ui:Label text="Presentation" class="xeri-validation-lab__group-title" />
+                <ui:VisualElement class="xeri-validation-lab__actions">
+                    <ui:Button name="CoreOverlay" text="Toggle overlay" class="xeri-validation-button xeri-validation-button--secondary" />
+                    <ui:Button name="CoreSpotlight" text="Show highlight" class="xeri-validation-button xeri-validation-button--quiet" />
+                    <ui:Button name="CoreFade" text="Run fade" class="xeri-validation-button xeri-validation-button--primary" />
+                </ui:VisualElement>
+            </ui:VisualElement>
+            <ui:VisualElement name="CoreSpotlightTarget" class="xeri-validation-lab__target">
+                <ui:Label text="Spotlight target" />
+            </ui:VisualElement>
+            <ui:VisualElement class="xeri-validation-lab__group">
+                <ui:Label text="Notes" class="xeri-validation-lab__group-title" />
+                <ui:Label
+                    text="These controls use the live root UIContext and PresentationHost System destination. No parallel mock state machine is created."
+                    class="xeri-validation-copy" />
+            </ui:VisualElement>
+        </ui:ScrollView>
+    </ui:VisualElement>
+</ui:UXML>

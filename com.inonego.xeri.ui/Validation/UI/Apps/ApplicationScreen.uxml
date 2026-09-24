@@ -1,0 +1,54 @@
+<!-- BLOCK_HEADER_BEGIN =====================================================================
+파일명 : ApplicationScreen.uxml
+수정일 : 2026-10-04
+
+# 설명
+Application A/B가 동일하게 사용하는 Child UIContext Screen view.
+현재 Screen, navigation/modal action과 child-context 상태를 한 화면에서 읽을 수 있게 구성한다.
+======================================================================= BLOCK_HEADER_END -->
+<ui:UXML xmlns:ui="UnityEngine.UIElements" editor-extension-mode="False">
+    <Style src="../Shared/XeriValidationTokens.uss" />
+    <Style src="../Shared/XeriValidationComponents.uss" />
+    <Style src="XeriValidationApps.uss" />
+
+    <ui:VisualElement name="ApplicationScreenRoot" class="xeri-validation-app xeri-validation-application">
+        <ui:VisualElement class="xeri-validation-app__header">
+            <ui:VisualElement class="xeri-validation-app__heading">
+                <ui:Label name="ApplicationName" text="Application" class="xeri-validation-app__title" />
+                <ui:Label text="Independent child UI world" class="xeri-validation-app__subtitle" />
+            </ui:VisualElement>
+            <ui:Label name="ApplicationLifecycle" text="Opening" class="xeri-validation-app__status" />
+        </ui:VisualElement>
+
+        <ui:ScrollView mode="Vertical" class="xeri-validation-app__scroll">
+            <ui:VisualElement class="xeri-validation-application__hero">
+                <ui:Label text="Current screen" class="xeri-validation-application__eyebrow" />
+                <ui:Label name="ApplicationScreenName" text="Home" class="xeri-validation-application__screen-title" />
+                <ui:Label
+                    text="Navigate this app independently, open a nested modal, switch to the sibling app, then return and verify focus and lifetime isolation."
+                    class="xeri-validation-app__section-copy" />
+
+                <ui:VisualElement class="xeri-validation-application__actions">
+                    <ui:Button name="ApplicationNavigate" text="Go detail" class="xeri-validation-button xeri-validation-button--primary" />
+                    <ui:Button name="ApplicationModal" text="Open modal" class="xeri-validation-button xeri-validation-button--secondary" />
+                    <ui:Button name="ApplicationCloseScreen" text="Close screen" class="xeri-validation-button xeri-validation-button--quiet" />
+                </ui:VisualElement>
+
+                <ui:VisualElement class="xeri-validation-application__summary">
+                    <ui:VisualElement class="xeri-validation-application__summary-card">
+                        <ui:Label text="CONTEXT" class="xeri-validation-application__summary-label" />
+                        <ui:Label text="Child UIContext" class="xeri-validation-application__summary-value" />
+                    </ui:VisualElement>
+                    <ui:VisualElement class="xeri-validation-application__summary-card">
+                        <ui:Label text="SCREEN STACK" class="xeri-validation-application__summary-label" />
+                        <ui:Label text="Sibling isolated" class="xeri-validation-application__summary-value" />
+                    </ui:VisualElement>
+                    <ui:VisualElement class="xeri-validation-application__summary-card">
+                        <ui:Label text="FOCUS" class="xeri-validation-application__summary-label" />
+                        <ui:Label text="Last focus restore" class="xeri-validation-application__summary-value" />
+                    </ui:VisualElement>
+                </ui:VisualElement>
+            </ui:VisualElement>
+        </ui:ScrollView>
+    </ui:VisualElement>
+</ui:UXML>

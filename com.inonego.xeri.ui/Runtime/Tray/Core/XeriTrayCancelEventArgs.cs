@@ -40,7 +40,10 @@ namespace inonego.Xeri.UI.Tray
         /// 취소 가능한 Tray entry 이벤트 인자를 생성한다.
         /// </summary>
         // ------------------------------------------------------------
-        public XeriTrayCancelEventArgs(XeriTrayEntry entry) : base(entry) {}
+        public XeriTrayCancelEventArgs(XeriTrayEntry entry) : base(entry)
+        {
+            // NONE
+        }
 
     #endregion
 

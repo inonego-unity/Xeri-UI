@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : XeriWindowRegistry.cs
-수정일 : 2026-09-20
+수정일 : 2026-10-05
 
 # 설명
 Xeri 커스텀 윈도우 controller와 저장 record를 관리하는 registry.
@@ -10,6 +10,9 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 
+using UnityEngine;
+
+using inonego;
 using inonego.Xeri;
 
 namespace inonego.Xeri.UI.Window
@@ -34,6 +37,10 @@ namespace inonego.Xeri.UI.Window
             public XeriWindowHandle Handle = null;
             public XeriWindowController Controller = null;
             public XeriWindowRecord Record = null;
+
+            public ValueChangeEventHandler<UnityEngine.Vector2> PosChange = null;
+            public ValueChangeEventHandler<UnityEngine.Vector2> SizeChange = null;
+            public ValueChangeEventHandler<XeriWindowState> StateChange = null;
         }
 
     #endregion
@@ -42,15 +49,6 @@ namespace inonego.Xeri.UI.Window
 
         private readonly Dictionary<string, RegistryEntry> entries = new();
         private readonly List<string> order = new();
-
-        // ------------------------------------------------------------
-        /// <summary>
-        /// 현재 활성 윈도우 handle.
-        /// </summary>
-        // ------------------------------------------------------------
-        private XeriWindowHandle activeHandle = null;
-
-        private int focusOrder = 0;
 
     #endregion
 
@@ -62,6 +60,8 @@ namespace inonego.Xeri.UI.Window
         /// </summary>
         // ------------------------------------------------------------
         public XeriWindowHandle ActiveHandle => activeHandle;
+
+        private XeriWindowHandle activeHandle = null;
 
         // ------------------------------------------------------------
         /// <summary>
@@ -78,7 +78,7 @@ namespace inonego.Xeri.UI.Window
                 {
                     if (!entries.TryGetValue(id, out var entry)) continue;
 
-                    AddRecordByStackLayer(records, entry.Record);
+                    AddRecordByStackLayer(records, entry.Record.CreateSnapshot());
                 }
 
                 return records;
@@ -122,7 +122,7 @@ namespace inonego.Xeri.UI.Window
         // ------------------------------------------------------------
         public XeriWindowHandle Register(string id, XeriWindowController controller, XeriWindowRecord record)
         {
-            if (string.IsNullOrEmpty(id))
+            if (string.IsNullOrWhiteSpace(id))
             {
                 throw new ArgumentException("윈도우 ID가 비어 있습니다.", nameof(id));
             }
@@ -132,31 +132,70 @@ namespace inonego.Xeri.UI.Window
                 throw new ArgumentNullException(nameof(controller));
             }
 
-            if (entries.TryGetValue(id, out var exists))
+            if (entries.ContainsKey(id))
             {
-                return exists.Handle;
+                throw new InvalidOperationException
+                (
+                    $"이미 등록된 Window ID입니다. ID: {id}"
+                );
             }
 
-            record ??= new XeriWindowRecord();
-            record.ID = id;
-            record.ApplyController(controller);
+            var storedRecord = record?.CreateSnapshot() ?? new XeriWindowRecord();
+            storedRecord.ID = id;
+            storedRecord.ApplyController(controller);
 
             var handle = new XeriWindowHandle(id, this);
             var entry = new RegistryEntry
             {
                 Handle = handle,
                 Controller = controller,
-                Record = record,
+                Record = storedRecord,
             };
 
             entries.Add(id, entry);
             order.Add(id);
 
             BindController(entry);
-            Focus(handle);
 
-            OnRegister?.Invoke(this, CreateEventArgs(entry));
-            OnCollectionChange?.Invoke(this, EventArgs.Empty);
+            var errors = new List<Exception>();
+            var registeredHandlers = OnRegister;
+            var registeredArgs = CreateEventArgs(entry);
+
+            if (registeredHandlers != null)
+            {
+                foreach (EventHandler<XeriWindowEventArgs> handler in registeredHandlers.GetInvocationList())
+                {
+                    if (!HasRegistrationOwnership(id, entry)) break;
+
+                    try
+                    {
+                        handler(this, registeredArgs);
+                    }
+                    catch (Exception exception)
+                    {
+                        errors.Add(exception);
+                    }
+                }
+            }
+
+            if (HasRegistrationOwnership(id, entry))
+            {
+                InvokeHandlers(OnCollectionChange, EventArgs.Empty, errors);
+            }
+
+            // Observer 실패는 이미 공개된 등록을 취소하지 않는다.
+            foreach (var error in errors)
+            {
+                Debug.LogException(error);
+            }
+
+            if (!HasRegistrationOwnership(id, entry))
+            {
+                throw new InvalidOperationException
+                (
+                    $"Window '{id}' 등록 observer 처리 중 등록 소유권이 변경됐습니다."
+                );
+            }
 
             return handle;
         }
@@ -170,19 +209,50 @@ namespace inonego.Xeri.UI.Window
         {
             if (!TryGetEntry(handle, out var entry)) return false;
 
+            UnbindController(entry);
             entries.Remove(handle.ID);
             order.Remove(handle.ID);
 
-            if (activeHandle == handle)
+            var wasActive = activeHandle == handle;
+
+            if (wasActive)
             {
                 activeHandle = null;
             }
 
-            OnUnregister?.Invoke(this, CreateEventArgs(entry));
-            OnCollectionChange?.Invoke(this, EventArgs.Empty);
-            OnOrderChange?.Invoke(this, EventArgs.Empty);
+            var errors = new List<Exception>();
+            InvokeHandlers(OnUnregister, CreateEventArgs(entry), errors);
+            InvokeHandlers(OnCollectionChange, EventArgs.Empty, errors);
+            InvokeHandlers(OnOrderChange, EventArgs.Empty, errors);
 
+            if (wasActive)
+            {
+                InvokeHandlers
+                (
+                    OnActiveChange,
+                    new XeriWindowEventArgs(),
+                    errors
+                );
+            }
+
+            ThrowEventErrors("Window 등록 해제 이벤트 처리", errors);
             return true;
+        }
+
+        // --------------------------------------------------------------------------------
+        /// <summary>
+        /// 현재 ID가 같은 provisional registration entry를 여전히 소유하는지 확인한다.
+        /// </summary>
+        // --------------------------------------------------------------------------------
+        private bool HasRegistrationOwnership
+        (
+            string id,
+            RegistryEntry entry
+        )
+        {
+            return
+                entries.TryGetValue(id, out var current) &&
+                ReferenceEquals(current, entry);
         }
 
     #endregion
@@ -208,7 +278,7 @@ namespace inonego.Xeri.UI.Window
         {
             if (TryGetEntry(handle, out var entry))
             {
-                record = entry.Record;
+                record = entry.Record.CreateSnapshot();
                 return true;
             }
 
@@ -240,7 +310,7 @@ namespace inonego.Xeri.UI.Window
         // ------------------------------------------------------------
         public bool TryGetHandle(string id, out XeriWindowHandle handle)
         {
-            if (!string.IsNullOrEmpty(id) && entries.TryGetValue(id, out var entry))
+            if (!string.IsNullOrWhiteSpace(id) && entries.TryGetValue(id, out var entry))
             {
                 handle = entry.Handle;
                 return true;
@@ -263,13 +333,37 @@ namespace inonego.Xeri.UI.Window
         {
             if (!TryGetEntry(handle, out var entry)) return;
 
-            activeHandle = handle;
-            entry.Record.FocusOrder = ++focusOrder;
-            MoveWindowOrderToFront(entry);
-            entry.Controller.Focus();
+            if (!entry.Controller.Options.CanFocus) return;
 
-            OnActiveChange?.Invoke(this, CreateEventArgs(entry));
-            OnOrderChange?.Invoke(this, EventArgs.Empty);
+            var state = entry.Controller.EffectiveState;
+
+            if (state == XeriWindowState.Minimized || state == XeriWindowState.Closed)
+            {
+                return;
+            }
+
+            activeHandle = handle;
+            MoveWindowOrderToFront(entry);
+
+            var errors = new List<Exception>();
+            InvokeHandlers(OnActiveChange, CreateEventArgs(entry), errors);
+            InvokeHandlers(OnOrderChange, EventArgs.Empty, errors);
+            ThrowEventErrors("Window Focus 이벤트 처리", errors);
+        }
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// 지정 Window가 active이면 active 상태를 해제한다.
+        /// </summary>
+        // ------------------------------------------------------------
+        public void Deactivate(XeriWindowHandle handle)
+        {
+            if (!ReferenceEquals(activeHandle, handle)) return;
+
+            activeHandle = null;
+            var errors = new List<Exception>();
+            InvokeHandlers(OnActiveChange, new XeriWindowEventArgs(), errors);
+            ThrowEventErrors("Window active 해제 이벤트 처리", errors);
         }
 
         // ------------------------------------------------------------
@@ -283,7 +377,9 @@ namespace inonego.Xeri.UI.Window
 
             MoveWindowOrderToFront(entry);
 
-            OnOrderChange?.Invoke(this, EventArgs.Empty);
+            var errors = new List<Exception>();
+            InvokeHandlers(OnOrderChange, EventArgs.Empty, errors);
+            ThrowEventErrors("Window 순서 변경 이벤트 처리", errors);
         }
 
         // ------------------------------------------------------------
@@ -297,7 +393,9 @@ namespace inonego.Xeri.UI.Window
 
             MoveWindowOrderToBack(entry);
 
-            OnOrderChange?.Invoke(this, EventArgs.Empty);
+            var errors = new List<Exception>();
+            InvokeHandlers(OnOrderChange, EventArgs.Empty, errors);
+            ThrowEventErrors("Window 순서 변경 이벤트 처리", errors);
         }
 
     #endregion
@@ -311,13 +409,20 @@ namespace inonego.Xeri.UI.Window
         // ------------------------------------------------------------
         public void SetStackLayer(XeriWindowHandle handle, XeriWindowStackLayer stackLayer)
         {
+            if (!Enum.IsDefined(typeof(XeriWindowStackLayer), stackLayer))
+            {
+                throw new ArgumentOutOfRangeException(nameof(stackLayer));
+            }
+
             if (!TryGetEntry(handle, out var entry)) return;
             if (entry.Record.StackLayer == stackLayer) return;
 
             entry.Record.StackLayer = stackLayer;
             MoveWindowOrderToFront(entry);
 
-            OnOrderChange?.Invoke(this, EventArgs.Empty);
+            var errors = new List<Exception>();
+            InvokeHandlers(OnOrderChange, EventArgs.Empty, errors);
+            ThrowEventErrors("Window StackLayer 이벤트 처리", errors);
         }
 
         // ------------------------------------------------------------
@@ -329,8 +434,7 @@ namespace inonego.Xeri.UI.Window
         {
             if (!TryGetEntry(handle, out var entry)) return;
 
-            entry.Controller.ShowNormal();
-            Focus(handle);
+            CompleteRestoreCommand(entry.Controller.ShowNormal, handle, "Window ShowNormal 처리");
         }
 
         // ------------------------------------------------------------
@@ -342,8 +446,42 @@ namespace inonego.Xeri.UI.Window
         {
             if (!TryGetEntry(handle, out var entry)) return;
 
-            entry.Controller.Restore();
-            Focus(handle);
+            CompleteRestoreCommand(entry.Controller.Restore, handle, "Window Restore 처리");
+        }
+
+        // --------------------------------------------------------------------------------
+        /// <summary>
+        /// 상태 복원 완료 observer 실패와 무관하게 Registry Focus 정책을 끝까지 적용한다.
+        /// </summary>
+        // --------------------------------------------------------------------------------
+        private void CompleteRestoreCommand
+        (
+            Action command,
+            XeriWindowHandle handle,
+            string message
+        )
+        {
+            var errors = new List<Exception>();
+
+            try
+            {
+                command();
+            }
+            catch (Exception exception)
+            {
+                errors.Add(exception);
+            }
+
+            try
+            {
+                Focus(handle);
+            }
+            catch (Exception exception)
+            {
+                errors.Add(exception);
+            }
+
+            ThrowEventErrors(message, errors);
         }
 
         // ------------------------------------------------------------
@@ -372,7 +510,7 @@ namespace inonego.Xeri.UI.Window
             if
             (
                 handle != null &&
-                !string.IsNullOrEmpty(handle.ID) &&
+                !string.IsNullOrWhiteSpace(handle.ID) &&
                 entries.TryGetValue(handle.ID, out entry) &&
                 entry.Handle == handle
             )
@@ -395,18 +533,150 @@ namespace inonego.Xeri.UI.Window
         // ------------------------------------------------------------
         private void BindController(RegistryEntry entry)
         {
-            entry.Controller.OnPosChange += (_, _) => entry.Record.ApplyController(entry.Controller);
-            entry.Controller.OnSizeChange += (_, _) => entry.Record.ApplyController(entry.Controller);
-            entry.Controller.OnStateChange += (_, _) =>
+            entry.PosChange = (_, _) => entry.Record.ApplyController(entry.Controller);
+            entry.SizeChange = (_, _) => entry.Record.ApplyController(entry.Controller);
+            entry.StateChange = (_, _) =>
             {
                 entry.Record.ApplyController(entry.Controller);
-                OnCollectionChange?.Invoke(this, EventArgs.Empty);
+
+                var state = entry.Controller.EffectiveState;
+                var shouldDeactivate =
+                    state == XeriWindowState.Minimized ||
+                    state == XeriWindowState.Closed;
+
+                var errors = new List<Exception>();
+
+                if (shouldDeactivate && ReferenceEquals(activeHandle, entry.Handle))
+                {
+                    activeHandle = null;
+                    InvokeHandlers
+                    (
+                        OnActiveChange,
+                        new XeriWindowEventArgs(),
+                        errors
+                    );
+                }
+
+                InvokeHandlers(OnCollectionChange, EventArgs.Empty, errors);
+                ThrowEventErrors("Window 상태 동기화 이벤트 처리", errors);
             };
+
+            entry.Controller.OnPosChange += entry.PosChange;
+            entry.Controller.OnSizeChange += entry.SizeChange;
+            entry.Controller.OnStateChange += entry.StateChange;
+        }
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// Controller와 Registry record 동기화 구독을 해제한다.
+        /// </summary>
+        // ------------------------------------------------------------
+        private void UnbindController(RegistryEntry entry)
+        {
+            if (entry?.Controller == null) return;
+
+            if (entry.PosChange != null)
+            {
+                entry.Controller.OnPosChange -= entry.PosChange;
+                entry.PosChange = null;
+            }
+
+            if (entry.SizeChange != null)
+            {
+                entry.Controller.OnSizeChange -= entry.SizeChange;
+                entry.SizeChange = null;
+            }
+
+            if (entry.StateChange != null)
+            {
+                entry.Controller.OnStateChange -= entry.StateChange;
+                entry.StateChange = null;
+            }
         }
 
     #endregion
 
-    #region Window 정렬 메서드
+    #region 이벤트 호출 메서드
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// EventHandler 구독자를 독립적으로 호출하고 오류를 수집한다.
+        /// </summary>
+        // ------------------------------------------------------------
+        private void InvokeHandlers
+        (
+            EventHandler handlers,
+            EventArgs eventArgs,
+            List<Exception> errors
+        )
+        {
+            if (handlers == null) return;
+
+            foreach (EventHandler handler in handlers.GetInvocationList())
+            {
+                try
+                {
+                    handler.Invoke(this, eventArgs);
+                }
+                catch (Exception exception)
+                {
+                    errors.Add(exception);
+                }
+            }
+        }
+
+        // ----------------------------------------------------------------------
+        /// <summary>
+        /// Generic EventHandler 구독자를 독립적으로 호출하고 오류를 수집한다.
+        /// </summary>
+        // ----------------------------------------------------------------------
+        private void InvokeHandlers<TEventArgs>
+        (
+            EventHandler<TEventArgs> handlers,
+            TEventArgs eventArgs,
+            List<Exception> errors
+        )
+        where TEventArgs : EventArgs
+        {
+            if (handlers == null) return;
+
+            foreach (EventHandler<TEventArgs> handler in handlers.GetInvocationList())
+            {
+                try
+                {
+                    handler.Invoke(this, eventArgs);
+                }
+                catch (Exception exception)
+                {
+                    errors.Add(exception);
+                }
+            }
+        }
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// 수집된 Registry event 오류를 한 번 전달한다.
+        /// </summary>
+        // ------------------------------------------------------------
+        private static void ThrowEventErrors
+        (
+            string message,
+            List<Exception> errors
+        )
+        {
+            if (errors.Count == 0) return;
+
+            if (errors.Count == 1)
+            {
+                throw errors[0];
+            }
+
+            throw new AggregateException(message, errors);
+        }
+
+    #endregion
+
+    #region 윈도우 정렬 메서드
 
         // ------------------------------------------------------------
         /// <summary>
@@ -436,8 +706,9 @@ namespace inonego.Xeri.UI.Window
         // ------------------------------------------------------------
         private void MoveWindowOrderToFront(RegistryEntry entry)
         {
-            order.Remove(entry.Record.ID);
-            order.Add(entry.Record.ID);
+            var id = entry.Handle.ID;
+            order.Remove(id);
+            order.Add(id);
         }
 
         // ------------------------------------------------------------
@@ -447,20 +718,21 @@ namespace inonego.Xeri.UI.Window
         // ------------------------------------------------------------
         private void MoveWindowOrderToBack(RegistryEntry entry)
         {
-            order.Remove(entry.Record.ID);
+            var id = entry.Handle.ID;
+            order.Remove(id);
 
             var insertIndex = order.FindIndex
             (
-                id => entries[id].Record.StackLayer == entry.Record.StackLayer
+                current => entries[current].Record.StackLayer == entry.Record.StackLayer
             );
 
             if (insertIndex < 0)
             {
-                order.Add(entry.Record.ID);
+                order.Add(id);
                 return;
             }
 
-            order.Insert(insertIndex, entry.Record.ID);
+            order.Insert(insertIndex, id);
         }
 
     #endregion
@@ -476,7 +748,7 @@ namespace inonego.Xeri.UI.Window
         {
             return new XeriWindowEventArgs
             {
-                ID = entry.Record.ID,
+                ID = entry.Handle.ID,
                 Handle = entry.Handle,
                 Pos = entry.Record.Pos,
                 Size = entry.Record.Size,

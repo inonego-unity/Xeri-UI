@@ -1,37 +1,12 @@
-# Xeri Window와 View Source 연결하기
+# Window와 View Source 연결하기
 
-Xeri Window는 창의 위치·크기·상태와 정렬을 관리하고, 실제 화면 내용은 `IXeriUIViewSource`가 생성합니다. 저장 가능한 Window와 프로젝트 UI를 연결하려면 Window 상태와 View Session을 분리하는 것이 핵심입니다.
+이 가이드는 저장 가능한 Window를 `IXeriUIViewSource`와 연결하는 흐름을 설명합니다.
 
-## 목적
+## 1. UI Session
 
-창의 위치·크기·최소화 상태와 View-local 작업 상태를 서로 다른 소유권으로 분리하고, stable `ViewSourceID`를 통해 저장된 Window Record에서 UI를 다시 구성합니다.
-
-## 역할 분리
-
-```text
-XeriWindowRecord
-├─ 창 ID / 위치 / 크기 / 상태
-├─ ViewSourceID
-├─ ViewDataKey
-└─ IXeriUISession
-        ↓
-IXeriUIViewResolver
-        ↓
-IXeriUIViewSource
-        ↓
-VisualElement
-```
-
-Window 시스템은 프로젝트 화면의 업무 상태를 알지 않고, View Source는 Window 이동·최소화 같은 상태를 소유하지 않습니다.
-
-## 1. UI Session 정의
-
-View가 재생성되어도 유지할 상태가 있으면 `IXeriUISession` 구현을 만듭니다.
+View 재생성 사이에 유지할 UI-local state가 있으면 `IXeriUISession` 구현을 준비합니다.
 
 ```csharp
-using System;
-using inonego.Xeri.UI.Window;
-
 [Serializable]
 public sealed class SampleViewSession : IXeriUISession
 {
@@ -40,57 +15,66 @@ public sealed class SampleViewSession : IXeriUISession
 }
 ```
 
-Session에는 선택·검색·편집 중 값처럼 View 재생성 후 이어갈 상태를 두고, Window 위치나 크기는 넣지 않습니다.
-## 2. View Source 구현
+Window 위치/크기/상태는 `XeriWindowRecord`가 소유하므로 UISession에 중복 저장하지 않습니다.
 
-`IXeriUIViewSource`는 stable ID로 View를 생성하고 Session을 저장·복원합니다.
+## 2. View Source
 
 ```csharp
-using UnityEngine.UIElements;
-using inonego.Xeri.UI.Window;
-
 public sealed class SampleViewSource : IXeriUIViewSource
 {
     public string ID => "sample.view";
 
-    public VisualElement CreateView(XeriUIViewScope scope)
+    public VisualElement AcquireView(XeriUIViewScope scope)
     {
         var root = new VisualElement();
         root.Add(new Label("Sample"));
         return root;
     }
 
+    public void ReleaseView(
+        XeriUIViewScope scope,
+        VisualElement view)
+    {
+        // callback/presenter/pool resource 반환
+    }
+
     public void LoadSession(XeriUIViewScope scope)
     {
-        if (scope.UISession is not SampleViewSession session) return;
-        // Session 값을 다음 CreateView/Presenter가 사용할 상태로 준비한다.
+        // AcquireView 전에 session state 준비
     }
 
     public void SaveSession(XeriUIViewScope scope)
     {
-        if (scope.UISession is not SampleViewSession session) return;
-        // 현재 View 상태를 session에 반영한다.
+        // 현재 UI-local state 기록
     }
 }
 ```
 
-`LoadSession`은 View 생성 전에 호출되고, Window가 상태를 보존해야 할 때 `SaveSession`이 호출됩니다.
-## 3. Resolver와 Canvas 연결
+## 3. Resolver
 
 ```csharp
-using UnityEngine;
-
-using inonego.Xeri.UI.Window;
-
 var resolver = new XeriUIViewResolver();
 resolver.Register(new SampleViewSource());
+```
 
-var canvas = new XeriWindowCanvas
-(
-    registry: null,
-    viewResolver: resolver
-);
+## 4. Workspace
 
+Workspace가 사용할 Presentation target을 정합니다. app-wide Window Layer를 쓰는 경우 Settings의 destination mapping에서 예를 들어 `Window → Desktop.Windows`를 구성합니다.
+
+Workspace 생성:
+
+```csharp
+var workspace = new XeriWindowWorkspace(
+    runtime.Main,
+    PresentationTarget.Host("Window"),
+    viewResolver: resolver);
+```
+
+Child/local composition 안에서는 `PresentationTarget.Local(layerID)`를 사용할 수 있습니다.
+
+## 5. Record
+
+```csharp
 var record = new XeriWindowRecord
 {
     ID = "sample.window",
@@ -100,26 +84,60 @@ var record = new XeriWindowRecord
     NormalPos = new Vector2(80f, 80f),
     NormalSize = new Vector2(480f, 320f),
     ViewSourceID = "sample.view",
-    ViewDataKey = "sample-window-view",
+    ViewDataKey = "sample-window",
     UISession = new SampleViewSession(),
 };
 
-XeriWindowHandle handle = canvas.AddWindow(record);
+XeriWindowSession window =
+    workspace.OpenWindow(record);
 ```
 
-Canvas가 `ViewSourceID`를 Resolver로 해석하고 Session을 로드한 뒤 View를 생성합니다.
-## 4. Window 제거
+Workspace lifecycle:
 
-Window 수명이 끝나면 Canvas에서 제거합니다.
+```text
+LoadSession
+→ AcquireView
+→ ContentRoot attach
+→ Window lifetime
+→ SaveSession
+→ detach
+→ ReleaseView
+```
+
+## 6. Snapshot
 
 ```csharp
-canvas.RemoveWindow(handle);
+IReadOnlyList<XeriWindowRecord> records =
+    workspace.CaptureRecords();
 ```
 
-Window 상태와 View Session을 외부에 저장해야 한다면 `XeriWindowRecord`를 프로젝트 저장 모델에 포함할 수 있지만, 실제 디스크 저장 형식과 저장 시점은 프로젝트가 소유합니다.
+disk serialization 방식과 저장 시점은 프로젝트가 결정합니다.
 
-## 관련 문서
+## 7. Application Window
 
-- [Xeri Window](../modules/window.md)
-- [Xeri Window View](../modules/window-view.md)
-- [Xeri 통합 패턴](https://inonego-unity.github.io/Xeri/docs/concepts/integration-patterns.html)
+독립 Screen/Modal stack이 필요한 Window는 Child Layout을 사용합니다.
+
+```csharp
+var appOptions =
+    new XeriWindowApplicationOptions(appLayout);
+
+XeriWindowSession app = workspace.OpenApplicationWindow(
+    "inventory.app",
+    "Inventory",
+    new Vector2(100f, 100f),
+    new Vector2(720f, 560f),
+    appOptions);
+
+app.Context.Screens.Open("Inventory.Home");
+```
+
+Application Window는 `ContentRoot → Child PresentationSession → Child UIContext` 구조를 소유합니다.
+
+## 8. 종료
+
+```csharp
+window.Close();
+workspace.Dispose();
+```
+
+더 자세한 계약은 [Window](../window/index.md)와 [Window View Source](../window/view-source.md)를 참고합니다.

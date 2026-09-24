@@ -2,7 +2,7 @@
 파일명 : UGUIPresentation.cs
 수정일 : 2026-09-19
 # 설명
-기존 UGUI GameObject와 선택적 CanvasGroup을 Xeri Presentation State에 연결한다.
+지정 UGUI GameObject와 선택적 CanvasGroup을 Xeri Presentation State에 연결한다.
 GameObject hierarchy는 소유하지 않으며 Visibility와 가능한 경우 Alpha만 제어한다.
 ========================================================================= BLOCK_HEADER_END */
 
@@ -14,7 +14,7 @@ namespace inonego.Xeri.UI
 {
     // ================================================================================
     /// <summary>
-    /// 기존 UGUI Root를 Xeri Alpha·Visibility Presentation State에 연결하는 adapter.
+    /// 지정 UGUI Root를 Xeri Alpha·Visibility Presentation State에 연결하는 adapter.
     /// </summary>
     // ================================================================================
     [Serializable]
@@ -84,7 +84,7 @@ namespace inonego.Xeri.UI
 
     #endregion
 
-    #region IPresentationAlphaTarget
+    #region 프레젠테이션 알파 대상 구현
 
         // ------------------------------------------------------------
         /// <summary>
@@ -118,7 +118,7 @@ namespace inonego.Xeri.UI
 
     #endregion
 
-    #region IPresentationVisibilityTarget
+    #region 프레젠테이션 가시성 대상 구현
 
         // ------------------------------------------------------------
         /// <summary>

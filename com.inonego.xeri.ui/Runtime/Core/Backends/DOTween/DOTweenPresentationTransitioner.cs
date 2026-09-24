@@ -32,7 +32,7 @@ namespace inonego.Xeri.UI
 
     #endregion
 
-    #region IPresentationTransitioner
+    #region 프레젠테이션 전환 구현
 
         // ------------------------------------------------------------
         /// <summary>
@@ -186,7 +186,7 @@ namespace inonego.Xeri.UI
 
     #endregion
 
-    #region IDisposable
+    #region 수명 해제
 
         // ----------------------------------------------------------------------
         /// <summary>

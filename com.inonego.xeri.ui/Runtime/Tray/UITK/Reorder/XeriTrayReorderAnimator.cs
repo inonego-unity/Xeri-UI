@@ -25,17 +25,20 @@ namespace inonego.Xeri.UI.Tray
 
     #region 생성자
 
-        public XeriTrayReorderAnimator() : base() {}
+        public XeriTrayReorderAnimator() : base()
+        {
+            // NONE
+        }
 
     #endregion
 
     #region 메서드
 
-        // ------------------------------------------------------------
+        // ----------------------------------------------------------------------
         /// <summary>
         /// Drag 중인 entry가 들어갈 위치에 맞춰 주변 entry offset을 반영한다.
         /// </summary>
-        // ------------------------------------------------------------
+        // ----------------------------------------------------------------------
         public void Preview(IXeriTrayReorderTarget target, XeriTrayReorderSession session)
         {
             if (target == null || session == null) return;

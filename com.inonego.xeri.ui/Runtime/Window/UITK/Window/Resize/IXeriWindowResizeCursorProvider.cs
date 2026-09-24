@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : IXeriWindowResizeCursorProvider.cs
-작성일 : 2026-05-24
+수정일 : 2026-10-05
 
 # 설명
 Xeri 커스텀 윈도우 resize 방향에 맞는 cursor 적용 기능을 추상화한다.

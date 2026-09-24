@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : UGUIFocusDriver.cs
-수정일 : 2026-09-17
+수정일 : 2026-09-23
 # 설명
 명시적으로 연결한 EventSystem으로 Screen Focus 선택, 유효성 검사와 native 선택 변경 보고를 수행한다.
 ========================================================================= BLOCK_HEADER_END */
@@ -60,7 +60,7 @@ namespace inonego.Xeri.UI
 
     #endregion
 
-    #region FocusDriverBehaviour
+    #region 포커스 드라이버 기반 구현
 
         // ------------------------------------------------------------
         /// <summary>
@@ -84,6 +84,19 @@ namespace inonego.Xeri.UI
             if (!layerRoots.Contains(layer.Root))
             {
                 layerRoots.Add(layer.Root);
+            }
+        }
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// 종료된 UGUI Layer Root를 Focus 소유 범위에서 제거한다.
+        /// </summary>
+        // ------------------------------------------------------------
+        protected override void HandleLayerUnregistered(IPresentationLayerDriver driver)
+        {
+            if (driver is IPresentationLayerDriver<RectTransform> layer && layer.Root != null)
+            {
+                layerRoots.Remove(layer.Root);
             }
         }
 
@@ -113,7 +126,7 @@ namespace inonego.Xeri.UI
 
     #endregion
 
-    #region IFocusDriver
+    #region 포커스 드라이버 구현
 
         // ------------------------------------------------------------
         /// <summary>

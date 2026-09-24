@@ -1,11 +1,13 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : UITKSafeAreaLayout.cs
-수정일 : 2026-09-17
+수정일 : 2026-10-03
 # 설명
 화면과 Panel 크기 변화를 감지해 명시적으로 지정한 VisualElement에 Safe Area를 반영한다.
 ========================================================================= BLOCK_HEADER_END */
 
 using System;
+using System.Collections;
+using System.Collections.Generic;
 
 using UnityEngine;
 using UnityEngine.UIElements;
@@ -18,7 +20,7 @@ namespace inonego.Xeri.UI
     /// </summary>
     // ============================================================
     [DisallowMultipleComponent]
-    [RequireComponent(typeof(UITKLayerPanel))]
+    [RequireComponent(typeof(UITKPresentationOutput))]
     public sealed class UITKSafeAreaLayout : MonoBehaviour, IDisposable
     {
 
@@ -34,7 +36,7 @@ namespace inonego.Xeri.UI
         [SerializeField]
         private string rootName = "";
 
-        private UITKLayerPanel layer = null;
+        private UITKPresentationOutput output = null;
         private VisualElement observedRoot = null;
         private Rect lastSafeArea = default;
         private Vector2Int lastScreenSize = default;
@@ -117,36 +119,74 @@ namespace inonego.Xeri.UI
             );
             lastPanelSize = panel.visualTree.contentRect.size;
 
-            OnLayoutChanged?.Invoke();
+            NotifyLayoutChanged();
         }
 
-        // ------------------------------------------------------------
+        // --------------------------------------------------------------------------------
         /// <summary>
-        /// UITK Layer Root에서 명시적으로 지정한 Safe Area Root를 찾는다.
+        /// Layout observer를 독립적으로 호출해 한 observer 실패가 뒤 알림을 차단하지 않게 한다.
         /// </summary>
-        // ------------------------------------------------------------
+        // --------------------------------------------------------------------------------
+        private void NotifyLayoutChanged()
+        {
+            var handlers = OnLayoutChanged;
+            if (handlers == null) return;
+
+            var errors = new List<Exception>();
+
+            foreach (Action handler in handlers.GetInvocationList())
+            {
+                try
+                {
+                    handler.Invoke();
+                }
+                catch (Exception exception)
+                {
+                    errors.Add(exception);
+                }
+            }
+
+            if (errors.Count == 0) return;
+
+            if (errors.Count == 1)
+            {
+                throw errors[0];
+            }
+
+            throw new AggregateException
+            (
+                "Safe Area Layout 변경 observer 처리 중 오류가 발생했습니다.",
+                errors
+            );
+        }
+
+        // ----------------------------------------------------------------------
+        /// <summary>
+        /// UITK Native Output Root에서 명시적으로 지정한 Safe Area Root를 찾는다.
+        /// </summary>
+        // ----------------------------------------------------------------------
         private VisualElement FindRoot()
         {
-            CacheLayer();
+            CacheOutput();
 
-            if (layer == null || string.IsNullOrWhiteSpace(rootName))
+            if (output == null || string.IsNullOrWhiteSpace(rootName))
             {
                 return null;
             }
 
-            return layer.Root?.Q<VisualElement>(rootName);
+            return output.Root?.Q<VisualElement>(rootName);
         }
 
         // ----------------------------------------------------------------------
         /// <summary>
-        /// 같은 GameObject의 UITK Layer backend를 현재 Layout에 연결한다.
+        /// 같은 GameObject의 UITK Native Output을 현재 Layout에 연결한다.
         /// </summary>
         // ----------------------------------------------------------------------
-        private void CacheLayer()
+        private void CacheOutput()
         {
-            if (layer == null)
+            if (output == null)
             {
-                layer = GetComponent<UITKLayerPanel>();
+                output = GetComponent<UITKPresentationOutput>();
             }
         }
 
@@ -259,7 +299,7 @@ namespace inonego.Xeri.UI
 
     #endregion
 
-    #region IDisposable
+    #region 수명 해제
 
         // ------------------------------------------------------------
         /// <summary>

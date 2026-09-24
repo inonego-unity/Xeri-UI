@@ -1,0 +1,9 @@
+<ui:UXML xmlns:ui="UnityEngine.UIElements" editor-extension-mode="False">
+    <ui:VisualElement name="static-content" authoring-id="101" />
+    <ui:VisualElement name="authored-container" authoring-id="110">
+        <ui:VisualElement name="managed-root" authoring-id="120">
+            <ui:VisualElement name="late-placement" authoring-id="130" />
+            <ui:VisualElement name="early-placement" authoring-id="140" />
+        </ui:VisualElement>
+    </ui:VisualElement>
+</ui:UXML>

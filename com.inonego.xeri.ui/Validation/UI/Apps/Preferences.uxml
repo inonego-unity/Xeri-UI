@@ -1,0 +1,41 @@
+<!-- BLOCK_HEADER_BEGIN =====================================================================
+파일명 : Preferences.uxml
+수정일 : 2026-10-04
+
+# 설명
+TextField, DropdownField, Toggle, Slider와 Button의 focus/input을 자연스럽게 확인하는 Preferences application view.
+======================================================================= BLOCK_HEADER_END -->
+<ui:UXML xmlns:ui="UnityEngine.UIElements" editor-extension-mode="False">
+    <Style src="../Shared/XeriValidationTokens.uss" />
+    <Style src="../Shared/XeriValidationComponents.uss" />
+    <Style src="XeriValidationApps.uss" />
+
+    <ui:VisualElement name="PreferencesRoot" class="xeri-validation-app xeri-validation-preferences">
+        <ui:VisualElement class="xeri-validation-app__header">
+            <ui:VisualElement class="xeri-validation-app__heading">
+                <ui:Label text="Preferences" class="xeri-validation-app__title" />
+                <ui:Label text="Make this workspace feel like yours." class="xeri-validation-app__subtitle" />
+            </ui:VisualElement>
+            <ui:Label name="PreferencesStatus" text="Ready" class="xeri-validation-app__status" />
+        </ui:VisualElement>
+
+        <ui:ScrollView mode="Vertical" class="xeri-validation-app__scroll">
+            <ui:VisualElement class="xeri-validation-app__section xeri-validation-preferences__grid">
+                <ui:Label text="Appearance &amp; input" class="xeri-validation-app__section-title" />
+                <ui:Label text="Appearance changes apply to every open window and are saved for your next visit." class="xeri-validation-app__section-copy" />
+                <ui:DropdownField name="PaletteField" label="Appearance" />
+                <ui:DropdownField name="ThemeField" label="Window style" />
+                <ui:TextField name="DisplayNameField" label="Display name" />
+                <ui:Toggle name="CompactModeField" label="Compact density" />
+                <ui:Slider name="ScaleField" label="Slider preview" />
+            </ui:VisualElement>
+
+            <ui:VisualElement class="xeri-validation-preferences__footer">
+                <ui:Label
+                    text="Apply saves spacing. Display name and slider are input previews."
+                    class="xeri-validation-preferences__hint" />
+                <ui:Button name="PreferencesApply" text="Apply" class="xeri-validation-button xeri-validation-button--primary" />
+            </ui:VisualElement>
+        </ui:ScrollView>
+    </ui:VisualElement>
+</ui:UXML>

@@ -1,9 +1,10 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : ScreenController.cs
-수정일 : 2026-09-17
+수정일 : 2026-10-07
 # 설명
 Screen Open·Close·Replace·Clear 명령과 Stack, 상태 훅, Transition과 대칭 수명을 중재한다.
 Screen lifecycle Alpha는 PresentationAlpha Base로 전환해 외부 Modifier와 독립적으로 합성한다.
+Screen 표시 위치는 Registry의 PresentationTarget을 local Session 또는 app-wide Host Layer Lease로 resolve한다.
 ========================================================================= BLOCK_HEADER_END */
 
 using System;
@@ -51,8 +52,10 @@ namespace inonego.Xeri.UI
         // ------------------------------------------------------------
         public bool IsAvailable => isActive && !isReleasing && !isReleased;
 
+        internal bool HasCursorPolicySource => ResolveCursorPolicyOwner() != null;
+
         private readonly ScreenRegistry screenRegistry = null;
-        private readonly PresentationLayerRegistry layerRegistry = null;
+        private readonly Func<PresentationTarget, PresentationLayerLease> acquireLayer = null;
         private readonly IPresentationTransitioner transitioner = null;
         private readonly FocusController focusController = null;
         private readonly IScreenInputDriver inputDriver = null;
@@ -64,7 +67,29 @@ namespace inonego.Xeri.UI
         private bool isReleasing = false;
         private bool isReleased = false;
         private bool isOpening = false;
+
+        internal bool IsInputContributionEnabled => inputContributionEnabled;
+
+        private bool inputContributionEnabled = true;
+
+        internal bool IsCursorPolicyEnabled => cursorPolicyEnabled;
+
+        private bool cursorPolicyEnabled = true;
         private int hookDepth = 0;
+
+    #endregion
+
+    #region 이벤트
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// 화면 스택 변경 뒤 확정된 현재 상태를 관찰한다.
+        /// </summary>
+        // ------------------------------------------------------------
+        public event Action OnStackChanged = null;
+
+        internal event Action OnPolicyChanged = null;
+        private int stackRevision = 0;
 
     #endregion
 
@@ -78,14 +103,14 @@ namespace inonego.Xeri.UI
         public ScreenController
         (
             ScreenRegistry screenRegistry,
-            PresentationLayerRegistry layerRegistry,
+            Func<PresentationTarget, PresentationLayerLease> acquireLayer,
             IPresentationTransitioner transitioner,
             FocusController focusController,
             IScreenInputDriver inputDriver
         ) : base()
         {
             this.screenRegistry = screenRegistry ?? throw new ArgumentNullException(nameof(screenRegistry));
-            this.layerRegistry = layerRegistry ?? throw new ArgumentNullException(nameof(layerRegistry));
+            this.acquireLayer = acquireLayer ?? throw new ArgumentNullException(nameof(acquireLayer));
             this.transitioner = transitioner ?? throw new ArgumentNullException(nameof(transitioner));
             this.focusController = focusController ?? throw new ArgumentNullException(nameof(focusController));
             this.inputDriver = inputDriver ?? throw new ArgumentNullException(nameof(inputDriver));
@@ -110,6 +135,245 @@ namespace inonego.Xeri.UI
             if (isActive) return;
 
             isActive = true;
+        }
+
+        // --------------------------------------------------------------------------------
+        /// <summary>
+        /// Context authority path 상태를 살아 있는 Screen input contribution에 적용한다.
+        /// </summary>
+        // --------------------------------------------------------------------------------
+        internal void SetInputContributionEnabled(bool enabled)
+        {
+            if (inputContributionEnabled == enabled) return;
+
+            var changedSessions = new List<ScreenInputSession>();
+
+            try
+            {
+                for (var index = 0; index < liveSessions.Count; index++)
+                {
+                    var inputSession = liveSessions[index].Resources.InputSession;
+
+                    if (inputSession == null || inputSession.IsContributionEnabled == enabled)
+                    {
+                        continue;
+                    }
+
+                    inputSession.SetContributionEnabled(enabled);
+                    changedSessions.Add(inputSession);
+                }
+
+                RefreshCursorPolicyOwner(enabled, cursorPolicyEnabled);
+                inputContributionEnabled = enabled;
+            }
+            catch (Exception exception)
+            {
+                var errors = new List<Exception>
+                {
+                    exception,
+                };
+
+                for (var index = changedSessions.Count - 1; index >= 0; index--)
+                {
+                    try
+                    {
+                        changedSessions[index].SetContributionEnabled(inputContributionEnabled);
+                    }
+                    catch (Exception rollbackException)
+                    {
+                        errors.Add(rollbackException);
+                    }
+                }
+
+                if (errors.Count == 1)
+                {
+                    throw;
+                }
+
+                throw new AggregateException
+                (
+                    "Screen input contribution 적용과 롤백이 모두 실패했습니다.",
+                    errors
+                );
+            }
+        }
+
+        // --------------------------------------------------------------------------------
+        /// <summary>
+        /// Context authority가 이 Screen Stack의 Cursor policy 사용을 허용하는지 갱신한다.
+        /// </summary>
+        // --------------------------------------------------------------------------------
+        internal void SetCursorPolicyEnabled(bool enabled)
+        {
+            if (cursorPolicyEnabled == enabled) return;
+
+            RefreshCursorPolicyOwner(inputContributionEnabled, enabled);
+            cursorPolicyEnabled = enabled;
+        }
+
+        // --------------------------------------------------------------------------------
+        /// <summary>
+        /// 현재 Stack과 Context authority에서 Cursor policy를 소유할 Screen을 반영한다.
+        /// </summary>
+        // --------------------------------------------------------------------------------
+        private void RefreshCursorPolicyOwner()
+        {
+            RefreshCursorPolicyOwner(inputContributionEnabled, cursorPolicyEnabled);
+        }
+
+        // --------------------------------------------------------------------------------
+        /// <summary>
+        /// 후보 Context authority 상태의 Cursor owner를 원자적으로 모든 생존 Session에 적용한다.
+        /// </summary>
+        // --------------------------------------------------------------------------------
+        private void RefreshCursorPolicyOwner
+        (
+            bool contributionEnabled,
+            bool policyEnabled
+        )
+        {
+            var owner = policyEnabled && contributionEnabled
+                ? ResolveCursorPolicyOwner()
+                : null;
+            var changedSessions = new List<(ScreenInputSession Session, bool Previous)>();
+
+            try
+            {
+                for (var index = 0; index < liveSessions.Count; index++)
+                {
+                    var session = liveSessions[index];
+                    var inputSession = session.Resources.InputSession;
+                    var enabled = ReferenceEquals(session, owner);
+
+                    if (inputSession == null || inputSession.IsCursorPolicyEnabled == enabled)
+                    {
+                        continue;
+                    }
+
+                    var previous = inputSession.IsCursorPolicyEnabled;
+                    inputSession.SetCursorPolicyEnabled(enabled);
+                    changedSessions.Add((inputSession, previous));
+                }
+            }
+            catch (Exception exception)
+            {
+                var errors = new List<Exception>
+                {
+                    exception,
+                };
+
+                for (var index = changedSessions.Count - 1; index >= 0; index--)
+                {
+                    try
+                    {
+                        var changed = changedSessions[index];
+                        changed.Session.SetCursorPolicyEnabled(changed.Previous);
+                    }
+                    catch (Exception rollbackException)
+                    {
+                        errors.Add(rollbackException);
+                    }
+                }
+
+                if (errors.Count == 1)
+                {
+                    throw;
+                }
+
+                throw new AggregateException
+                (
+                    "Screen Cursor policy 적용과 롤백이 모두 실패했습니다.",
+                    errors
+                );
+            }
+        }
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// Cursor policy를 가질 수 있는 현재 Stack top을 반환한다.
+        /// </summary>
+        // ------------------------------------------------------------
+        private ScreenSession ResolveCursorPolicyOwner()
+        {
+            var top = Top;
+
+            if
+            (
+                top == null ||
+                top.State == ScreenState.Covered ||
+                top.State == ScreenState.Closed ||
+                top.Resources.InputSession == null
+            )
+            {
+                return null;
+            }
+
+            return top;
+        }
+
+        // --------------------------------------------------------------------------------
+        /// <summary>
+        /// Stack topology 변경을 Cursor policy와 상위 Context authority 계산에 알린다.
+        /// </summary>
+        // --------------------------------------------------------------------------------
+        private void NotifyStackChanged()
+        {
+            var errors = new List<Exception>();
+
+            try
+            {
+                RefreshCursorPolicyOwner();
+            }
+            catch (Exception exception)
+            {
+                errors.Add(exception);
+            }
+
+            var handlers = OnPolicyChanged;
+
+            if (handlers != null)
+            {
+                foreach (Action handler in handlers.GetInvocationList())
+                {
+                    try
+                    {
+                        handler.Invoke();
+                    }
+                    catch (Exception exception)
+                    {
+                        errors.Add(exception);
+                    }
+                }
+            }
+
+            if (errors.Count == 1)
+            {
+                throw errors[0];
+            }
+
+            if (errors.Count > 1)
+            {
+                throw new AggregateException("Screen Stack 정책 적용이 실패했습니다.", errors);
+            }
+
+            // 완료 알림은 정책 적용의 rollback 원인이 아니다.
+            var revision = ++stackRevision;
+            var observers = OnStackChanged;
+            if (observers == null) return;
+
+            foreach (Action observer in observers.GetInvocationList())
+            {
+                if (revision != stackRevision) break;
+
+                try
+                {
+                    observer();
+                }
+                catch (Exception exception)
+                {
+                    Debug.LogException(exception);
+                }
+            }
         }
 
         // ------------------------------------------------------------
@@ -307,29 +571,29 @@ namespace inonego.Xeri.UI
                 return ScreenOpenResponse.Reject($"Screen '{id}'의 중복 Open이 거부됐습니다.");
             }
 
-            if
-            (
-                !layerRegistry.TryAcquireUsage
-                (
-                    registration.Options.LayerID,
-                    out var layerDriver,
-                    out var layerUsage
-                )
-            )
+            PresentationLayerLease layerLease;
+
+            try
             {
-                return ScreenOpenResponse.Reject
+                layerLease = acquireLayer(registration.Target);
+            }
+            catch (Exception exception)
+            {
+                return ScreenOpenResponse.SourceFailure
                 (
-                    $"Screen '{id}'의 Layer '{registration.Options.LayerID}'가 등록되어 있지 않습니다."
+                    $"Screen '{id}'의 Presentation Target '{registration.Target}'을 획득할 수 없습니다.",
+                    exception
                 );
             }
 
+            var layerDriver = layerLease.Layer;
             var session = new ScreenSession
             (
                 this,
                 registration.Options,
                 parameters,
                 registration.Source,
-                layerUsage
+                layerLease
             )
             {
                 ReplacedSession = replace ? previous : null,
@@ -358,7 +622,6 @@ namespace inonego.Xeri.UI
                     id,
                     parameters,
                     session,
-                    registration.Options.LayerID,
                     layerDriver
                 );
 
@@ -511,7 +774,15 @@ namespace inonego.Xeri.UI
 
             try
             {
-                if (!session.Resources.TryAcquireInput(inputDriver, session.Options))
+                if
+                (
+                    !session.Resources.TryAcquireInput
+                    (
+                        inputDriver,
+                        session.Options,
+                        inputContributionEnabled
+                    )
+                )
                 {
                     return ScreenOpenResponse.Reject
                     (
@@ -536,10 +807,27 @@ namespace inonego.Xeri.UI
                 {
                     previous.State = ScreenState.Covered;
                     previous.Resources.Instance.Driver.SetInteractable(false);
+
+                    if (IsOpenInterrupted(session))
+                    {
+                        return ScreenOpenResponse.Reject
+                        (
+                            $"Screen '{id}' 이전 Screen 비활성화 중 Runtime이 종료됐습니다."
+                        );
+                    }
                 }
 
                 stack.Add(session);
                 session.IsAccepted = true;
+                NotifyStackChanged();
+
+                if (IsOpenInterrupted(session))
+                {
+                    return ScreenOpenResponse.Reject
+                    (
+                        $"Screen '{id}' Stack 공개 중 Runtime이 종료됐습니다."
+                    );
+                }
 
                 // Stack이 소유권을 수락한 뒤에는 동기 완료 callback도 일반 공개 명령을 사용할 수 있다.
                 isOpening = false;
@@ -617,7 +905,7 @@ namespace inonego.Xeri.UI
                 0.0f,
                 1.0f,
                 session.Options.OpenDuration,
-                session.Options.UsesUnscaledTime
+                true
             );
 
             var handle = transitioner.Play
@@ -673,6 +961,8 @@ namespace inonego.Xeri.UI
                 Debug.LogException(exception);
             }
 
+            if (!IsExpected(session, generation, ScreenState.Opening)) return;
+
             try
             {
                 session.Resources.Instance.Driver.SetInteractable(true);
@@ -682,6 +972,8 @@ namespace inonego.Xeri.UI
                 Debug.LogException(exception);
             }
 
+            if (!IsExpected(session, generation, ScreenState.Opening)) return;
+
             session.State = ScreenState.Active;
 
             try
@@ -689,7 +981,6 @@ namespace inonego.Xeri.UI
                 focusController.Activate
                 (
                     session,
-                    session.Options.DefaultFocus,
                     session.Resources.Instance.Driver.DefaultFocus
                 );
             }
@@ -797,13 +1088,39 @@ namespace inonego.Xeri.UI
             session.State = ScreenState.Closing;
             session.RestorePreviousOnClose = restorePrevious;
             session.RetainCursorOnClose = retainCursorWhileAwaitingRelease;
-            InvalidateTransition(session);
+
+            try
+            {
+                InvalidateTransition(session);
+            }
+            catch (Exception exception)
+            {
+                // Transition 취소 backend 실패가 Screen의 terminal cleanup을 차단하지 않게 한다.
+                Debug.LogException(exception);
+            }
 
             // Replace 이전 Screen은 새 top을 건드리지 않도록 닫기 시작 시 Stack에서 분리한다.
             if (detachFromStack)
             {
                 stack.Remove(session);
-                focusController.Remove(session);
+
+                try
+                {
+                    focusController.Remove(session);
+                }
+                catch (Exception exception)
+                {
+                    Debug.LogException(exception);
+                }
+
+                try
+                {
+                    NotifyStackChanged();
+                }
+                catch (Exception exception)
+                {
+                    Debug.LogException(exception);
+                }
             }
 
             try
@@ -882,7 +1199,7 @@ namespace inonego.Xeri.UI
                 session.Alpha.Base,
                 0.0f,
                 session.Options.CloseDuration,
-                session.Options.UsesUnscaledTime
+                true
             );
 
             var handle = transitioner.Play
@@ -983,14 +1300,31 @@ namespace inonego.Xeri.UI
 
             // Source 반환 뒤에는 닫힌 Session이 표시 backend를 더 이상 보유하지 않게 Alpha 연결도 종료한다.
             session.Alpha = null;
-            resources.ReleaseLayer(errors);
+            resources.ReleaseLayerLease(errors);
 
             var detached = stack.Remove(session);
-            focusController.Remove(session);
+            var inputSession = resources.TakeInputSession();
             var inputReleaseSucceeded = false;
             var restoreRequested = false;
             ScreenSession previous = null;
             Action restoreFocus = null;
+
+            // 외부 Focus/Input callback 전에 논리 Session 소유권을 terminal 상태로 확정한다.
+            session.State = ScreenState.Closed;
+
+            if (removeFromLiveSessions)
+            {
+                liveSessions.Remove(session);
+            }
+
+            try
+            {
+                focusController.Remove(session);
+            }
+            catch (Exception exception)
+            {
+                errors.Add(exception);
+            }
 
             if (detached && restorePrevious)
             {
@@ -1005,8 +1339,6 @@ namespace inonego.Xeri.UI
                     }
                 };
             }
-
-            var inputSession = resources.TakeInputSession();
 
             try
             {
@@ -1041,11 +1373,13 @@ namespace inonego.Xeri.UI
                 }
             }
 
-            session.State = ScreenState.Closed;
-
-            if (removeFromLiveSessions)
+            try
             {
-                liveSessions.Remove(session);
+                NotifyStackChanged();
+            }
+            catch (Exception exception)
+            {
+                errors.Add(exception);
             }
 
             ReportErrors(errors, collectedErrors);
@@ -1096,6 +1430,15 @@ namespace inonego.Xeri.UI
             {
                 liveSessions.Clear();
                 stack.Clear();
+
+                try
+                {
+                    NotifyStackChanged();
+                }
+                catch (Exception exception)
+                {
+                    errors.Add(exception);
+                }
             }
 
             if (batchStarted)
@@ -1131,20 +1474,45 @@ namespace inonego.Xeri.UI
         {
             if (!IsAvailable || !ReferenceEquals(Top, previous)) return;
 
-            try
+            var errors = new List<Exception>();
+
+            if (previous != null && previous.State == ScreenState.Covered)
             {
-                if (previous != null && previous.State == ScreenState.Covered)
+                previous.State = ScreenState.Active;
+
+                try
                 {
-                    previous.State = ScreenState.Active;
                     previous.Resources.Instance.Driver.SetInteractable(true);
                 }
+                catch (Exception exception)
+                {
+                    errors.Add(exception);
+                }
+            }
 
-                focusController.Restore(previous);
+            try
+            {
+                NotifyStackChanged();
             }
             catch (Exception exception)
             {
-                Debug.LogException(exception);
+                errors.Add(exception);
             }
+
+            // 상호작용/authority callback이 topology를 바꿨으면 이전 Screen Focus를 다시 덮어쓰지 않는다.
+            if (IsAvailable && ReferenceEquals(Top, previous))
+            {
+                try
+                {
+                    focusController.Restore(previous);
+                }
+                catch (Exception exception)
+                {
+                    errors.Add(exception);
+                }
+            }
+
+            ReportErrors(errors, null);
         }
 
         // ----------------------------------------------------------------------
@@ -1218,6 +1586,14 @@ namespace inonego.Xeri.UI
             try
             {
                 session.Resources.Instance.Driver.SetInteractable(false);
+            }
+            catch (Exception exception)
+            {
+                errors.Add(exception);
+            }
+
+            try
+            {
                 session.Alpha.Set(0.0f);
             }
             catch (Exception exception)
@@ -1252,34 +1628,64 @@ namespace inonego.Xeri.UI
             try
             {
                 InvalidateTransition(session);
-                stack.Remove(session);
-                session.IsAccepted = false;
+            }
+            catch (Exception exception)
+            {
+                errors.Add(exception);
+            }
+
+            stack.Remove(session);
+            session.IsAccepted = false;
+
+            try
+            {
+                ReleaseUnaccepted(session);
+            }
+            catch (Exception exception)
+            {
+                errors.Add(exception);
+            }
+
+            // 정리 실패와 무관하게 이전 top의 관찰 가능한 상태는 복원한다.
+            if (previous != null)
+            {
+                previous.State = ScreenState.Active;
 
                 try
                 {
-                    ReleaseUnaccepted(session);
+                    previous.Resources.Instance.Driver.SetInteractable(true);
                 }
                 catch (Exception exception)
                 {
                     errors.Add(exception);
                 }
             }
-            finally
-            {
-                // 정리 실패와 무관하게 이전 top의 관찰 가능한 상태는 복원한다.
-                if (previous != null)
-                {
-                    previous.State = ScreenState.Active;
 
-                    try
-                    {
-                        previous.Resources.Instance.Driver.SetInteractable(true);
-                        focusController.Restore(previous);
-                    }
-                    catch (Exception exception)
-                    {
-                        errors.Add(exception);
-                    }
+            try
+            {
+                NotifyStackChanged();
+            }
+            catch (Exception exception)
+            {
+                errors.Add(exception);
+            }
+
+            // 복원 callback이 topology를 바꿨다면 더 이상 이전 Screen Focus를 덮어쓰지 않는다.
+            if
+            (
+                previous != null &&
+                IsAvailable &&
+                ReferenceEquals(Top, previous) &&
+                previous.State == ScreenState.Active
+            )
+            {
+                try
+                {
+                    focusController.Restore(previous);
+                }
+                catch (Exception exception)
+                {
+                    errors.Add(exception);
                 }
             }
 
@@ -1324,7 +1730,7 @@ namespace inonego.Xeri.UI
 
             // Source 반환 뒤에는 닫힌 Session이 표시 backend를 더 이상 보유하지 않게 Alpha 연결도 종료한다.
             session.Alpha = null;
-            resources.ReleaseLayer(errors);
+            resources.ReleaseLayerLease(errors);
 
             var inputSession = resources.TakeInputSession();
 

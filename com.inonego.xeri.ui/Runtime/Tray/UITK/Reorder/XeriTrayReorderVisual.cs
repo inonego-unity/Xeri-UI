@@ -16,7 +16,7 @@ namespace inonego.Xeri.UI.Tray
     /// Tray reorder drag visual 처리기.
     /// </summary>
     // ============================================================
-    public sealed class XeriTrayReorderVisual
+    internal sealed class XeriTrayReorderVisual
     {
 
     #region 필드
@@ -30,7 +30,10 @@ namespace inonego.Xeri.UI.Tray
 
     #region 생성자
 
-        public XeriTrayReorderVisual() : base() {}
+        internal XeriTrayReorderVisual() : base()
+        {
+            // NONE
+        }
 
     #endregion
 
@@ -41,18 +44,19 @@ namespace inonego.Xeri.UI.Tray
         /// Drag 중인 button을 지정 축 방향으로만 이동시킨다.
         /// </summary>
         // ------------------------------------------------------------
-        public void Move
+        internal void Move
         (
+            XeriTrayButton button,
             XeriTrayReorderSession session,
             Vector2 currentPointerPos,
             IXeriTrayReorderTarget target
         )
         {
-            if (session?.Button == null || target == null) return;
+            if (button == null || session == null || target == null) return;
 
-            UpdateProxy(session, target);
-            session.Button.AddToClassList(REORDERING_CLASS);
-            session.Button.visible = false;
+            UpdateProxy(button, session, target);
+            button.AddToClassList(REORDERING_CLASS);
+            button.visible = false;
 
             var delta = currentPointerPos - session.StartPointerPos;
             proxyButton.style.translate = target.ReorderAxis == XeriTrayReorderAxis.Horizontal
@@ -65,13 +69,18 @@ namespace inonego.Xeri.UI.Tray
         /// Drag 중인 button offset을 초기화한다.
         /// </summary>
         // ------------------------------------------------------------
-        public void Clear(XeriTrayReorderSession session)
+        internal void Clear
+        (
+            XeriTrayButton button,
+            XeriTrayReorderSession session
+        )
         {
-            if (session?.Button == null) return;
-
-            session.Button.style.translate = new Translate(0f, 0f, 0f);
-            session.Button.visible = true;
-            session.Button.RemoveFromClassList(REORDERING_CLASS);
+            if (button != null)
+            {
+                button.style.translate = new Translate(0f, 0f, 0f);
+                button.visible = true;
+                button.RemoveFromClassList(REORDERING_CLASS);
+            }
 
             if (proxyButton != null)
             {
@@ -89,7 +98,12 @@ namespace inonego.Xeri.UI.Tray
         /// Drag 중인 button을 대신 표시할 proxy를 생성하거나 위치를 갱신한다.
         /// </summary>
         // ------------------------------------------------------------
-        private void UpdateProxy(XeriTrayReorderSession session, IXeriTrayReorderTarget target)
+        private void UpdateProxy
+        (
+            XeriTrayButton button,
+            XeriTrayReorderSession session,
+            IXeriTrayReorderTarget target
+        )
         {
             if (proxyButton == null)
             {
@@ -99,7 +113,7 @@ namespace inonego.Xeri.UI.Tray
                 target.EntryContainer.Add(proxyButton);
             }
 
-            var bounds = session.Button.layout;
+            var bounds = button.layout;
 
             proxyButton.style.position = Position.Absolute;
             proxyButton.style.left = bounds.x;

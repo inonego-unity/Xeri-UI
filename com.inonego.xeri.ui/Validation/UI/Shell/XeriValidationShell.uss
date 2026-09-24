@@ -1,0 +1,600 @@
+/* BLOCK_HEADER_BEGIN =======================================================================
+파일명 : XeriValidationShell.uss
+수정일 : 2026-10-04
+
+# 설명
+통합 Validation Desktop의 wallpaper, system bar, desktop launcher, monitor, checklist와 taskbar를 정의한다.
+Validation token 기반의 spacing/control size를 사용하고 장식보다 기능 가독성을 우선한다.
+========================================================================= BLOCK_HEADER_END */
+
+.xeri-validation-desktop {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    overflow: hidden;
+    color: var(--xeri-validation-text-on-dark);
+    background-color: var(--xeri-validation-desktop-a);
+}
+
+.xeri-validation-desktop__wallpaper {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    background-image: linear-gradient(138deg, var(--xeri-validation-desktop-a) 0%, var(--xeri-validation-desktop-b) 48%, var(--xeri-validation-desktop-c) 100%);
+}
+
+.xeri-validation-desktop__ambient {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    opacity: 0.34;
+    background-image: linear-gradient(32deg, rgba(73, 206, 214, 0.20) 0%, rgba(73, 206, 214, 0) 36%, rgba(122, 113, 230, 0) 62%, rgba(122, 113, 230, 0.18) 100%);
+}
+
+.xeri-validation-desktop__chrome {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 0;
+    height: var(--xeri-validation-topbar-height);
+    padding-left: var(--xeri-validation-space-4);
+    padding-right: var(--xeri-validation-space-4);
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    color: var(--xeri-validation-text-on-dark);
+    background-color: var(--xeri-desktop-chrome);
+    border-bottom-width: 1px;
+    border-bottom-color: var(--xeri-desktop-border);
+}
+
+.xeri-validation-desktop__brand {
+    flex-direction: row;
+    align-items: center;
+    gap: var(--xeri-desktop-space-3);
+}
+
+.xeri-validation-desktop__mark {
+    width: 30px;
+    height: 30px;
+    align-items: center;
+    justify-content: center;
+    color: rgb(255, 255, 255);
+    background-image: linear-gradient(135deg, rgb(82, 151, 255) 0%, rgb(75, 193, 194) 100%);
+    border-top-left-radius: 8px;
+    border-top-right-radius: 8px;
+    border-bottom-left-radius: 8px;
+    border-bottom-right-radius: 8px;
+    -unity-font-style: bold;
+}
+
+.xeri-validation-desktop__title {
+    color: var(--xeri-validation-text-on-dark);
+    font-size: 14px;
+    -unity-font-style: bold;
+}
+
+.xeri-validation-desktop__subtitle {
+    margin-left: var(--xeri-validation-space-2);
+    color: var(--xeri-validation-muted-on-dark);
+    font-size: 11px;
+}
+
+.xeri-validation-desktop__tools {
+    flex-direction: row;
+    align-items: center;
+    gap: var(--xeri-validation-space-2);
+}
+
+.xeri-validation-desktop__tools .xeri-validation-button {
+    height: 32px;
+    min-width: 92px;
+    color: var(--xeri-validation-text-on-dark);
+    background-color: var(--xeri-validation-surface-subtle);
+    border-color: var(--xeri-desktop-border);
+    font-size: 11px;
+}
+
+.xeri-validation-desktop__tools .xeri-validation-button:hover,
+.xeri-validation-desktop__tools .xeri-validation-button:focus {
+    background-color: var(--xeri-desktop-surface-hover);
+    border-color: var(--xeri-desktop-border-strong);
+}
+
+.xeri-validation-launcher {
+    position: absolute;
+    left: var(--xeri-validation-space-6);
+    top: 92px;
+    width: 388px;
+    gap: var(--xeri-validation-space-4);
+}
+
+.xeri-validation-launcher__group {
+    gap: var(--xeri-validation-space-2);
+}
+
+.xeri-validation-launcher__heading {
+    margin-left: var(--xeri-validation-space-1);
+    color: var(--xeri-desktop-muted);
+    font-size: 11px;
+    -unity-font-style: bold;
+}
+
+.xeri-validation-launcher__row {
+    min-width: 0;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: var(--xeri-desktop-space-3);
+}
+
+.xeri-validation-launcher__item {
+    width: var(--xeri-validation-icon-width);
+    min-width: var(--xeri-validation-icon-width);
+    height: var(--xeri-validation-icon-height);
+    padding-left: var(--xeri-validation-space-2);
+    padding-right: var(--xeri-validation-space-2);
+    padding-top: var(--xeri-desktop-space-3);
+    padding-bottom: var(--xeri-desktop-space-3);
+    align-items: center;
+    justify-content: center;
+    color: var(--xeri-validation-text-on-dark);
+    background-color: var(--xeri-validation-glass);
+    border-left-width: 1px;
+    border-right-width: 1px;
+    border-top-width: 1px;
+    border-bottom-width: 1px;
+    border-color: var(--xeri-desktop-border);
+    border-top-left-radius: var(--xeri-validation-radius);
+    border-top-right-radius: var(--xeri-validation-radius);
+    border-bottom-left-radius: var(--xeri-validation-radius);
+    border-bottom-right-radius: var(--xeri-validation-radius);
+    flex-direction: column;
+    font-size: 12px;
+    -unity-font-style: bold;
+    -unity-text-align: middle-center;
+    white-space: normal;
+    transition-property: translate, background-color, border-color;
+    transition-duration: var(--xeri-validation-motion);
+}
+
+.xeri-validation-launcher__icon {
+    width: 38px;
+    height: 38px;
+    margin-bottom: var(--xeri-validation-space-2);
+    align-items: center;
+    justify-content: center;
+    color: var(--xeri-validation-text-on-dark);
+    background-image: linear-gradient(145deg, rgba(255, 255, 255, 0.19) 0%, rgba(255, 255, 255, 0.08) 100%);
+    border-top-left-radius: 10px;
+    border-top-right-radius: 10px;
+    border-bottom-left-radius: 10px;
+    border-bottom-right-radius: 10px;
+    font-size: 13px;
+    -unity-font-style: bold;
+    -unity-text-align: middle-center;
+}
+
+.xeri-validation-launcher__label {
+    color: var(--xeri-validation-text-on-dark);
+    font-size: 12px;
+    -unity-font-style: bold;
+    -unity-text-align: middle-center;
+}
+
+.xeri-validation-launcher__item:hover,
+.xeri-validation-launcher__item:focus {
+    translate: 0 -2px;
+    background-color: var(--xeri-desktop-surface-hover);
+    border-color: var(--xeri-desktop-border-strong);
+}
+
+.xeri-validation-launcher__item:active {
+    translate: 0 0;
+    background-color: var(--xeri-desktop-pressed);
+}
+
+.xeri-validation-desktop__managed-root {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: var(--xeri-validation-topbar-height);
+    bottom: 0;
+}
+
+.xeri-validation-monitor {
+    position: absolute;
+    right: var(--xeri-validation-space-5);
+    top: var(--xeri-validation-space-5);
+    width: 304px;
+    padding: var(--xeri-validation-space-4);
+    gap: var(--xeri-validation-space-2);
+    color: var(--xeri-validation-text-on-dark);
+    background-color: var(--xeri-validation-glass);
+    border-left-width: 1px;
+    border-right-width: 1px;
+    border-top-width: 1px;
+    border-bottom-width: 1px;
+    border-color: var(--xeri-desktop-border);
+    border-top-left-radius: var(--xeri-validation-radius-large);
+    border-top-right-radius: var(--xeri-validation-radius-large);
+    border-bottom-left-radius: var(--xeri-validation-radius-large);
+    border-bottom-right-radius: var(--xeri-validation-radius-large);
+    filter: drop-shadow(0px 16px 40px rgba(5, 12, 22, 0.28));
+}
+
+.xeri-validation-monitor--collapsed {
+    display: none;
+}
+
+.xeri-validation-monitor__header {
+    min-height: 44px;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: var(--xeri-validation-space-1);
+}
+
+.xeri-validation-monitor__header .xeri-validation-title {
+    color: var(--xeri-validation-text-on-dark);
+    font-size: 18px;
+}
+
+.xeri-validation-monitor__header .xeri-validation-copy {
+    margin-top: 2px;
+    color: var(--xeri-validation-muted-on-dark);
+    font-size: 11px;
+}
+
+.xeri-validation-monitor__pulse {
+    width: 9px;
+    height: 9px;
+    border-top-left-radius: 5px;
+    border-top-right-radius: 5px;
+    border-bottom-left-radius: 5px;
+    border-bottom-right-radius: 5px;
+    background-color: var(--xeri-validation-success);
+}
+
+.xeri-validation-monitor__row {
+    min-height: 42px;
+    padding-left: var(--xeri-desktop-space-3);
+    padding-right: var(--xeri-desktop-space-3);
+    padding-top: 7px;
+    padding-bottom: 7px;
+    justify-content: center;
+    background-color: var(--xeri-desktop-surface-raised);
+    border-top-left-radius: 8px;
+    border-top-right-radius: 8px;
+    border-bottom-left-radius: 8px;
+    border-bottom-right-radius: 8px;
+}
+
+.xeri-validation-monitor__label {
+    color: var(--xeri-validation-muted-on-dark);
+    font-size: 10px;
+}
+
+.xeri-validation-monitor__value {
+    margin-top: 3px;
+    color: var(--xeri-validation-text-on-dark);
+    font-size: 13px;
+    -unity-font-style: bold;
+}
+
+/* The dock centers one scrollable flex row at every viewport width. */
+.xeri-validation-taskbar-dock {
+    position: absolute;
+    left: 16px;
+    right: 16px;
+    bottom: 16px;
+    align-items: center;
+}
+
+.xeri-validation-taskbar {
+    width: 90%;
+    max-width: 1040px;
+    min-width: 0;
+    min-height: var(--xeri-validation-taskbar-height);
+    padding: var(--xeri-validation-space-2);
+    background-color: var(--xeri-validation-glass-strong);
+    border-width: 1px;
+    border-color: var(--xeri-desktop-border-strong);
+    border-radius: var(--xeri-desktop-radius-lg);
+    filter: drop-shadow(0px 8px 28px rgba(0, 0, 0, 0.28));
+}
+
+.xeri-validation-taskbar > .unity-scroll-view__content-and-vertical-scroll-container > .unity-scroll-view__content-viewport > .unity-scroll-view__content-container {
+    min-width: 100%;
+    justify-content: center;
+}
+
+.xeri-validation-taskbar__tray {
+    min-width: 0;
+    height: 44px;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+}
+
+.xeri-validation-taskbar__tray .xeri-tray__entry-container {
+    min-width: 0;
+    height: 44px;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: var(--xeri-validation-space-2);
+}
+
+.xeri-validation-taskbar__tray .xeri-tray-button {
+    width: 150px;
+    min-width: 118px;
+    max-width: 196px;
+    height: 42px;
+    flex-grow: 0;
+    flex-shrink: 0;
+    padding-left: var(--xeri-desktop-space-3);
+    padding-right: var(--xeri-validation-space-2);
+    padding-top: 0;
+    padding-bottom: 0;
+    color: var(--xeri-validation-text-on-dark);
+    background-color: var(--xeri-validation-surface-subtle);
+    border-width: 1px;
+    border-color: transparent;
+    border-top-left-radius: 9px;
+    border-top-right-radius: 9px;
+    border-bottom-left-radius: 9px;
+    border-bottom-right-radius: 9px;
+}
+
+.xeri-validation-taskbar__tray .xeri-tray-button:hover {
+    background-color: var(--xeri-desktop-surface-hover);
+}
+
+.xeri-validation-taskbar__tray .xeri-tray-button__title {
+    min-width: 0;
+    height: 100%;
+    flex-grow: 1;
+    flex-shrink: 1;
+    overflow: hidden;
+    color: var(--xeri-validation-text-on-dark);
+    font-size: 11px;
+    white-space: nowrap;
+    -unity-text-align: middle-left;
+}
+
+.xeri-validation-taskbar__tray .xeri-tray-button__state-marker {
+    width: 3px;
+    height: 20px;
+    flex-shrink: 0;
+    margin-right: var(--xeri-validation-space-2);
+    background-color: var(--xeri-desktop-accent);
+    border-top-left-radius: 2px;
+    border-top-right-radius: 2px;
+    border-bottom-left-radius: 2px;
+    border-bottom-right-radius: 2px;
+}
+
+.xeri-validation-taskbar__tray .xeri-tray-button__close-button {
+    width: 24px;
+    min-width: 24px;
+    height: 24px;
+    min-height: 24px;
+    flex-shrink: 0;
+    margin-left: var(--xeri-validation-space-2);
+    margin-right: 0;
+    margin-top: 0;
+    margin-bottom: 0;
+    padding-left: 0;
+    padding-right: 0;
+    padding-top: 0;
+    padding-bottom: 0;
+    color: var(--xeri-validation-muted-on-dark);
+    background-color: var(--xeri-validation-surface-overlay);
+    border-left-width: 0;
+    border-right-width: 0;
+    border-top-width: 0;
+    border-bottom-width: 0;
+    border-top-left-radius: 6px;
+    border-top-right-radius: 6px;
+    border-bottom-left-radius: 6px;
+    border-bottom-right-radius: 6px;
+    -unity-text-align: middle-center;
+}
+
+.xeri-validation-taskbar__tray .xeri-tray-button__close-button:hover {
+    color: rgb(255, 255, 255);
+    background-color: var(--xeri-desktop-danger);
+}
+
+.xeri-validation-checklist {
+    position: absolute;
+    right: var(--xeri-validation-space-5);
+    bottom: 90px;
+    width: 304px;
+    padding: var(--xeri-validation-space-4);
+    gap: var(--xeri-validation-space-1);
+    color: var(--xeri-validation-text-on-dark);
+    background-color: var(--xeri-validation-glass-strong);
+    border-left-width: 1px;
+    border-right-width: 1px;
+    border-top-width: 1px;
+    border-bottom-width: 1px;
+    border-color: var(--xeri-desktop-border);
+    border-top-left-radius: var(--xeri-validation-radius-large);
+    border-top-right-radius: var(--xeri-validation-radius-large);
+    border-bottom-left-radius: var(--xeri-validation-radius-large);
+    border-bottom-right-radius: var(--xeri-validation-radius-large);
+    filter: drop-shadow(0px 16px 40px rgba(5, 12, 22, 0.28));
+}
+
+.xeri-validation-checklist--collapsed {
+    display: none;
+}
+
+.xeri-validation-checklist__header {
+    min-height: 40px;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: var(--xeri-validation-space-2);
+}
+
+.xeri-validation-checklist__header .xeri-validation-eyebrow {
+    color: var(--xeri-validation-muted-on-dark);
+}
+
+.xeri-validation-checklist__header .xeri-validation-title {
+    color: var(--xeri-validation-text-on-dark);
+    font-size: 18px;
+}
+
+.xeri-validation-checklist__summary {
+    color: var(--xeri-desktop-accent);
+    font-size: 11px;
+    -unity-font-style: bold;
+}
+
+.xeri-validation-checklist__item {
+    min-height: 30px;
+    padding-left: var(--xeri-validation-space-2);
+    padding-right: var(--xeri-validation-space-2);
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom-width: 1px;
+    border-bottom-color: var(--xeri-desktop-border);
+}
+
+.xeri-validation-checklist__name {
+    color: var(--xeri-validation-muted-on-dark);
+    font-size: 10px;
+}
+
+.xeri-validation-checklist__state {
+    color: var(--xeri-validation-disabled);
+    font-size: 10px;
+}
+
+.xeri-validation-checklist__state--complete {
+    color: var(--xeri-validation-success);
+}
+
+/* Responsive desktop shell --------------------------------------------------------------- */
+.xeri-validation-desktop--compact .xeri-validation-launcher {
+    left: var(--xeri-validation-space-4);
+    width: 320px;
+}
+
+.xeri-validation-desktop--compact .xeri-validation-launcher__item {
+    width: 96px;
+    min-width: 96px;
+    height: 80px;
+}
+
+.xeri-validation-desktop--compact .xeri-validation-launcher__icon {
+    width: 32px;
+    height: 32px;
+    margin-bottom: var(--xeri-validation-space-1);
+}
+
+.xeri-validation-desktop--compact .xeri-validation-monitor,
+.xeri-validation-desktop--compact .xeri-validation-checklist {
+    right: var(--xeri-validation-space-4);
+    width: 276px;
+}
+
+.xeri-validation-desktop--compact .xeri-validation-taskbar {
+    max-width: 1040px;
+}
+
+.xeri-validation-desktop--narrow .xeri-validation-desktop__chrome {
+    padding-left: var(--xeri-validation-space-2);
+    padding-right: var(--xeri-validation-space-2);
+}
+
+.xeri-validation-desktop--narrow .xeri-validation-desktop__subtitle,
+.xeri-validation-desktop--narrow .xeri-validation-desktop__tools,
+.xeri-validation-desktop--narrow .xeri-validation-monitor,
+.xeri-validation-desktop--narrow .xeri-validation-checklist {
+    display: none;
+}
+
+.xeri-validation-desktop--narrow .xeri-validation-launcher {
+    left: var(--xeri-desktop-space-3);
+    right: var(--xeri-desktop-space-3);
+    top: 68px;
+    width: auto;
+}
+
+.xeri-validation-desktop--narrow .xeri-validation-launcher__item {
+    width: 92px;
+    min-width: 92px;
+    height: 76px;
+    padding-top: var(--xeri-validation-space-2);
+    padding-bottom: var(--xeri-validation-space-2);
+}
+
+.xeri-validation-desktop--narrow .xeri-validation-taskbar {
+    width: 100%;
+    max-width: 100%;
+}
+
+.xeri-validation-desktop--narrow .xeri-validation-taskbar__tray .xeri-tray-button {
+    min-width: 96px;
+    max-width: 152px;
+}
+
+.xeri-validation-desktop--short .xeri-validation-monitor,
+.xeri-validation-desktop--short .xeri-validation-checklist {
+    display: none;
+}
+
+.xeri-validation-desktop--short .xeri-validation-launcher {
+    top: 64px;
+    gap: var(--xeri-validation-space-2);
+}
+
+.xeri-validation-taskbar__tray .xeri-tray-button--visible {
+    background-color: var(--xeri-validation-accent-soft);
+}
+.xeri-validation-taskbar__tray .xeri-tray-button--active {
+    background-color: var(--xeri-desktop-surface-hover);
+    border-color: var(--xeri-desktop-accent);
+}
+.xeri-validation-taskbar__tray .xeri-tray-button:active {
+    background-color: var(--xeri-desktop-pressed);
+}
+.xeri-validation-launcher__item {
+    margin: 0;
+    transition-timing-function: ease-out;
+}
+.xeri-validation-launcher__icon {
+    width: var(--xeri-validation-icon-size);
+    height: var(--xeri-validation-icon-size);
+    background-image: none;
+    background-color: var(--xeri-validation-accent-soft);
+    color: var(--xeri-desktop-accent);
+    border-width: 1px;
+    border-color: var(--xeri-desktop-border);
+}
+#LaunchTaskBoard .xeri-validation-launcher__icon,
+#LaunchApplicationA .xeri-validation-launcher__icon {
+    color: var(--xeri-validation-cyan);
+}
+#LaunchPreferences .xeri-validation-launcher__icon,
+#LaunchApplicationB .xeri-validation-launcher__icon {
+    color: var(--xeri-validation-violet);
+}
+#LaunchModalLab .xeri-validation-launcher__icon {
+    color: var(--xeri-validation-warning);
+}
+.xeri-validation-monitor__value {
+    overflow: hidden;
+    text-overflow: ellipsis;
+}

@@ -1,11 +1,13 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : ScreenInputSession.cs
-수정일 : 2026-09-17
+수정일 : 2026-10-03
 # 설명
-한 Screen의 입력·Cursor 정책 점유와 닫기 입력 해제 대기 수명을 표현한다.
+한 Screen의 입력·Cursor 정책 lifetime과 active Context path에 대한 contribution 상태를 표현한다.
 ========================================================================= BLOCK_HEADER_END */
 
 using System;
+using System.Collections;
+using System.Collections.Generic;
 
 namespace inonego.Xeri.UI
 {
@@ -47,7 +49,22 @@ namespace inonego.Xeri.UI
         // ------------------------------------------------------------
         public ScreenOptions Options { get; }
 
+        // ------------------------------------------------------------
+        /// <summary>
+        /// 현재 Gameplay input policy 합성에 기여하는지 여부.
+        /// </summary>
+        // ------------------------------------------------------------
+        public bool IsContributionEnabled { get; private set; } = true;
+
+        // --------------------------------------------------------------------------------
+        /// <summary>
+        /// 현재 Screen topology가 이 Session을 Cursor policy owner로 선택했는지 여부.
+        /// </summary>
+        // --------------------------------------------------------------------------------
+        public bool IsCursorPolicyEnabled { get; private set; }
+
         private Action<ScreenInputSession, bool, bool> release = null;
+        private Action<ScreenInputSession> contributionChanged = null;
         private Action onReleaseCompleted = null;
 
     #endregion
@@ -62,11 +79,16 @@ namespace inonego.Xeri.UI
         internal ScreenInputSession
         (
             ScreenOptions options,
-            Action<ScreenInputSession, bool, bool> release
+            Action<ScreenInputSession, bool, bool> release,
+            Action<ScreenInputSession> contributionChanged = null,
+            bool contributionEnabled = true
         ) : base()
         {
             Options = options ?? throw new ArgumentNullException(nameof(options));
             this.release = release ?? throw new ArgumentNullException(nameof(release));
+            this.contributionChanged = contributionChanged;
+            IsContributionEnabled = contributionEnabled;
+            IsCursorPolicyEnabled = false;
             IsReleased = false;
             IsAwaitingRelease = false;
             RetainsCursorWhileAwaitingRelease = false;
@@ -75,6 +97,92 @@ namespace inonego.Xeri.UI
     #endregion
 
     #region 메서드
+
+        // --------------------------------------------------------------------------------
+        /// <summary>
+        /// Context authority에 따라 global input contribution을 suspend/resume한다.
+        /// </summary>
+        // --------------------------------------------------------------------------------
+        internal void SetContributionEnabled(bool enabled)
+        {
+            if (IsReleased || IsContributionEnabled == enabled) return;
+
+            var previous = IsContributionEnabled;
+            IsContributionEnabled = enabled;
+
+            try
+            {
+                contributionChanged?.Invoke(this);
+            }
+            catch (Exception exception)
+            {
+                if (IsReleased)
+                {
+                    throw;
+                }
+
+                IsContributionEnabled = previous;
+
+                try
+                {
+                    contributionChanged?.Invoke(this);
+                }
+                catch (Exception rollbackException)
+                {
+                    throw new AggregateException
+                    (
+                        "Screen input contribution 적용과 backend 롤백이 모두 실패했습니다.",
+                        exception,
+                        rollbackException
+                    );
+                }
+
+                throw;
+            }
+        }
+
+        // --------------------------------------------------------------------------------
+        /// <summary>
+        /// Screen Stack과 Context authority가 결정한 Cursor policy ownership을 갱신한다.
+        /// </summary>
+        // --------------------------------------------------------------------------------
+        internal void SetCursorPolicyEnabled(bool enabled)
+        {
+            if (IsReleased || IsCursorPolicyEnabled == enabled) return;
+
+            var previous = IsCursorPolicyEnabled;
+            IsCursorPolicyEnabled = enabled;
+
+            try
+            {
+                contributionChanged?.Invoke(this);
+            }
+            catch (Exception exception)
+            {
+                if (IsReleased)
+                {
+                    throw;
+                }
+
+                IsCursorPolicyEnabled = previous;
+
+                try
+                {
+                    contributionChanged?.Invoke(this);
+                }
+                catch (Exception rollbackException)
+                {
+                    throw new AggregateException
+                    (
+                        "Screen Cursor policy 적용과 backend 롤백이 모두 실패했습니다.",
+                        exception,
+                        rollbackException
+                    );
+                }
+
+                throw;
+            }
+        }
 
         // ------------------------------------------------------------
         /// <summary>
@@ -91,10 +199,13 @@ namespace inonego.Xeri.UI
             if (IsReleased) return;
 
             this.onReleaseCompleted += onReleaseCompleted;
+            var retainCursor =
+                retainCursorWhileAwaitingRelease &&
+                IsCursorPolicyEnabled;
 
             try
             {
-                release(this, waitForInputRelease, retainCursorWhileAwaitingRelease);
+                release(this, waitForInputRelease, retainCursor);
             }
             catch
             {
@@ -127,16 +238,42 @@ namespace inonego.Xeri.UI
 
             IsAwaitingRelease = false;
             RetainsCursorWhileAwaitingRelease = false;
+            IsCursorPolicyEnabled = false;
             IsReleased = true;
             release = null;
+            contributionChanged = null;
 
             var completionCallback = onReleaseCompleted;
             onReleaseCompleted = null;
 
-            if (invokeCompletionCallback)
+            if (!invokeCompletionCallback || completionCallback == null) return;
+
+            var errors = new List<Exception>();
+
+            foreach (Action callback in completionCallback.GetInvocationList())
             {
-                completionCallback?.Invoke();
+                try
+                {
+                    callback.Invoke();
+                }
+                catch (Exception exception)
+                {
+                    errors.Add(exception);
+                }
             }
+
+            if (errors.Count == 0) return;
+
+            if (errors.Count == 1)
+            {
+                throw errors[0];
+            }
+
+            throw new AggregateException
+            (
+                "Screen input release 완료 callback 중 하나 이상이 실패했습니다.",
+                errors
+            );
         }
 
     #endregion

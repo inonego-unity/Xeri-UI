@@ -2,7 +2,7 @@
 파일명 : Presentation.cs
 수정일 : 2026-09-19
 # 설명
-기존 UI backend Target을 Xeri Presentation State에 연결하는 기본 Presentation 구현이다.
+UI backend Target을 Xeri Presentation State에 연결하는 기본 Presentation 구현이다.
 Alpha와 Visibility는 서로 독립 capability이며 제공된 Target에 대해서만 생성한다.
 ========================================================================= BLOCK_HEADER_END */
 
@@ -12,7 +12,7 @@ namespace inonego.Xeri.UI
 {
     // ============================================================
     /// <summary>
-    /// <br/> 기존 UI backend를 Alpha·Visibility
+    /// <br/> UI backend를 Alpha·Visibility
     /// <br/> Presentation State에 연결하는 기본 Presentation.
     /// </summary>
     // ============================================================
@@ -41,7 +41,7 @@ namespace inonego.Xeri.UI
 
         // ------------------------------------------------------------
         /// <summary>
-        /// 기존 Alpha State를 하나의 Presentation leaf로 묶는다.
+        /// Alpha State를 하나의 Presentation leaf로 묶는다.
         /// </summary>
         // ------------------------------------------------------------
         public Presentation(PresentationAlpha alpha) :
@@ -52,7 +52,7 @@ namespace inonego.Xeri.UI
 
         // ------------------------------------------------------------
         /// <summary>
-        /// 기존 Visibility State를 하나의 Presentation leaf로 묶는다.
+        /// Visibility State를 하나의 Presentation leaf로 묶는다.
         /// </summary>
         // ------------------------------------------------------------
         public Presentation(PresentationVisibility visibility) :
@@ -61,11 +61,11 @@ namespace inonego.Xeri.UI
             // NONE
         }
 
-        // ----------------------------------------------------------------------
+        // ------------------------------------------------------------
         /// <summary>
-        /// 기존 Alpha·Visibility State를 하나의 Presentation leaf로 묶는다.
+        /// Alpha·Visibility State를 하나의 Presentation leaf로 묶는다.
         /// </summary>
-        // ----------------------------------------------------------------------
+        // ------------------------------------------------------------
         public Presentation
         (
             PresentationAlpha alpha,

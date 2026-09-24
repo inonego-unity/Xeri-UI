@@ -1,0 +1,124 @@
+<!-- BLOCK_HEADER_BEGIN =====================================================================
+파일명 : XeriValidationDesktop.uxml
+수정일 : 2026-10-04
+
+# 설명
+scene-authored Validation Desktop의 wallpaper/system bar/desktop launcher와 ManagedRoot, authored Status/Taskbar placement를 정의한다.
+바탕화면은 자유 탐색의 주 작업 공간이고 상시 안내문/장식성 원형 없이 앱, 도구, 상태 패널에 시선을 집중한다.
+======================================================================= BLOCK_HEADER_END -->
+<ui:UXML xmlns:ui="UnityEngine.UIElements" editor-extension-mode="False">
+    <Style src="../Shared/XeriValidationTokens.uss" />
+    <Style src="../Shared/XeriValidationComponents.uss" />
+    <Style src="XeriValidationShell.uss" />
+
+    <ui:VisualElement name="DesktopRoot" authoring-id="100" class="xeri-validation xeri-validation-desktop">
+        <ui:VisualElement class="xeri-validation-desktop__wallpaper" picking-mode="Ignore" />
+        <ui:VisualElement class="xeri-validation-desktop__ambient" picking-mode="Ignore" />
+
+        <ui:VisualElement class="xeri-validation-desktop__chrome">
+            <ui:VisualElement class="xeri-validation-desktop__brand">
+                <ui:VisualElement class="xeri-validation-desktop__mark"><ui:Label text="X" /></ui:VisualElement>
+                <ui:Label text="Xeri Desktop" class="xeri-validation-desktop__title" />
+                <ui:Label text="Validation workspace" class="xeri-validation-desktop__subtitle" />
+            </ui:VisualElement>
+            <ui:VisualElement class="xeri-validation-desktop__tools">
+                <ui:Button name="ToggleChecklist" text="Validation" class="xeri-validation-button xeri-validation-button--quiet" />
+                <ui:Button name="ToggleMonitor" text="System Monitor" class="xeri-validation-button xeri-validation-button--quiet" />
+            </ui:VisualElement>
+        </ui:VisualElement>
+
+        <ui:VisualElement class="xeri-validation-launcher">
+            <ui:VisualElement class="xeri-validation-launcher__group">
+                <ui:Label text="Apps" class="xeri-validation-launcher__heading" />
+                <ui:VisualElement class="xeri-validation-launcher__row">
+                    <ui:Button name="LaunchTaskBoard" class="xeri-validation-launcher__item">
+                        <ui:Label text="TB" class="xeri-validation-launcher__icon" />
+                        <ui:Label text="Task Board" class="xeri-validation-launcher__label" />
+                    </ui:Button>
+                    <ui:Button name="LaunchPreferences" class="xeri-validation-launcher__item">
+                        <ui:Label text="PF" class="xeri-validation-launcher__icon" />
+                        <ui:Label text="Preferences" class="xeri-validation-launcher__label" />
+                    </ui:Button>
+                    <ui:Button name="LaunchApplicationA" class="xeri-validation-launcher__item">
+                        <ui:Label text="A" class="xeri-validation-launcher__icon" />
+                        <ui:Label text="Application A" class="xeri-validation-launcher__label" />
+                    </ui:Button>
+                </ui:VisualElement>
+                <ui:VisualElement class="xeri-validation-launcher__row">
+                    <ui:Button name="LaunchApplicationB" class="xeri-validation-launcher__item">
+                        <ui:Label text="B" class="xeri-validation-launcher__icon" />
+                        <ui:Label text="Application B" class="xeri-validation-launcher__label" />
+                    </ui:Button>
+                </ui:VisualElement>
+            </ui:VisualElement>
+
+            <ui:VisualElement class="xeri-validation-launcher__group">
+                <ui:Label text="System tools" class="xeri-validation-launcher__heading" />
+                <ui:VisualElement class="xeri-validation-launcher__row">
+                    <ui:Button name="LaunchCoreLab" class="xeri-validation-launcher__item">
+                        <ui:Label text="C" class="xeri-validation-launcher__icon" />
+                        <ui:Label text="Core Lab" class="xeri-validation-launcher__label" />
+                    </ui:Button>
+                    <ui:Button name="LaunchWindowLab" class="xeri-validation-launcher__item">
+                        <ui:Label text="W" class="xeri-validation-launcher__icon" />
+                        <ui:Label text="Window Lab" class="xeri-validation-launcher__label" />
+                    </ui:Button>
+                    <ui:Button name="LaunchModalLab" class="xeri-validation-launcher__item">
+                        <ui:Label text="M" class="xeri-validation-launcher__icon" />
+                        <ui:Label text="Modal Lab" class="xeri-validation-launcher__label" />
+                    </ui:Button>
+                </ui:VisualElement>
+            </ui:VisualElement>
+        </ui:VisualElement>
+
+        <ui:VisualElement
+            name="ManagedRoot"
+            authoring-id="120"
+            class="xeri-validation-desktop__managed-root"
+            picking-mode="Ignore">
+            <ui:VisualElement
+                name="DesktopStatus"
+                authoring-id="130"
+                class="xeri-validation-monitor"
+                picking-mode="Ignore">
+                <ui:VisualElement class="xeri-validation-monitor__header">
+                    <ui:VisualElement>
+                        <ui:Label text="System Monitor" class="xeri-validation-title" />
+                        <ui:Label text="Live runtime state" class="xeri-validation-copy" />
+                    </ui:VisualElement>
+                    <ui:VisualElement class="xeri-validation-monitor__pulse" />
+                </ui:VisualElement>
+                <ui:VisualElement class="xeri-validation-monitor__row">
+                    <ui:Label text="Runtime" class="xeri-validation-monitor__label" />
+                    <ui:Label name="MonitorRuntimeState" text="Starting" class="xeri-validation-monitor__value" />
+                </ui:VisualElement>
+                <ui:VisualElement class="xeri-validation-monitor__row">
+                    <ui:Label text="Windows" class="xeri-validation-monitor__label" />
+                    <ui:Label name="MonitorWindowCount" text="0" class="xeri-validation-monitor__value" />
+                </ui:VisualElement>
+                <ui:VisualElement class="xeri-validation-monitor__row">
+                    <ui:Label text="Active window" class="xeri-validation-monitor__label" />
+                    <ui:Label name="MonitorActiveWindow" text="Desktop" class="xeri-validation-monitor__value" />
+                </ui:VisualElement>
+                <ui:VisualElement class="xeri-validation-monitor__row">
+                    <ui:Label text="Window state" class="xeri-validation-monitor__label" />
+                    <ui:Label name="MonitorWindowState" text="—" class="xeri-validation-monitor__value" />
+                </ui:VisualElement>
+                <ui:VisualElement class="xeri-validation-monitor__row">
+                    <ui:Label text="Root screen / modal" class="xeri-validation-monitor__label" />
+                    <ui:VisualElement class="xeri-validation-row">
+                        <ui:Label name="MonitorScreenCount" text="0" class="xeri-validation-monitor__value" />
+                        <ui:Label text="/" class="xeri-validation-monitor__value" />
+                        <ui:Label name="MonitorModalCount" text="0" class="xeri-validation-monitor__value" />
+                    </ui:VisualElement>
+                </ui:VisualElement>
+                <ui:VisualElement class="xeri-validation-monitor__row">
+                    <ui:Label text="Last input" class="xeri-validation-monitor__label" />
+                    <ui:Label name="MonitorInputDevice" text="No input" class="xeri-validation-monitor__value" />
+                </ui:VisualElement>
+            </ui:VisualElement>
+
+            <ui:VisualElement name="DesktopTaskbar" authoring-id="140" class="xeri-validation-taskbar-dock" picking-mode="Ignore" />
+        </ui:VisualElement>
+    </ui:VisualElement>
+</ui:UXML>

@@ -3,14 +3,8 @@
 수정일 : 2026-09-20
 
 # 설명
-UITK view 생성, session 저장, session 로드에 필요한 런타임 적용 범위.
-
-# 특이사항
-VisualElement는 Unity 직렬화 대상이 아니므로 이 타입은 런타임 전달 객체로만 사용한다.
+UITK view 생성, session 저장, session 로드에 필요한 stable ID와 UI session 범위.
 ========================================================================= BLOCK_HEADER_END */
-
-using UnityEngine;
-using UnityEngine.UIElements;
 
 namespace inonego.Xeri.UI.Window
 {
@@ -51,24 +45,6 @@ namespace inonego.Xeri.UI.Window
 
         private readonly IXeriUISession uiSession = null;
 
-        // ------------------------------------------------------------
-        /// <summary>
-        /// View가 붙을 host root.
-        /// </summary>
-        // ------------------------------------------------------------
-        public VisualElement HostRoot => hostRoot;
-
-        private readonly VisualElement hostRoot = null;
-
-        // ------------------------------------------------------------
-        /// <summary>
-        /// 생성된 view가 붙을 slot.
-        /// </summary>
-        // ------------------------------------------------------------
-        public VisualElement ViewSlot => viewSlot;
-
-        private readonly VisualElement viewSlot = null;
-
     #endregion
 
     #region 생성자
@@ -82,16 +58,12 @@ namespace inonego.Xeri.UI.Window
         (
             string viewSourceID,
             string viewDataKey,
-            IXeriUISession uiSession,
-            VisualElement hostRoot,
-            VisualElement viewSlot
+            IXeriUISession uiSession
         ) : base()
         {
             this.viewSourceID = viewSourceID ?? string.Empty;
-            this.viewDataKey  = viewDataKey ?? string.Empty;
-            this.uiSession    = uiSession;
-            this.hostRoot     = hostRoot;
-            this.viewSlot     = viewSlot;
+            this.viewDataKey = viewDataKey ?? string.Empty;
+            this.uiSession = uiSession;
         }
 
     #endregion

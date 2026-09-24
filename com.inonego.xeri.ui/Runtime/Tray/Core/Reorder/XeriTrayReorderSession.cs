@@ -1,10 +1,12 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명: XeriTrayReorderSession.cs
-수정일 : 2026-09-20
+수정일 : 2026-09-21
 
 # 설명
-Tray entry reorder drag 중의 임시 상태를 보관한다.
+Tray entry reorder drag 중의 backend-neutral 임시 상태를 보관한다.
 ========================================================================= BLOCK_HEADER_END */
+
+using System;
 
 using UnityEngine;
 
@@ -19,13 +21,6 @@ namespace inonego.Xeri.UI.Tray
     {
 
     #region 필드
-
-        // ------------------------------------------------------------
-        /// <summary>
-        /// Drag 중인 Tray button.
-        /// </summary>
-        // ------------------------------------------------------------
-        public XeriTrayButton Button { get; }
 
         // ------------------------------------------------------------
         /// <summary>
@@ -49,7 +44,7 @@ namespace inonego.Xeri.UI.Tray
         public int TargetIndex
         {
             get => targetIndex;
-            set => targetIndex = value;
+            internal set => targetIndex = value;
         }
 
         private int targetIndex = 0;
@@ -70,15 +65,20 @@ namespace inonego.Xeri.UI.Tray
         /// Tray reorder drag 세션을 생성한다.
         /// </summary>
         // ------------------------------------------------------------
-        public XeriTrayReorderSession
+        internal XeriTrayReorderSession
         (
-            XeriTrayButton button,
+            XeriTrayEntry entry,
             int sourceIndex,
             Vector2 startPointerPos
         ) : base()
         {
-            Button = button;
-            Entry = button != null ? button.Entry : null;
+            Entry = entry ?? throw new ArgumentNullException(nameof(entry));
+
+            if (sourceIndex < 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(sourceIndex));
+            }
+
             SourceIndex = sourceIndex;
             targetIndex = sourceIndex;
             StartPointerPos = startPointerPos;

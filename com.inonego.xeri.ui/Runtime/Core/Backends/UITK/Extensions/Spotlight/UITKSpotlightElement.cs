@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : UITKSpotlightElement.cs
-수정일 : 2026-09-17
+수정일 : 2026-10-05
 # 설명
 UI Toolkit dim을 여러 Spotlight 구멍으로 렌더링하고 구멍 바깥 Pointer 입력만 차단한다.
 ========================================================================= BLOCK_HEADER_END */
@@ -58,7 +58,8 @@ namespace inonego.Xeri.UI
         private readonly List<Rect> holes = new List<Rect>();
         private readonly List<float> xCoordinates = new List<float>();
         private readonly List<float> yCoordinates = new List<float>();
-        private readonly List<VisualElement> observedTargets = new List<VisualElement>();
+        private readonly List<Rect> nextHoles = new List<Rect>();
+        private readonly IVisualElementScheduledItem refreshItem;
         private UITKSpotlightParams activeParams = null;
         private bool blocksOutsideInput = false;
 
@@ -82,6 +83,8 @@ namespace inonego.Xeri.UI
             style.visibility = Visibility.Hidden;
             pickingMode = PickingMode.Ignore;
 
+            refreshItem = schedule.Execute(Refresh).Every(1);
+            refreshItem.Pause();
             generateVisualContent += HandleGenerateVisualContent;
             RegisterCallback<AttachToPanelEvent>(HandleAttachedToPanel);
             RegisterCallback<DetachFromPanelEvent>(HandleDetachedFromPanel);
@@ -89,7 +92,7 @@ namespace inonego.Xeri.UI
 
     #endregion
 
-    #region ISpotlightDriver
+    #region 스포트라이트 드라이버 구현
 
         // ------------------------------------------------------------
         /// <summary>
@@ -114,28 +117,26 @@ namespace inonego.Xeri.UI
             ValidateTargets(parameters);
 
             var previous = activeParams;
-            UnobserveTargets();
             activeParams = parameters;
 
             try
             {
-                ObserveTargets(parameters);
                 Refresh();
+                refreshItem.Resume();
             }
             catch (Exception exception)
             {
                 try
                 {
-                    UnobserveTargets();
                     activeParams = previous;
 
                     if (previous != null)
                     {
-                        ObserveTargets(previous);
                         Refresh();
                     }
                     else
                     {
+                        refreshItem.Pause();
                         ClearVisualState();
                     }
                 }
@@ -155,19 +156,19 @@ namespace inonego.Xeri.UI
 
         // ------------------------------------------------------------
         /// <summary>
-        /// Spotlight 구멍, 대상 구독과 바깥 입력 차단을 제거한다.
+        /// Spotlight 구멍, 좌표 추적과 바깥 입력 차단을 제거한다.
         /// </summary>
         // ------------------------------------------------------------
         public void Hide()
         {
             activeParams = null;
-            UnobserveTargets();
+            refreshItem.Pause();
             ClearVisualState();
         }
 
     #endregion
 
-    #region VisualElement
+    #region VisualElement 동작
 
         // ------------------------------------------------------------
         /// <summary>
@@ -199,7 +200,7 @@ namespace inonego.Xeri.UI
                 return;
             }
 
-            holes.Clear();
+            nextHoles.Clear();
 
             for (var i = 0; i < activeParams.Targets.Count; i++)
             {
@@ -228,20 +229,52 @@ namespace inonego.Xeri.UI
                 hole.xMax += target.Padding.y;
                 hole.yMin -= target.Padding.z;
                 hole.yMax += target.Padding.w;
-                holes.Add(hole);
+
+                // 조상 ScrollView의 이동과 clip을 현재 Panel 좌표에서 함께 반영한다.
+                for (var ancestor = element.parent; ancestor != null; ancestor = ancestor.parent)
+                {
+                    if (ancestor.resolvedStyle.display == DisplayStyle.None)
+                    {
+                        hole = Rect.zero;
+                        break;
+                    }
+
+                    if (ancestor is ScrollView scroll)
+                    {
+                        var viewport = scroll.contentViewport;
+                        hole = Clamp(hole, viewport.ChangeCoordinatesTo(this, viewport.contentRect));
+                    }
+                }
+
+                hole = Clamp(hole, contentRect);
+                if (hole.width <= 0.0f || hole.height <= 0.0f) continue;
+
+                nextHoles.Add(hole);
             }
 
             // 유효한 대상이 없으면 dim과 Picking을 함께 비워 전체 입력 잠금을 만들지 않는다.
-            if (holes.Count == 0)
+            if (nextHoles.Count == 0)
             {
                 ClearVisualState();
                 return;
             }
 
+            var changed = holes.Count != nextHoles.Count;
+            for (var i = 0; !changed && i < holes.Count; i++)
+            {
+                changed = holes[i] != nextHoles[i];
+            }
+
+            if (changed)
+            {
+                holes.Clear();
+                holes.AddRange(nextHoles);
+                MarkDirtyRepaint();
+            }
+
             blocksOutsideInput = activeParams.BlocksOutsideInput;
             pickingMode = blocksOutsideInput ? PickingMode.Position : PickingMode.Ignore;
             style.visibility = Visibility.Visible;
-            MarkDirtyRepaint();
         }
 
         // ------------------------------------------------------------
@@ -251,11 +284,15 @@ namespace inonego.Xeri.UI
         // ------------------------------------------------------------
         private void ClearVisualState()
         {
-            holes.Clear();
+            if (holes.Count > 0)
+            {
+                holes.Clear();
+                MarkDirtyRepaint();
+            }
+
             blocksOutsideInput = false;
             pickingMode = PickingMode.Ignore;
             style.visibility = Visibility.Hidden;
-            MarkDirtyRepaint();
         }
 
         // ------------------------------------------------------------
@@ -274,44 +311,6 @@ namespace inonego.Xeri.UI
                     $"UITK Spotlight 대상 {i}가 같은 Panel에 연결되지 않았습니다."
                 );
             }
-        }
-
-        // ------------------------------------------------------------
-        /// <summary>
-        /// 현재 Target의 Geometry와 Panel 연결 변경을 구독한다.
-        /// </summary>
-        // ------------------------------------------------------------
-        private void ObserveTargets(UITKSpotlightParams parameters)
-        {
-            for (var i = 0; i < parameters.Targets.Count; i++)
-            {
-                var target = parameters.Targets[i].Target;
-
-                if (observedTargets.Contains(target)) continue;
-
-                observedTargets.Add(target);
-                target.RegisterCallback<GeometryChangedEvent>(HandleTargetGeometryChanged);
-                target.RegisterCallback<AttachToPanelEvent>(HandleTargetAttachedToPanel);
-                target.RegisterCallback<DetachFromPanelEvent>(HandleTargetDetachedFromPanel);
-            }
-        }
-
-        // ------------------------------------------------------------
-        /// <summary>
-        /// 현재 Target의 Geometry와 Panel 연결 변경 구독을 해제한다.
-        /// </summary>
-        // ------------------------------------------------------------
-        private void UnobserveTargets()
-        {
-            for (var i = 0; i < observedTargets.Count; i++)
-            {
-                var target = observedTargets[i];
-                target.UnregisterCallback<GeometryChangedEvent>(HandleTargetGeometryChanged);
-                target.UnregisterCallback<AttachToPanelEvent>(HandleTargetAttachedToPanel);
-                target.UnregisterCallback<DetachFromPanelEvent>(HandleTargetDetachedFromPanel);
-            }
-
-            observedTargets.Clear();
         }
 
         // ------------------------------------------------------------
@@ -454,7 +453,10 @@ namespace inonego.Xeri.UI
         // ------------------------------------------------------------
         private void HandleAttachedToPanel(AttachToPanelEvent evt)
         {
+            if (activeParams == null) return;
+
             Refresh();
+            refreshItem.Resume();
         }
 
         // ------------------------------------------------------------
@@ -464,37 +466,8 @@ namespace inonego.Xeri.UI
         // ------------------------------------------------------------
         private void HandleDetachedFromPanel(DetachFromPanelEvent evt)
         {
+            refreshItem.Pause();
             ClearVisualState();
-        }
-
-        // ------------------------------------------------------------
-        /// <summary>
-        /// Target Geometry 변경을 현재 Spotlight 구멍에 반영한다.
-        /// </summary>
-        // ------------------------------------------------------------
-        private void HandleTargetGeometryChanged(GeometryChangedEvent evt)
-        {
-            Refresh();
-        }
-
-        // ------------------------------------------------------------
-        /// <summary>
-        /// Target의 Panel 연결을 현재 Spotlight 구멍에 반영한다.
-        /// </summary>
-        // ------------------------------------------------------------
-        private void HandleTargetAttachedToPanel(AttachToPanelEvent evt)
-        {
-            Refresh();
-        }
-
-        // ------------------------------------------------------------
-        /// <summary>
-        /// Target의 Panel 분리를 현재 Spotlight 구멍에 반영한다.
-        /// </summary>
-        // ------------------------------------------------------------
-        private void HandleTargetDetachedFromPanel(DetachFromPanelEvent evt)
-        {
-            Refresh();
         }
 
     #endregion

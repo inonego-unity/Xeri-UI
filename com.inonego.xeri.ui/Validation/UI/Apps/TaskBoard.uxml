@@ -1,0 +1,38 @@
+<!-- BLOCK_HEADER_BEGIN =====================================================================
+파일명 : TaskBoard.uxml
+수정일 : 2026-10-04
+
+# 설명
+Window를 자연스럽게 조작하면서 기본 UITK input control도 함께 행사하는 Task Board application view.
+======================================================================= BLOCK_HEADER_END -->
+<ui:UXML xmlns:ui="UnityEngine.UIElements" editor-extension-mode="False">
+    <Style src="../Shared/XeriValidationTokens.uss" />
+    <Style src="../Shared/XeriValidationComponents.uss" />
+    <Style src="XeriValidationApps.uss" />
+
+    <ui:VisualElement name="TaskBoardRoot" class="xeri-validation-app xeri-validation-task-board">
+        <ui:VisualElement class="xeri-validation-app__header">
+            <ui:VisualElement class="xeri-validation-app__heading">
+                <ui:Label text="Task Board" class="xeri-validation-app__title" />
+                <ui:Label text="Type, toggle, drag the window and restore it from the taskbar" class="xeri-validation-app__subtitle" />
+            </ui:VisualElement>
+            <ui:Label name="TaskStatus" text="0 / 0 complete" class="xeri-validation-app__status" />
+        </ui:VisualElement>
+
+        <ui:ScrollView mode="Vertical" class="xeri-validation-app__scroll">
+            <ui:VisualElement class="xeri-validation-app__section">
+                <ui:Label text="Quick add" class="xeri-validation-app__section-title" />
+                <ui:Label text="Text input stays live while the window is moved, resized and refocused." class="xeri-validation-app__section-copy" />
+                <ui:VisualElement class="xeri-validation-app__input-row">
+                    <ui:TextField name="TaskInput" />
+                    <ui:Button name="TaskAdd" text="Add task" class="xeri-validation-button xeri-validation-button--primary" />
+                </ui:VisualElement>
+            </ui:VisualElement>
+
+            <ui:VisualElement class="xeri-validation-app__section">
+                <ui:Label text="Work items" class="xeri-validation-app__section-title" />
+                <ui:VisualElement name="TaskList" class="xeri-validation-app__list" />
+            </ui:VisualElement>
+        </ui:ScrollView>
+    </ui:VisualElement>
+</ui:UXML>

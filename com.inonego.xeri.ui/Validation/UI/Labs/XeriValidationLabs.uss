@@ -1,0 +1,203 @@
+/* BLOCK_HEADER_BEGIN =======================================================================
+파일명 : XeriValidationLabs.uss
+수정일 : 2026-10-04
+
+# 설명
+Core, Window, Modal instrumented Lab의 control surface와 상태 표시 스타일.
+기능 밀도는 유지하되 일반 system utility app처럼 읽히도록 spacing과 typography를 정리한다.
+========================================================================= BLOCK_HEADER_END */
+
+.xeri-validation-lab {
+    position: absolute;
+    left: 0;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    min-width: 0;
+    min-height: 0;
+    padding: var(--xeri-validation-space-4);
+    gap: var(--xeri-desktop-space-3);
+    color: var(--xeri-desktop-text);
+    background-color: var(--xeri-desktop-surface);
+}
+
+.xeri-validation-lab__header {
+    min-width: 0;
+    min-height: 54px;
+    flex-shrink: 0;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--xeri-validation-space-2);
+}
+
+.xeri-validation-lab__heading {
+    min-width: 180px;
+    flex-grow: 1;
+}
+
+.xeri-validation-lab__scroll {
+    flex-grow: 1;
+    min-width: 0;
+    min-height: 0;
+}
+
+.xeri-validation-lab__scroll .unity-scroll-view__content-container {
+    min-width: 0;
+    padding-right: var(--xeri-validation-space-1);
+    gap: var(--xeri-desktop-space-3);
+}
+
+.xeri-validation-lab__title {
+    color: var(--xeri-desktop-text);
+    font-size: 20px;
+    -unity-font-style: bold;
+}
+
+.xeri-validation-lab__copy {
+    white-space: normal;
+    margin-top: 3px;
+    color: var(--xeri-desktop-muted);
+    font-size: 12px;
+}
+
+.xeri-validation-lab__status {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-height: 25px;
+    padding-left: var(--xeri-desktop-space-3);
+    padding-right: var(--xeri-desktop-space-3);
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    color: var(--xeri-validation-accent-hover);
+    background-color: var(--xeri-validation-accent-soft);
+    border-top-left-radius: 13px;
+    border-top-right-radius: 13px;
+    border-bottom-left-radius: 13px;
+    border-bottom-right-radius: 13px;
+    font-size: 10px;
+    -unity-font-style: bold;
+    -unity-text-align: middle-center;
+}
+
+.xeri-validation-lab__group {
+    flex-shrink: 0;
+    min-width: 0;
+    padding: var(--xeri-validation-space-4);
+    gap: var(--xeri-desktop-space-3);
+    background-color: var(--xeri-desktop-surface-raised);
+    border-left-width: 1px;
+    border-right-width: 1px;
+    border-top-width: 1px;
+    border-bottom-width: 1px;
+    border-color: var(--xeri-desktop-border);
+    border-top-left-radius: var(--xeri-validation-radius);
+    border-top-right-radius: var(--xeri-validation-radius);
+    border-bottom-left-radius: var(--xeri-validation-radius);
+    border-bottom-right-radius: var(--xeri-validation-radius);
+}
+
+.xeri-validation-lab__group-title {
+    color: var(--xeri-desktop-text);
+    font-size: 12px;
+    -unity-font-style: bold;
+}
+
+.xeri-validation-lab__actions {
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: var(--xeri-validation-space-2);
+}
+
+.xeri-validation-lab__target {
+    height: 78px;
+    align-items: center;
+    justify-content: center;
+    color: var(--xeri-validation-accent-hover);
+    background-image: linear-gradient(135deg, rgba(93, 155, 255, 0.18) 0%, rgba(76, 210, 210, 0.12) 100%);
+    border-left-width: 1px;
+    border-right-width: 1px;
+    border-top-width: 1px;
+    border-bottom-width: 1px;
+    border-color: var(--xeri-desktop-border-strong);
+    border-top-left-radius: var(--xeri-validation-radius);
+    border-top-right-radius: var(--xeri-validation-radius);
+    border-bottom-left-radius: var(--xeri-validation-radius);
+    border-bottom-right-radius: var(--xeri-validation-radius);
+    font-size: 12px;
+    -unity-font-style: bold;
+}
+
+.xeri-validation-projection-tray {
+    min-height: 46px;
+    padding: var(--xeri-validation-space-2);
+    background-color: var(--xeri-desktop-surface-input);
+    border-left-width: 1px;
+    border-right-width: 1px;
+    border-top-width: 1px;
+    border-bottom-width: 1px;
+    border-color: var(--xeri-desktop-border);
+    border-top-left-radius: 8px;
+    border-top-right-radius: 8px;
+    border-bottom-left-radius: 8px;
+    border-bottom-right-radius: 8px;
+}
+
+.xeri-validation-projection-tray .xeri-tray-button {
+    min-width: 108px;
+    height: 34px;
+    color: var(--xeri-desktop-text);
+    background-color: var(--xeri-validation-surface-overlay);
+    border-top-left-radius: 7px;
+    border-top-right-radius: 7px;
+    border-bottom-left-radius: 7px;
+    border-bottom-right-radius: 7px;
+}
+
+.xeri-validation-projection-tray .xeri-tray-button__title {
+    color: var(--xeri-desktop-text);
+    font-size: 11px;
+}
+
+.xeri-validation-core-screen {
+    position: absolute;
+    left: 16px;
+    top: 72px;
+    right: 16px;
+    width: auto;
+    max-width: 520px;
+    min-height: 178px;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.xeri-validation-core-screen__card {
+    padding: var(--xeri-validation-space-5);
+    gap: var(--xeri-desktop-space-3);
+    color: var(--xeri-desktop-text);
+    background-color: var(--xeri-desktop-surface-raised);
+    border-left-width: 1px;
+    border-right-width: 1px;
+    border-top-width: 1px;
+    border-bottom-width: 1px;
+    border-color: var(--xeri-desktop-border);
+    border-top-left-radius: 12px;
+    border-top-right-radius: 12px;
+    border-bottom-left-radius: 12px;
+    border-bottom-right-radius: 12px;
+    filter: drop-shadow(0px 18px 44px rgba(9, 20, 34, 0.22));
+}
+
+.xeri-validation-core-screen__title {
+    color: var(--xeri-desktop-text);
+    font-size: 24px;
+    -unity-font-style: bold;
+}
+
+.xeri-validation-core-screen__label {
+    color: var(--xeri-desktop-muted);
+    font-size: 10px;
+}

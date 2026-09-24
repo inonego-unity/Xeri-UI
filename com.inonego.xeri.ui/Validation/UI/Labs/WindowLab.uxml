@@ -1,0 +1,47 @@
+<!-- BLOCK_HEADER_BEGIN =====================================================================
+파일명 : WindowLab.uxml
+수정일 : 2026-10-04
+
+# 설명
+Window state/StackLayer와 Minimized-only Tray projection을 직접 조작하는 Window Lab control surface.
+======================================================================= BLOCK_HEADER_END -->
+<ui:UXML xmlns:ui="UnityEngine.UIElements" editor-extension-mode="False">
+    <Style src="../Shared/XeriValidationTokens.uss" />
+    <Style src="../Shared/XeriValidationComponents.uss" />
+    <Style src="XeriValidationLabs.uss" />
+
+    <ui:VisualElement name="WindowLabRoot" class="xeri-validation-lab">
+        <ui:VisualElement class="xeri-validation-lab__header">
+            <ui:VisualElement class="xeri-validation-lab__heading">
+                <ui:Label text="Window Lab" class="xeri-validation-lab__title" />
+                <ui:Label text="State · z-order · per-Tray projection" class="xeri-validation-lab__copy" />
+            </ui:VisualElement>
+            <ui:Label name="WindowLabStatus" text="Ready" class="xeri-validation-lab__status" />
+        </ui:VisualElement>
+
+        <ui:ScrollView mode="Vertical" class="xeri-validation-lab__scroll">
+            <ui:VisualElement class="xeri-validation-lab__group">
+                <ui:Label text="Windows" class="xeri-validation-lab__group-title" />
+                <ui:VisualElement class="xeri-validation-lab__actions">
+                    <ui:Button name="WindowOpenTool" text="Open utility" class="xeri-validation-button xeri-validation-button--secondary" />
+                    <ui:Button name="WindowOpenAlwaysOnTop" text="Open always on top" class="xeri-validation-button xeri-validation-button--secondary" />
+                </ui:VisualElement>
+            </ui:VisualElement>
+            <ui:VisualElement class="xeri-validation-lab__group">
+                <ui:Label text="Active window state" class="xeri-validation-lab__group-title" />
+                <ui:VisualElement class="xeri-validation-lab__actions">
+                    <ui:Button name="WindowMinimizeActive" text="Minimize" class="xeri-validation-button xeri-validation-button--quiet" />
+                    <ui:Button name="WindowMaximizeActive" text="Maximize" class="xeri-validation-button xeri-validation-button--primary" />
+                    <ui:Button name="WindowNormalActive" text="Show normal" class="xeri-validation-button xeri-validation-button--secondary" />
+                </ui:VisualElement>
+            </ui:VisualElement>
+            <ui:VisualElement class="xeri-validation-lab__group">
+                <ui:Label text="Minimized-only task list" class="xeri-validation-lab__group-title" />
+                <ui:Label
+                    text="The OS taskbar keeps ALL live states. This second production Source projects Minimized only."
+                    class="xeri-validation-copy" />
+                <ui:VisualElement name="WindowProjectionHost" />
+            </ui:VisualElement>
+        </ui:ScrollView>
+    </ui:VisualElement>
+</ui:UXML>

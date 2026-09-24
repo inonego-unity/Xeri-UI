@@ -8,6 +8,9 @@ Window titlebar drag가 움직이는 window 내부 좌표계에 흔들리지 않
 
 using UnityEngine;
 
+using inonego;
+using inonego.Xeri;
+using inonego.Xeri.UI;
 using inonego.Xeri.UI.DragDrop;
 
 namespace inonego.Xeri.UI.Window
@@ -22,15 +25,18 @@ namespace inonego.Xeri.UI.Window
 
     #region 프로퍼티
 
-        // ------------------------------------------------------------
+        // ----------------------------------------------------------------------
         /// <summary>
         /// Window 이동 계산은 입력 delta만 사용하므로 기준 위치는 0으로 고정한다.
         /// </summary>
-        // ------------------------------------------------------------
+        // ----------------------------------------------------------------------
         public Vector2 Pos
         {
             get => Vector2.zero;
-            set {}
+            set
+            {
+                // NONE
+            }
         }
 
     #endregion

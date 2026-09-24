@@ -1,8 +1,9 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : ScreenRegistry.cs
-수정일 : 2026-09-17
+수정일 : 2026-10-07
 # 설명
-Screen Options와 Source를 stable string ID로 등록하고 새 Open 조회를 제공한다.
+Screen Options, PresentationTarget과 Source를 stable string ID로 등록하고 새 Open 조회를 제공한다.
+표시 Target은 Screen policy와 분리된 composition 정보로 Open 시 resolve한다.
 ========================================================================= BLOCK_HEADER_END */
 
 using System;
@@ -40,6 +41,13 @@ namespace inonego.Xeri.UI
 
             // ------------------------------------------------------------
             /// <summary>
+            /// Screen View를 표시할 local Layer 또는 Host destination.
+            /// </summary>
+            // ------------------------------------------------------------
+            public PresentationTarget Target { get; }
+
+            // ------------------------------------------------------------
+            /// <summary>
             /// Screen View와 Presenter를 공급하는 Source.
             /// </summary>
             // ------------------------------------------------------------
@@ -64,10 +72,22 @@ namespace inonego.Xeri.UI
             public Entry
             (
                 ScreenOptions options,
+                PresentationTarget target,
                 IScreenSource source
             ) : base()
             {
                 Options = options ?? throw new ArgumentNullException(nameof(options));
+
+                if (!target.IsValid)
+                {
+                    throw new ArgumentException
+                    (
+                        "Screen Presentation Target이 유효하지 않습니다.",
+                        nameof(target)
+                    );
+                }
+
+                Target = target;
                 Source = source ?? throw new ArgumentNullException(nameof(source));
             }
 
@@ -79,23 +99,9 @@ namespace inonego.Xeri.UI
 
     #region 필드
 
-        private readonly PresentationLayerRegistry layerRegistry = null;
         private readonly Dictionary<string, Entry> entries = new Dictionary<string, Entry>();
+        private bool ownerControlsLifetime = false;
         private bool isDisposed = false;
-
-    #endregion
-
-    #region 생성자
-
-        // ------------------------------------------------------------
-        /// <summary>
-        /// Layer 등록 상태를 검증하는 Screen Registry를 생성한다.
-        /// </summary>
-        // ------------------------------------------------------------
-        public ScreenRegistry(PresentationLayerRegistry layerRegistry) : base()
-        {
-            this.layerRegistry = layerRegistry ?? throw new ArgumentNullException(nameof(layerRegistry));
-        }
 
     #endregion
 
@@ -109,6 +115,7 @@ namespace inonego.Xeri.UI
         public ScreenRegistrationHandle Register
         (
             ScreenOptions options,
+            PresentationTarget target,
             IScreenSource source
         )
         {
@@ -127,14 +134,6 @@ namespace inonego.Xeri.UI
                 throw new ArgumentNullException(nameof(source));
             }
 
-            if (!layerRegistry.Contains(options.LayerID))
-            {
-                throw new InvalidOperationException
-                (
-                    $"Screen '{options.ID}'의 Layer '{options.LayerID}'가 등록되어 있지 않습니다."
-                );
-            }
-
             if (entries.ContainsKey(options.ID))
             {
                 throw new InvalidOperationException
@@ -143,7 +142,7 @@ namespace inonego.Xeri.UI
                 );
             }
 
-            var entry = new Entry(options, source);
+            var entry = new Entry(options, target, source);
             entries.Add(options.ID, entry);
             var handle = new ScreenRegistrationHandle(this, entry);
             entry.Handle = handle;
@@ -225,14 +224,55 @@ namespace inonego.Xeri.UI
 
     #endregion
 
-    #region IDisposable
+    #region 수명 해제
+
+        // ----------------------------------------------------------------------
+        /// <summary>
+        /// <br/> 새 Screen 조회를 모두 제거하되 Source 자체는 해제하지 않는다.
+        /// <br/> owner-controlled Registry는 직접 해제할 수 없다.
+        /// </summary>
+        // ----------------------------------------------------------------------
+        public void Dispose()
+        {
+            if (isDisposed) return;
+
+            if (ownerControlsLifetime)
+            {
+                throw new InvalidOperationException
+                (
+                    "이 Screen Registry의 수명은 소유자가 관리합니다."
+                );
+            }
+
+            DisposeCore();
+        }
 
         // ------------------------------------------------------------
         /// <summary>
-        /// 새 Screen 조회를 모두 제거하되 Source 자체는 해제하지 않는다.
+        /// 이후 Registry 수명을 조립 owner만 종료하도록 고정한다.
         /// </summary>
         // ------------------------------------------------------------
-        public void Dispose()
+        internal void SetOwnerControlledLifetime()
+        {
+            if (isDisposed)
+            {
+                throw new ObjectDisposedException(nameof(ScreenRegistry));
+            }
+
+            ownerControlsLifetime = true;
+        }
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// owner-controlled Registry를 소유자 종료 경로에서 해제한다.
+        /// </summary>
+        // ------------------------------------------------------------
+        internal void DisposeFromOwner()
+        {
+            DisposeCore();
+        }
+
+        private void DisposeCore()
         {
             if (isDisposed) return;
 

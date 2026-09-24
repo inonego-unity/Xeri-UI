@@ -15,6 +15,6 @@ namespace inonego.Xeri.UI.Window
     // ============================================================
     public interface IXeriUISession
     {
-
+        // NONE
     }
 }

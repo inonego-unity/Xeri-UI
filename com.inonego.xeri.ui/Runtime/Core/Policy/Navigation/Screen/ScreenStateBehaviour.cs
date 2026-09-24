@@ -17,7 +17,7 @@ namespace inonego.Xeri.UI
     public abstract class ScreenStateBehaviour : MonoBehaviour, IScreenStateHandler
     {
 
-    #region IScreenStateHandler
+    #region 스크린 상태 핸들러 구현
 
         // ------------------------------------------------------------
         /// <summary>

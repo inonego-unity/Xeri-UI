@@ -1,10 +1,10 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : IPresentationLayerDriver.cs
-수정일 : 2026-09-15
+수정일 : 2026-09-22
 
 # 설명
-Presentation Layer의 공통 활성 상태와 backend별 typed Root 계약만 정의한다.
-표현 상태는 Layer 계약에 포함하지 않고 필요한 Root를 별도 Presentation으로 연결한다.
+Presentation Layer의 backend별 View 배치 Root와 논리 활성 상태 계약을 정의한다.
+Layer는 Native Output과 sibling ordering을 소유하지 않는다.
 ========================================================================= BLOCK_HEADER_END */
 
 namespace inonego.Xeri.UI
@@ -18,21 +18,14 @@ namespace inonego.Xeri.UI
     {
         // ------------------------------------------------------------
         /// <summary>
-        /// backend 구성이 Layer Asset과 일치하는지 검증한다.
+        /// Layer Root 자체의 backend 구성이 유효한지 검증한다.
         /// </summary>
         // ------------------------------------------------------------
-        bool Validate(PresentationLayerAsset asset, out string error);
+        bool Validate(out string error);
 
         // ------------------------------------------------------------
         /// <summary>
-        /// Layer의 공통 Screen Overlay 정렬 순서를 적용한다.
-        /// </summary>
-        // ------------------------------------------------------------
-        void SetOrder(int order);
-
-        // ------------------------------------------------------------
-        /// <summary>
-        /// Layer Root의 활성 상태를 적용한다.
+        /// Layer Root의 논리 활성 상태를 적용한다.
         /// </summary>
         // ------------------------------------------------------------
         void SetActive(bool active);

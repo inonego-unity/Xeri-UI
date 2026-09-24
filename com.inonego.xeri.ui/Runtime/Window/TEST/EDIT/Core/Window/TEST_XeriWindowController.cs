@@ -1,0 +1,1184 @@
+/* BLOCK_HEADER_BEGIN =======================================================================
+파일명 : TEST_XeriWindowController.cs
+수정일 : 2026-10-04
+
+# 설명
+Xeri 커스텀 윈도우 controller와 core 옵션 테스트.
+
+# 테스트 구성
+ O: 옵션 기본값
+ M: 이동과 크기 변경
+ S: 상태 명령
+ C: 취소 가능한 요청
+ E: 이벤트
+========================================================================= BLOCK_HEADER_END */
+
+using System;
+using System.Collections;
+using System.Collections.Generic;
+
+using UnityEngine;
+
+using NUnit;
+using NUnit.Framework;
+
+using inonego;
+using inonego.Xeri;
+using inonego.Xeri.UI;
+using inonego.Xeri.UI.Window;
+
+namespace inonego.Xeri.UI.TEST.Window
+{
+    // ============================================================
+    /// <summary>
+    /// Xeri 커스텀 윈도우 controller 테스트 클래스.
+    /// </summary>
+    // ============================================================
+    public class TEST_XeriWindowController
+    {
+
+    #region 헬퍼
+
+        // ============================================================
+        /// <summary>
+        /// 테스트용 윈도우 driver.
+        /// </summary>
+        // ============================================================
+        private sealed class TestWindowDriver : IXeriWindowDriver
+        {
+            public PresentationAlpha Alpha { get; } = new();
+            public PresentationVisibility Visibility { get; } = new();
+
+            public Vector2 Pos
+            {
+                get => pos;
+                set
+                {
+                    pos = value;
+
+                    if (ThrowOnNextPosSet)
+                    {
+                        ThrowOnNextPosSet = false;
+                        throw new InvalidOperationException("injected position apply failure");
+                    }
+                }
+            }
+
+            private Vector2 pos = new Vector2(10f, 20f);
+
+            public Vector2 Size
+            {
+                get => size;
+                set
+                {
+                    size = value;
+
+                    if (ThrowOnNextSizeSet)
+                    {
+                        ThrowOnNextSizeSet = false;
+                        throw new InvalidOperationException("injected size apply failure");
+                    }
+                }
+            }
+
+            private Vector2 size = new Vector2(200f, 120f);
+
+            public bool ThrowOnNextPosSet { get; set; } = false;
+            public bool ThrowOnNextSizeSet { get; set; } = false;
+            public XeriWindowState State { get; set; } = XeriWindowState.Normal;
+            public XeriWindowState VisualState { get; private set; } = XeriWindowState.Normal;
+            public bool Visible => Visibility.Modified;
+            public bool MaximizedBoundsApplied { get; private set; } = false;
+
+            public Rect Bounds
+            {
+                get => new Rect(Pos, Size);
+                set
+                {
+                    Pos = value.position;
+                    Size = value.size;
+                }
+            }
+
+            public void CommitState(XeriWindowState state)
+            {
+                State = state;
+                ApplyVisualState(state);
+            }
+
+            public void ApplyVisualState(XeriWindowState state)
+            {
+                VisualState = state;
+            }
+
+            public void ApplyBounds(Rect bounds)
+            {
+                Bounds = bounds;
+            }
+
+            public void ApplyMaximizedBounds()
+            {
+                MaximizedBoundsApplied = true;
+            }
+        }
+
+        // ============================================================
+        /// <summary>
+        /// 테스트용 상태 전환 transitioner.
+        /// </summary>
+        // ============================================================
+        private sealed class TestTransitioner : IXeriWindowStateTransitioner
+        {
+            public XeriWindowTransitionStatus Status => IsRunning
+                ? XeriWindowTransitionStatus.Running
+                : XeriWindowTransitionStatus.Idle;
+            public bool IsRunning { get; private set; } = false;
+            public XeriWindowState? PendingState { get; private set; } = null;
+            public List<XeriWindowStateTransitionRequest> Requests { get; } = new();
+            public bool ThrowNextTransition { get; set; } = false;
+
+            public bool Transition(XeriWindowStateTransitionRequest request)
+            {
+                if (ThrowNextTransition)
+                {
+                    ThrowNextTransition = false;
+                    throw new InvalidOperationException("injected transition start failure");
+                }
+
+                Requests.Add(request);
+                PendingState = request.NextState;
+
+                if (request.NextState == XeriWindowState.Maximized)
+                {
+                    request.Driver.ApplyMaximizedBounds();
+                }
+                else if (request.TargetBounds.HasValue)
+                {
+                    request.Driver.ApplyBounds(request.TargetBounds.Value);
+                }
+
+                request.Driver.CommitState(request.NextState);
+                PendingState = null;
+                request.OnComplete?.Invoke();
+
+                return true;
+            }
+
+            public void Cancel(bool restoreVisual)
+            {
+                PendingState = null;
+                IsRunning = false;
+            }
+        }
+
+        // ======================================================================
+        /// <summary>
+        /// 완료 전 요청을 유지하고 새 요청으로 교체할 수 있는 테스트 transitioner.
+        /// </summary>
+        // ======================================================================
+        private sealed class PendingTransitioner : IXeriWindowStateTransitioner
+        {
+            public XeriWindowTransitionStatus Status => IsRunning
+                ? XeriWindowTransitionStatus.Running
+                : XeriWindowTransitionStatus.Idle;
+            public bool IsRunning { get; private set; } = false;
+            public XeriWindowState? PendingState { get; private set; } = null;
+            public int RequestCount { get; private set; } = 0;
+
+            private XeriWindowStateTransitionRequest current = null;
+
+            public bool Transition(XeriWindowStateTransitionRequest request)
+            {
+                if (IsRunning)
+                {
+                    var previous = current;
+                    current = null;
+                    PendingState = null;
+                    IsRunning = false;
+                    previous?.OnCancel?.Invoke();
+                }
+
+                current = request;
+                PendingState = request.NextState;
+                IsRunning = true;
+                RequestCount++;
+
+                return true;
+            }
+
+            public void Cancel(bool restoreVisual)
+            {
+                if (!IsRunning) return;
+
+                var previous = current;
+                current = null;
+                PendingState = null;
+                IsRunning = false;
+                previous?.OnCancel?.Invoke();
+            }
+
+            public void Fail()
+            {
+                if (!IsRunning) return;
+
+                var previous = current;
+                current = null;
+                PendingState = null;
+                IsRunning = false;
+                previous?.OnError?.Invoke
+                (
+                    new InvalidOperationException("injected async transition failure")
+                );
+            }
+        }
+
+    #endregion
+
+    #region O-1: 기본 옵션
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// XeriWindowOptions 기본값은 모든 기본 상호작용을 활성화한다.
+        /// </summary>
+        // ------------------------------------------------------------
+        [Test]
+        public void TEST_XeriWindowOptions_Default_기본_상호작용_활성화()
+        {
+            var options = XeriWindowOptions.Default();
+
+            Assert.IsTrue(options.CanMove);
+            Assert.IsTrue(options.CanResize);
+            Assert.IsTrue(options.CanMinimize);
+            Assert.IsTrue(options.CanMaximize);
+            Assert.IsTrue(options.CanClose);
+            Assert.IsTrue(options.CanFocus);
+            Assert.IsTrue(options.CanTitleBarDoubleClickMaximize);
+            Assert.IsFalse(options.HideDisabledButtons);
+            Assert.AreEqual(new Vector2(152f, 80f), options.MinSize);
+        }
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// 생성 시 Normal bounds도 MinSize와 MaxSize 범위로 정규화한다.
+        /// </summary>
+        // ------------------------------------------------------------
+        [Test]
+        public void TEST_XeriWindowController_Construct_NormalBounds_Size_보정()
+        {
+            var driver = new TestWindowDriver
+            {
+                Size = new Vector2(40f, 400f),
+            };
+            var options = XeriWindowOptions.Default();
+            options.MinSize = new Vector2(100f, 80f);
+            options.MaxSize = new Vector2(300f, 240f);
+
+            var controller = new XeriWindowController(driver, options);
+
+            Assert.AreEqual(new Vector2(100f, 240f), driver.Size);
+            Assert.AreEqual(new Vector2(100f, 240f), controller.NormalBounds.size);
+        }
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// 잘못된 MinSize/MaxSize 조합은 Controller 생성 시 거부한다.
+        /// </summary>
+        // ------------------------------------------------------------
+        [Test]
+        public void TEST_XeriWindowController_Construct_InvalidSizeOption_거부()
+        {
+            var options = XeriWindowOptions.Default();
+            options.MinSize = new Vector2(300f, 200f);
+            options.MaxSize = new Vector2(200f, 100f);
+
+            Assert.Throws<ArgumentException>
+            (
+                () => new XeriWindowController(new TestWindowDriver(), options)
+            );
+        }
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// NaN 크기 제한 옵션도 Controller 생성 시 거부한다.
+        /// </summary>
+        // ------------------------------------------------------------
+        [Test]
+        public void TEST_XeriWindowController_Construct_NaNSizeOption_거부()
+        {
+            var options = XeriWindowOptions.Default();
+            options.MinSize = new Vector2(float.NaN, 80f);
+
+            Assert.Throws<ArgumentException>
+            (
+                () => new XeriWindowController(new TestWindowDriver(), options)
+            );
+        }
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// NaN 또는 Infinity 위치·크기 입력은 Controller 경계에서 거부한다.
+        /// </summary>
+        // ------------------------------------------------------------
+        [Test]
+        public void TEST_XeriWindowController_MoveResize_NonFinite_거부()
+        {
+            var controller = new XeriWindowController(new TestWindowDriver());
+
+            Assert.Throws<ArgumentOutOfRangeException>
+            (
+                () => controller.Move(new Vector2(float.NaN, 10f))
+            );
+            Assert.Throws<ArgumentOutOfRangeException>
+            (
+                () => controller.Resize(new Vector2(float.PositiveInfinity, 100f))
+            );
+        }
+
+    #endregion
+
+    #region C-0: 생성자 롤백
+
+        // --------------------------------------------------------------------------------
+        /// <summary>
+        /// 초기 bounds 적용이 부분 실패하면 caller-owned Driver의 원래 bounds를 복원한다.
+        /// </summary>
+        // --------------------------------------------------------------------------------
+        [Test]
+        public void TEST_XeriWindowController_ConstructorBounds실패_DriverRollback()
+        {
+            var driver = new TestWindowDriver();
+            var previous = driver.Bounds;
+            driver.ThrowOnNextPosSet = true;
+
+            Assert.Throws<InvalidOperationException>
+            (
+                () => new XeriWindowController
+                (
+                    driver,
+                    normalBounds: new Rect(70f, 80f, 260f, 180f)
+                )
+            );
+
+            Assert.AreEqual(previous, driver.Bounds);
+        }
+
+    #endregion
+
+    #region M-1: 이동
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// Move는 driver 위치를 변경한다.
+        /// </summary>
+        // ------------------------------------------------------------
+        [Test]
+        public void TEST_XeriWindowController_Move_Driver_Pos_변경()
+        {
+            var driver = new TestWindowDriver();
+            var controller = new XeriWindowController(driver);
+
+            controller.Move(new Vector2(30f, 40f));
+
+            Assert.AreEqual(new Vector2(30f, 40f), driver.Pos);
+        }
+
+        // --------------------------------------------------------------------------------
+        /// <summary>
+        /// Driver 위치 적용이 부분 실패하면 실제 위치와 Normal bounds를 이전 상태로 복원한다.
+        /// </summary>
+        // --------------------------------------------------------------------------------
+        [Test]
+        public void TEST_XeriWindowController_MoveDriver실패_Pos와SnapshotRollback()
+        {
+            var driver = new TestWindowDriver();
+            var controller = new XeriWindowController(driver);
+            var previous = driver.Pos;
+            var previousBounds = controller.NormalBounds;
+            var eventCount = 0;
+            controller.OnMove += (_, _) => eventCount++;
+            driver.ThrowOnNextPosSet = true;
+
+            Assert.Throws<InvalidOperationException>
+            (
+                () => controller.Move(new Vector2(80f, 90f))
+            );
+
+            Assert.AreEqual(previous, driver.Pos);
+            Assert.AreEqual(previousBounds, controller.NormalBounds);
+            Assert.AreEqual(0, eventCount);
+        }
+
+    #endregion
+
+    #region M-2: 크기 조절
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// Resize는 옵션의 최소/최대 크기 범위로 driver 크기를 보정한다.
+        /// </summary>
+        // ------------------------------------------------------------
+        [Test]
+        public void TEST_XeriWindowController_Resize_Min_Max_범위로_Size_보정()
+        {
+            var driver = new TestWindowDriver();
+            var options = XeriWindowOptions.Default();
+            options.MinSize = new Vector2(100f, 80f);
+            options.MaxSize = new Vector2(300f, 240f);
+
+            var controller = new XeriWindowController(driver, options);
+
+            controller.Resize(new Vector2(40f, 400f));
+
+            Assert.AreEqual(new Vector2(100f, 240f), driver.Size);
+        }
+
+        // --------------------------------------------------------------------------------
+        /// <summary>
+        /// Driver 크기 적용이 부분 실패하면 실제 크기와 Normal bounds를 이전 상태로 복원한다.
+        /// </summary>
+        // --------------------------------------------------------------------------------
+        [Test]
+        public void TEST_XeriWindowController_ResizeDriver실패_Size와SnapshotRollback()
+        {
+            var driver = new TestWindowDriver();
+            var controller = new XeriWindowController(driver);
+            var previous = driver.Size;
+            var previousBounds = controller.NormalBounds;
+            var eventCount = 0;
+            controller.OnResize += (_, _) => eventCount++;
+            driver.ThrowOnNextSizeSet = true;
+
+            Assert.Throws<InvalidOperationException>
+            (
+                () => controller.Resize(new Vector2(260f, 180f))
+            );
+
+            Assert.AreEqual(previous, driver.Size);
+            Assert.AreEqual(previousBounds, controller.NormalBounds);
+            Assert.AreEqual(0, eventCount);
+        }
+
+        // --------------------------------------------------------------------------------
+        /// <summary>
+        /// Resize bounds의 위치 보정은 CanMove=false여도 Resize capability로 함께 적용된다.
+        /// </summary>
+        // --------------------------------------------------------------------------------
+        [Test]
+        public void TEST_XeriWindowController_ResizeBounds_CanMoveFalse_위치크기함께적용()
+        {
+            var driver = new TestWindowDriver();
+            var options = XeriWindowOptions.Default();
+            options.CanMove = false;
+            options.CanResize = true;
+            var controller = new XeriWindowController(driver, options);
+
+            controller.ResizeBounds
+            (
+                new Vector2(40f, 50f),
+                new Vector2(260f, 180f)
+            );
+
+            Assert.AreEqual(new Vector2(40f, 50f), driver.Pos);
+            Assert.AreEqual(new Vector2(260f, 180f), driver.Size);
+            Assert.AreEqual(driver.Bounds, controller.NormalBounds);
+        }
+
+        // ----------------------------------------------------------------------
+        /// <summary>
+        /// <br/> combined resize 중 Size 적용이 실패하면 Pos와 Size를 복원하고
+        /// <br/> Normal bounds도 이전 상태로 되돌린다.
+        /// </summary>
+        // ----------------------------------------------------------------------
+        [Test]
+        public void TEST_XeriWindowController_ResizeBounds_Size실패_전체BoundsRollback()
+        {
+            var driver = new TestWindowDriver();
+            var controller = new XeriWindowController(driver);
+            var previous = driver.Bounds;
+            var previousNormal = controller.NormalBounds;
+            var moveEvents = 0;
+            var resizeEvents = 0;
+            controller.OnMove += (_, _) => moveEvents++;
+            controller.OnResize += (_, _) => resizeEvents++;
+            driver.ThrowOnNextSizeSet = true;
+
+            Assert.Throws<InvalidOperationException>
+            (
+                () => controller.ResizeBounds
+                (
+                    new Vector2(80f, 90f),
+                    new Vector2(260f, 180f)
+                )
+            );
+
+            Assert.AreEqual(previous, driver.Bounds);
+            Assert.AreEqual(previousNormal, controller.NormalBounds);
+            Assert.AreEqual(0, moveEvents);
+            Assert.AreEqual(0, resizeEvents);
+        }
+
+    #endregion
+
+    #region S-1: 상태 명령
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// 상태 명령은 driver 상태를 전환한다.
+        /// </summary>
+        // ------------------------------------------------------------
+        [Test]
+        public void TEST_XeriWindowController_StateCommand_Driver_State_전환()
+        {
+            var driver = new TestWindowDriver();
+            var controller = new XeriWindowController(driver);
+
+            controller.Minimize();
+            Assert.AreEqual(XeriWindowState.Minimized, driver.State);
+            Assert.IsFalse(driver.Visible);
+
+            controller.ShowNormal();
+            Assert.AreEqual(XeriWindowState.Normal, driver.State);
+            Assert.IsTrue(driver.Visible);
+
+            controller.Maximize();
+            Assert.AreEqual(XeriWindowState.Maximized, driver.State);
+            Assert.IsTrue(driver.MaximizedBoundsApplied);
+
+            controller.Close();
+            Assert.AreEqual(XeriWindowState.Closed, driver.State);
+            Assert.IsFalse(driver.Visible);
+        }
+
+    #endregion
+
+    #region S-2: 상태 전환기
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// 상태 명령은 controller 내부 transitioner를 경유한다.
+        /// </summary>
+        // ------------------------------------------------------------
+        [Test]
+        public void TEST_XeriWindowController_StateCommand_Transitioner_경유()
+        {
+            var driver = new TestWindowDriver();
+            var transitioner = new TestTransitioner();
+            var controller = new XeriWindowController(driver, null, transitioner);
+
+            controller.Minimize();
+
+            Assert.AreEqual(1, transitioner.Requests.Count);
+            Assert.AreEqual(XeriWindowState.Minimized, transitioner.Requests[0].NextState);
+        }
+
+        // --------------------------------------------------------------------------------
+        /// <summary>
+        /// <br/> custom transitioner 시작이 동기 실패하면 임시 pending 상태를 제거하고
+        /// <br/> 다음 명령을 허용한다.
+        /// </summary>
+        // --------------------------------------------------------------------------------
+        [Test]
+        public void TEST_XeriWindowController_Transition시작실패_PendingRollback후재시도()
+        {
+            var driver = new TestWindowDriver();
+            var transitioner = new TestTransitioner
+            {
+                ThrowNextTransition = true,
+            };
+            var controller = new XeriWindowController(driver, null, transitioner);
+
+            Assert.Throws<InvalidOperationException>(controller.Maximize);
+
+            Assert.IsNull(controller.PendingState);
+            Assert.AreEqual(XeriWindowState.Normal, controller.EffectiveState);
+            Assert.AreEqual(XeriWindowState.Normal, controller.State);
+
+            Assert.DoesNotThrow(controller.Maximize);
+            Assert.AreEqual(XeriWindowState.Maximized, controller.State);
+            Assert.IsNull(controller.PendingState);
+        }
+
+        // ----------------------------------------------------------------------
+        /// <summary>
+        /// <br/> Minimize 시작 실패는 임시 Restore target을 commit하지 않고
+        /// <br/> 이전 Controller metadata를 보존한다.
+        /// </summary>
+        // ----------------------------------------------------------------------
+        [Test]
+        public void TEST_XeriWindowController_Minimize시작실패_RestoreMetadataRollback()
+        {
+            var driver = new TestWindowDriver();
+            driver.CommitState(XeriWindowState.Maximized);
+            var transitioner = new TestTransitioner
+            {
+                ThrowNextTransition = true,
+            };
+            var controller = new XeriWindowController
+            (
+                driver,
+                transitioner: transitioner,
+                minimizedRestoreState: XeriWindowState.Normal
+            );
+
+            Assert.Throws<InvalidOperationException>(controller.Minimize);
+
+            Assert.AreEqual
+            (
+                XeriWindowState.Normal,
+                controller.MinimizedRestoreState
+            );
+            Assert.AreEqual(XeriWindowState.Maximized, controller.State);
+            Assert.IsNull(controller.PendingState);
+
+            Assert.DoesNotThrow(controller.Minimize);
+            Assert.AreEqual
+            (
+                XeriWindowState.Maximized,
+                controller.MinimizedRestoreState
+            );
+            Assert.AreEqual(XeriWindowState.Minimized, controller.State);
+        }
+
+        // --------------------------------------------------------------------------------
+        /// <summary>
+        /// 비동기 Transition 실패도 provisional Restore metadata를 이전 값으로 되돌린다.
+        /// </summary>
+        // --------------------------------------------------------------------------------
+        [Test]
+        public void TEST_XeriWindowController_Minimize비동기실패_RestoreMetadataRollback()
+        {
+            var driver = new TestWindowDriver();
+            driver.CommitState(XeriWindowState.Maximized);
+            var transitioner = new PendingTransitioner();
+            var controller = new XeriWindowController
+            (
+                driver,
+                transitioner: transitioner,
+                minimizedRestoreState: XeriWindowState.Normal
+            );
+
+            controller.Minimize();
+
+            Assert.IsTrue(controller.IsTransitionRunning);
+            Assert.AreEqual(XeriWindowState.Minimized, controller.PendingState);
+            Assert.AreEqual
+            (
+                XeriWindowState.Maximized,
+                controller.MinimizedRestoreState
+            );
+
+            transitioner.Fail();
+
+            Assert.AreEqual
+            (
+                XeriWindowState.Normal,
+                controller.MinimizedRestoreState
+            );
+            Assert.AreEqual(XeriWindowState.Maximized, controller.State);
+            Assert.AreEqual(XeriWindowState.Maximized, controller.EffectiveState);
+            Assert.IsNull(controller.PendingState);
+        }
+
+    #endregion
+
+    #region S-3: 전환 교체
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// 진행 중 Maximized 목표는 ShowNormal 요청으로 교체할 수 있다.
+        /// </summary>
+        // ------------------------------------------------------------
+        [Test]
+        public void TEST_XeriWindowController_RunningMaximize_ShowNormal_교체()
+        {
+            var driver = new TestWindowDriver();
+            var transitioner = new PendingTransitioner();
+            var controller = new XeriWindowController(driver, null, transitioner);
+
+            var maximize = controller.RequestStateCommand
+            (
+                new XeriWindowStateCommandRequest
+                (
+                    XeriWindowStateCommandKind.Maximize,
+                    XeriWindowCommandSource.API
+                )
+            );
+            var showNormal = controller.RequestStateCommand
+            (
+                new XeriWindowStateCommandRequest
+                (
+                    XeriWindowStateCommandKind.ShowNormal,
+                    XeriWindowCommandSource.API
+                )
+            );
+
+            Assert.IsTrue(maximize);
+            Assert.IsTrue(showNormal);
+            Assert.AreEqual(2, transitioner.RequestCount);
+            Assert.AreEqual(XeriWindowState.Normal, transitioner.PendingState);
+            Assert.AreEqual(XeriWindowState.Normal, driver.State);
+        }
+
+        // --------------------------------------------------------------------------------
+        /// <summary>
+        /// Maximize 전환 중 Minimize로 교체하면 Restore target은 Maximized를 보존한다.
+        /// </summary>
+        // --------------------------------------------------------------------------------
+        [Test]
+        public void TEST_XeriWindowController_RunningMaximize_Minimize_RestoreTarget보존()
+        {
+            var driver = new TestWindowDriver();
+            var transitioner = new PendingTransitioner();
+            var controller = new XeriWindowController(driver, null, transitioner);
+
+            controller.Maximize();
+            controller.Minimize();
+
+            Assert.AreEqual
+            (
+                XeriWindowState.Maximized,
+                controller.MinimizedRestoreState
+            );
+            Assert.AreEqual(XeriWindowState.Minimized, controller.EffectiveState);
+            Assert.AreEqual(XeriWindowState.Normal, driver.State);
+        }
+
+        // ----------------------------------------------------------------------
+        /// <summary>
+        /// ShowNormal 전환 중 Move와 Resize는 완료 전 bounds를 변경하지 않는다.
+        /// </summary>
+        // ----------------------------------------------------------------------
+        [Test]
+        public void TEST_XeriWindowController_RunningShowNormal_MoveResize_무시()
+        {
+            var driver = new TestWindowDriver();
+            driver.CommitState(XeriWindowState.Maximized);
+            var transitioner = new PendingTransitioner();
+            var controller = new XeriWindowController(driver, null, transitioner);
+            var beginBounds = driver.Bounds;
+
+            controller.ShowNormal();
+            controller.Move(new Vector2(50f, 60f));
+            controller.Resize(new Vector2(320f, 240f));
+
+            Assert.IsTrue(controller.IsTransitionRunning);
+            Assert.AreEqual(XeriWindowState.Normal, controller.EffectiveState);
+            Assert.AreEqual(beginBounds, driver.Bounds);
+        }
+
+    #endregion
+
+    #region S-4: 상태 규칙
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// Closed 상태에서는 후속 상태 전환 명령을 무시한다.
+        /// </summary>
+        // ------------------------------------------------------------
+        [Test]
+        public void TEST_XeriWindowController_Closed_후_StateCommand_무시()
+        {
+            var driver = new TestWindowDriver();
+            var controller = new XeriWindowController(driver);
+
+            controller.Close();
+            controller.Maximize();
+            controller.ShowNormal();
+            controller.Minimize();
+
+            Assert.AreEqual(XeriWindowState.Closed, driver.State);
+        }
+
+        // ----------------------------------------------------------------------
+        /// <summary>
+        /// Maximized에서 Normal로 돌아오면 controller snapshot bounds로 복구한다.
+        /// </summary>
+        // ----------------------------------------------------------------------
+        [Test]
+        public void TEST_XeriWindowController_Maximized_ShowNormal_RestoreBounds_복구()
+        {
+            var driver = new TestWindowDriver();
+            var controller = new XeriWindowController(driver);
+            var normalPos = driver.Pos;
+            var normalSize = driver.Size;
+
+            controller.Maximize();
+            controller.ShowNormal();
+
+            Assert.AreEqual(normalPos, driver.Pos);
+            Assert.AreEqual(normalSize, driver.Size);
+        }
+
+        // ----------------------------------------------------------------------
+        /// <summary>
+        /// ShowNormal은 Minimized 이전 표시 상태와 무관하게 Normal 상태로 전환한다.
+        /// </summary>
+        // ----------------------------------------------------------------------
+        [Test]
+        public void TEST_XeriWindowController_Maximized_Minimized_ShowNormal_Normal_전환()
+        {
+            var driver = new TestWindowDriver();
+            var controller = new XeriWindowController(driver);
+
+            controller.Maximize();
+            controller.Minimize();
+            controller.ShowNormal();
+
+            Assert.AreEqual(XeriWindowState.Normal, driver.State);
+        }
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// Restore는 Minimized 이전 표시 상태로 전환한다.
+        /// </summary>
+        // ------------------------------------------------------------
+        [Test]
+        public void TEST_XeriWindowController_Maximized_Minimized_Restore_Maximized_복구()
+        {
+            var driver = new TestWindowDriver();
+            var controller = new XeriWindowController(driver);
+
+            controller.Maximize();
+            controller.Minimize();
+            controller.Restore();
+
+            Assert.AreEqual(XeriWindowState.Maximized, driver.State);
+        }
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// Restore는 Minimized가 아닌 표시 상태를 Normal로 토글하지 않는다.
+        /// </summary>
+        // ------------------------------------------------------------
+        [Test]
+        public void TEST_XeriWindowController_Maximized_Restore_무시()
+        {
+            var driver = new TestWindowDriver();
+            var controller = new XeriWindowController(driver);
+
+            controller.Maximize();
+            controller.Restore();
+
+            Assert.AreEqual(XeriWindowState.Maximized, driver.State);
+        }
+
+        // --------------------------------------------------------------------------------
+        /// <summary>
+        /// ShowNormal 명령은 명시적 target bounds가 있으면 snapshot 대신 해당 bounds를 사용한다.
+        /// </summary>
+        // --------------------------------------------------------------------------------
+        [Test]
+        public void TEST_XeriWindowController_ShowNormal_TargetBounds_우선_사용()
+        {
+            var driver = new TestWindowDriver();
+            var controller = new XeriWindowController(driver);
+            var targetBounds = new Rect(50f, 60f, 210f, 130f);
+
+            controller.Maximize();
+            controller.RequestStateCommand
+            (
+                new XeriWindowStateCommandRequest
+                (
+                    XeriWindowStateCommandKind.ShowNormal,
+                    XeriWindowCommandSource.TitleBar,
+                    targetBounds
+                )
+            );
+
+            Assert.AreEqual(targetBounds.position, driver.Pos);
+            Assert.AreEqual(targetBounds.size, driver.Size);
+        }
+
+    #endregion
+
+    #region S-5: 비활성 옵션
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// 비활성화된 옵션의 명령은 driver를 변경하지 않는다.
+        /// </summary>
+        // ------------------------------------------------------------
+        [Test]
+        public void TEST_XeriWindowController_Disabled_Option_Driver_미변경()
+        {
+            var driver = new TestWindowDriver();
+            var options = XeriWindowOptions.Default();
+            options.CanMove = false;
+            options.CanResize = false;
+            options.CanMinimize = false;
+            options.CanMaximize = false;
+            options.CanClose = false;
+
+            var controller = new XeriWindowController(driver, options);
+
+            controller.Move(new Vector2(30f, 40f));
+            controller.Resize(new Vector2(300f, 240f));
+            controller.Minimize();
+            controller.Maximize();
+            controller.Close();
+
+            Assert.AreEqual(new Vector2(10f, 20f), driver.Pos);
+            Assert.AreEqual(new Vector2(200f, 120f), driver.Size);
+            Assert.AreEqual(XeriWindowState.Normal, driver.State);
+        }
+
+    #endregion
+
+    #region S-6: 닫힌 상태
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// Closed 상태에서는 위치와 크기가 변경되지 않는다.
+        /// </summary>
+        // ------------------------------------------------------------
+        [Test]
+        public void TEST_XeriWindowController_Closed_State_Move_Resize_무시()
+        {
+            var driver = new TestWindowDriver();
+            var controller = new XeriWindowController(driver);
+
+            controller.Close();
+            controller.Move(new Vector2(30f, 40f));
+            controller.Resize(new Vector2(300f, 240f));
+
+            Assert.AreEqual(new Vector2(10f, 20f), driver.Pos);
+            Assert.AreEqual(new Vector2(200f, 120f), driver.Size);
+        }
+
+    #endregion
+
+    #region C-1: 닫기 취소
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// OnPreClose에서 Cancel을 설정하면 Close는 상태를 변경하지 않는다.
+        /// </summary>
+        // ------------------------------------------------------------
+        [Test]
+        public void TEST_XeriWindowController_OnPreClose_Cancel_Close_취소()
+        {
+            var driver = new TestWindowDriver();
+            var controller = new XeriWindowController(driver);
+
+            controller.OnPreClose += (_, e) => e.Cancel = true;
+
+            controller.Close();
+
+            Assert.AreEqual(XeriWindowState.Normal, driver.State);
+        }
+
+    #endregion
+
+    #region C-2: 상태 취소
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// 상태 사전 이벤트에서 Cancel을 설정하면 상태 명령은 취소된다.
+        /// </summary>
+        // ------------------------------------------------------------
+        [Test]
+        public void TEST_XeriWindowController_PreState_Cancel_StateCommand_취소()
+        {
+            var driver = new TestWindowDriver();
+            var controller = new XeriWindowController(driver);
+
+            controller.OnPreMinimize += (_, e) => e.Cancel = true;
+            controller.OnPreMaximize += (_, e) => e.Cancel = true;
+
+            controller.Minimize();
+            controller.Maximize();
+
+            Assert.AreEqual(XeriWindowState.Normal, driver.State);
+        }
+
+        // --------------------------------------------------------------------------------
+        /// <summary>
+        /// 사전 observer 하나가 실패해도 뒤 observer까지 호출하고 상태 명령은 적용하지 않는다.
+        /// </summary>
+        // --------------------------------------------------------------------------------
+        [Test]
+        public void TEST_XeriWindowController_PreStateObserver실패_다음Observer호출후명령중단()
+        {
+            var driver = new TestWindowDriver();
+            var controller = new XeriWindowController(driver);
+            var observerCount = 0;
+            controller.OnPreMaximize += (_, _) =>
+            {
+                throw new InvalidOperationException("injected pre-state observer failure");
+            };
+            controller.OnPreMaximize += (_, _) => observerCount++;
+
+            Assert.Throws<InvalidOperationException>(controller.Maximize);
+
+            Assert.AreEqual(1, observerCount);
+            Assert.AreEqual(XeriWindowState.Normal, driver.State);
+            Assert.IsNull(controller.PendingState);
+        }
+
+    #endregion
+
+    #region C-3: 상태 이벤트 재진입
+
+        // ----------------------------------------------------------------------
+        /// <summary>
+        /// 상태 완료 이벤트 안의 동기 상태 명령은 현재 이벤트 순서를 보존하며 거부된다.
+        /// </summary>
+        // ----------------------------------------------------------------------
+        [Test]
+        public void TEST_XeriWindowController_StateEvent_동기재진입_거부()
+        {
+            var driver = new TestWindowDriver();
+            var controller = new XeriWindowController(driver);
+            var nestedAccepted = true;
+
+            controller.OnMaximize += (_, _) =>
+            {
+                nestedAccepted = controller.RequestStateCommand
+                (
+                    new XeriWindowStateCommandRequest
+                    (
+                        XeriWindowStateCommandKind.Minimize,
+                        XeriWindowCommandSource.API
+                    )
+                );
+            };
+
+            controller.Maximize();
+
+            Assert.IsFalse(nestedAccepted);
+            Assert.AreEqual(XeriWindowState.Maximized, controller.State);
+        }
+
+        // ----------------------------------------------------------------------
+        /// <summary>
+        /// Pre 상태 이벤트 안의 동기 상태 명령도 바깥 요청과 경쟁하지 않도록 거부된다.
+        /// </summary>
+        // ----------------------------------------------------------------------
+        [Test]
+        public void TEST_XeriWindowController_PreStateEvent_동기재진입_거부()
+        {
+            var driver = new TestWindowDriver();
+            var controller = new XeriWindowController(driver);
+            var nestedAccepted = true;
+
+            controller.OnPreMaximize += (_, _) =>
+            {
+                nestedAccepted = controller.RequestStateCommand
+                (
+                    new XeriWindowStateCommandRequest
+                    (
+                        XeriWindowStateCommandKind.Minimize,
+                        XeriWindowCommandSource.API
+                    )
+                );
+            };
+
+            controller.Maximize();
+
+            Assert.IsFalse(nestedAccepted);
+            Assert.AreEqual(XeriWindowState.Maximized, controller.State);
+        }
+
+    #endregion
+
+    #region E-1: 값 변경 이벤트
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// Move와 Resize는 값 변경 이벤트를 발화한다.
+        /// </summary>
+        // ------------------------------------------------------------
+        [Test]
+        public void TEST_XeriWindowController_Move_Resize_ValueChangeEvent_발화()
+        {
+            var driver = new TestWindowDriver();
+            var controller = new XeriWindowController(driver);
+            ValueChangeEventArgs<Vector2> posArgs = default;
+            ValueChangeEventArgs<Vector2> sizeArgs = default;
+
+            controller.OnPosChange += (_, e) => posArgs = e;
+            controller.OnSizeChange += (_, e) => sizeArgs = e;
+
+            controller.Move(new Vector2(30f, 40f));
+            controller.Resize(new Vector2(300f, 240f));
+
+            Assert.AreEqual(new Vector2(10f, 20f), posArgs.Previous);
+            Assert.AreEqual(new Vector2(30f, 40f), posArgs.Current);
+            Assert.AreEqual(new Vector2(200f, 120f), sizeArgs.Previous);
+            Assert.AreEqual(new Vector2(300f, 240f), sizeArgs.Current);
+        }
+
+    #endregion
+
+    #region E-2: 상태 변경 이벤트
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// 상태 명령은 상태 변경 이벤트를 발화한다.
+        /// </summary>
+        // ------------------------------------------------------------
+        [Test]
+        public void TEST_XeriWindowController_StateCommand_StateChangeEvent_발화()
+        {
+            var driver = new TestWindowDriver();
+            var controller = new XeriWindowController(driver);
+            ValueChangeEventArgs<XeriWindowState> stateArgs = default;
+
+            controller.OnStateChange += (_, e) => stateArgs = e;
+
+            controller.Minimize();
+
+            Assert.AreEqual(XeriWindowState.Normal, stateArgs.Previous);
+            Assert.AreEqual(XeriWindowState.Minimized, stateArgs.Current);
+        }
+
+        // ----------------------------------------------------------------------
+        /// <summary>
+        /// Restore 명령은 ShowNormal 이벤트가 아니라 Restore 이벤트를 발화한다.
+        /// </summary>
+        // ----------------------------------------------------------------------
+        [Test]
+        public void TEST_XeriWindowController_Restore_Event_ShowNormal_Event_분리()
+        {
+            var driver = new TestWindowDriver();
+            var controller = new XeriWindowController(driver);
+            var restoreFired = false;
+            var showNormalFired = false;
+
+            controller.OnRestore += (_, _) => restoreFired = true;
+            controller.OnShowNormal += (_, _) => showNormalFired = true;
+
+            controller.Maximize();
+            controller.Minimize();
+            controller.Restore();
+
+            Assert.IsTrue(restoreFired);
+            Assert.IsFalse(showNormalFired);
+            Assert.AreEqual(XeriWindowState.Maximized, driver.State);
+        }
+
+        // ----------------------------------------------------------------------
+        /// <summary>
+        /// OnPreRestore에서 Cancel을 설정하면 Restore는 상태를 변경하지 않는다.
+        /// </summary>
+        // ----------------------------------------------------------------------
+        [Test]
+        public void TEST_XeriWindowController_OnPreRestore_Cancel_Restore_취소()
+        {
+            var driver = new TestWindowDriver();
+            var controller = new XeriWindowController(driver);
+
+            controller.Maximize();
+            controller.Minimize();
+
+            controller.OnPreRestore += (_, e) => e.Cancel = true;
+
+            controller.Restore();
+
+            Assert.AreEqual(XeriWindowState.Minimized, driver.State);
+        }
+
+    #endregion
+
+    }
+}

@@ -1,12 +1,10 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : XeriWindowBoundsSnapshot.cs
-수정일 : 2026-09-20
+수정일 : 2026-10-04
 
 # 설명
 Xeri 커스텀 윈도우 상태 전환 중 복구할 런타임 bounds snapshot.
 ========================================================================= BLOCK_HEADER_END */
-
-using System;
 
 using UnityEngine;
 
@@ -17,8 +15,7 @@ namespace inonego.Xeri.UI.Window
     /// Xeri 커스텀 윈도우 런타임 bounds snapshot.
     /// </summary>
     // ============================================================
-    [Serializable]
-    public sealed class XeriWindowBoundsSnapshot
+    internal sealed class XeriWindowBoundsSnapshot
     {
 
     #region 필드
@@ -28,7 +25,7 @@ namespace inonego.Xeri.UI.Window
         /// Normal 상태의 마지막 bounds.
         /// </summary>
         // ------------------------------------------------------------
-        public Rect NormalBounds => normalBounds;
+        internal Rect NormalBounds => normalBounds;
 
         private Rect normalBounds = default;
 
@@ -37,7 +34,7 @@ namespace inonego.Xeri.UI.Window
         /// Restore에 사용할 bounds.
         /// </summary>
         // ------------------------------------------------------------
-        public Rect RestoreBounds => restoreBounds;
+        internal Rect RestoreBounds => restoreBounds;
 
         private Rect restoreBounds = default;
 
@@ -50,14 +47,17 @@ namespace inonego.Xeri.UI.Window
         /// 빈 bounds snapshot을 생성한다.
         /// </summary>
         // ------------------------------------------------------------
-        public XeriWindowBoundsSnapshot() : base() {}
+        internal XeriWindowBoundsSnapshot() : base()
+        {
+            // NONE
+        }
 
         // ------------------------------------------------------------
         /// <summary>
         /// 초기 bounds를 가진 snapshot을 생성한다.
         /// </summary>
         // ------------------------------------------------------------
-        public XeriWindowBoundsSnapshot(Rect bounds) : this()
+        internal XeriWindowBoundsSnapshot(Rect bounds) : this()
         {
             normalBounds = bounds;
             restoreBounds = bounds;
@@ -72,7 +72,7 @@ namespace inonego.Xeri.UI.Window
         /// Normal 상태에서만 normal bounds를 갱신한다.
         /// </summary>
         // ------------------------------------------------------------
-        public void UpdateNormalBounds
+        internal void UpdateNormalBounds
         (
             XeriWindowState currentState,
             Rect bounds
@@ -88,9 +88,24 @@ namespace inonego.Xeri.UI.Window
         /// 현재 normal bounds를 restore 기준으로 저장한다.
         /// </summary>
         // ------------------------------------------------------------
-        public void CaptureRestoreBounds()
+        internal void CaptureRestoreBounds()
         {
             restoreBounds = normalBounds;
+        }
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// 실패한 상태 전환 전에 보존한 bounds snapshot으로 되돌린다.
+        /// </summary>
+        // ------------------------------------------------------------
+        internal void Restore
+        (
+            Rect normalBounds,
+            Rect restoreBounds
+        )
+        {
+            this.normalBounds = normalBounds;
+            this.restoreBounds = restoreBounds;
         }
 
     #endregion

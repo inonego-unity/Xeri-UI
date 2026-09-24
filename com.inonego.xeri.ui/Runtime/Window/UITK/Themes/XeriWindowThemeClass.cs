@@ -30,11 +30,11 @@ namespace inonego.Xeri.UI.Window
 
     #region 메서드
 
-        // ------------------------------------------------------------
+        // ----------------------------------------------------------------------
         /// <summary>
         /// Theme ID 또는 USS class 이름을 실제 적용할 class 이름으로 변환한다.
         /// </summary>
-        // ------------------------------------------------------------
+        // ----------------------------------------------------------------------
         public static string Normalize(string theme)
         {
             if (string.IsNullOrWhiteSpace(theme)) return Windows;

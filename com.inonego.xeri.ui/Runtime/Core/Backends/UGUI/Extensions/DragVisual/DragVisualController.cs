@@ -1,8 +1,8 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : DragVisualController.cs
-수정일 : 2026-09-17
+수정일 : 2026-10-07
 # 설명
-UGUI Drag Visual의 Layer Usage, 일시적 계층 재배치와 기존 Draggable 연결을 소유한다.
+UGUI Drag Visual의 PresentationTarget Layer Lease, 일시적 계층 재배치와 기존 Draggable 연결을 소유한다.
 ========================================================================= BLOCK_HEADER_END */
 
 using System;
@@ -30,7 +30,7 @@ namespace inonego.Xeri.UI
 
         private readonly List<DragVisualHandle> handles = new List<DragVisualHandle>();
         private readonly List<UGUIDragVisualBinding> bindings = new List<UGUIDragVisualBinding>();
-        private readonly PresentationLayerRegistry layerRegistry = null;
+        private readonly Func<PresentationTarget, PresentationLayerLease> acquireLayer = null;
         private bool isDisposed = false;
 
     #endregion
@@ -49,13 +49,32 @@ namespace inonego.Xeri.UI
 
         // ------------------------------------------------------------
         /// <summary>
-        /// 등록된 Presentation Layer를 사용하는 Controller를 생성한다.
+        /// UIContext의 Layer 획득 경로를 사용하는 Controller를 생성한다.
         /// </summary>
         // ------------------------------------------------------------
-        public DragVisualController(PresentationLayerRegistry layerRegistry) : this()
+        public DragVisualController(UIContext context) : this
+        (
+            context != null
+                ? context.AcquireLayer
+                : throw new ArgumentNullException(nameof(context))
+        )
         {
-            this.layerRegistry = layerRegistry ??
-                throw new ArgumentNullException(nameof(layerRegistry));
+            // NONE
+        }
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// <br/> Target을 Layer Lease로 resolve하는
+        /// <br/> composition Controller를 생성한다.
+        /// </summary>
+        // ------------------------------------------------------------
+        public DragVisualController
+        (
+            Func<PresentationTarget, PresentationLayerLease> acquireLayer
+        ) : this()
+        {
+            this.acquireLayer = acquireLayer ??
+                throw new ArgumentNullException(nameof(acquireLayer));
         }
 
     #endregion
@@ -79,7 +98,7 @@ namespace inonego.Xeri.UI
 
         // ----------------------------------------------------------------------
         /// <summary>
-        /// <br/> 등록된 Presentation Layer Usage를 획득하고,
+        /// <br/> PresentationTarget Layer Lease를 획득하고,
         /// <br/> Drag Visual을 해당 UGUI Root의 마지막 sibling으로 옮긴다.
         /// </summary>
         // ----------------------------------------------------------------------
@@ -87,26 +106,22 @@ namespace inonego.Xeri.UI
         {
             ThrowIfDisposed();
             ValidateParameters(parameters);
-            ThrowIfLayerRegistryMissing();
+            ThrowIfLayerAcquirerMissing();
+            var layerLease = acquireLayer(parameters.TargetPresentation);
 
-            if (!layerRegistry.TryAcquireUsage(parameters.LayerID, out var driver, out var usage))
+            if (layerLease.Layer is not IPresentationLayerDriver<RectTransform> layerCanvas)
             {
-                throw new InvalidOperationException
+                throw CombineLayerLeaseCleanupFailure
                 (
-                    $"Drag Visual Layer '{parameters.LayerID}'가 등록되어 있지 않습니다."
+                    new InvalidOperationException
+                    (
+                        $"Drag Visual Target '{parameters.TargetPresentation}'이 UGUI Layer가 아닙니다."
+                    ),
+                    layerLease
                 );
             }
 
-            if (!(driver is IPresentationLayerDriver<RectTransform> layerCanvas))
-            {
-                usage.Dispose();
-                throw new InvalidOperationException
-                (
-                    $"Drag Visual Layer '{parameters.LayerID}'가 UGUI Layer가 아닙니다."
-                );
-            }
-
-            return BeginInternal(parameters.Target, layerCanvas.Root, usage);
+            return BeginInternal(parameters.Target, layerCanvas.Root, layerLease);
         }
 
         // --------------------------------------------------------------------------------
@@ -123,7 +138,7 @@ namespace inonego.Xeri.UI
         {
             ThrowIfDisposed();
             ValidateParameters(parameters);
-            ThrowIfLayerRegistryMissing();
+            ThrowIfLayerAcquirerMissing();
 
             if (draggable == null)
             {
@@ -150,37 +165,46 @@ namespace inonego.Xeri.UI
             return binding;
         }
 
-        // ----------------------------------------------------------------------
+        // ------------------------------------------------------------
         /// <summary>
-        /// <br/> 한 Drag Visual의 원래 상태를 기록한 뒤 지정 Root로 옮긴다.
-        /// <br/> 시작 실패 시 Handle이 획득한 상태와 Layer Usage를 즉시 정리한다.
+        /// <br/> Drag Visual 상태를 기록해 지정 Root로 옮긴다.
+        /// <br/> 실패하면 획득한 Layer Lease도 함께 정리한다.
         /// </summary>
-        // ----------------------------------------------------------------------
+        // ------------------------------------------------------------
         private DragVisualHandle BeginInternal
         (
             RectTransform target,
             RectTransform dragRoot,
-            Lease layerUsage
+            PresentationLayerLease layerLease
         )
         {
             if (target == null)
             {
-                layerUsage?.Dispose();
-                throw new ArgumentNullException(nameof(target));
+                throw CombineLayerLeaseCleanupFailure
+                (
+                    new ArgumentNullException(nameof(target)),
+                    layerLease
+                );
             }
 
             if (dragRoot == null)
             {
-                layerUsage?.Dispose();
-                throw new ArgumentNullException(nameof(dragRoot));
+                throw CombineLayerLeaseCleanupFailure
+                (
+                    new ArgumentNullException(nameof(dragRoot)),
+                    layerLease
+                );
             }
 
             if (ReferenceEquals(target, dragRoot) || dragRoot.IsChildOf(target))
             {
-                layerUsage?.Dispose();
-                throw new InvalidOperationException
+                throw CombineLayerLeaseCleanupFailure
                 (
-                    "Drag Visual Layer Root는 대상 자신이나 대상의 하위 Transform일 수 없습니다."
+                    new InvalidOperationException
+                    (
+                        "Drag Visual Layer Root는 대상 자신이나 대상의 하위 Transform일 수 없습니다."
+                    ),
+                    layerLease
                 );
             }
 
@@ -188,15 +212,18 @@ namespace inonego.Xeri.UI
             {
                 if (ReferenceEquals(handles[i].Target, target))
                 {
-                    layerUsage?.Dispose();
-                    throw new InvalidOperationException
+                    throw CombineLayerLeaseCleanupFailure
                     (
-                        "같은 Drag Visual 대상을 중복으로 시작할 수 없습니다."
+                        new InvalidOperationException
+                        (
+                            "같은 Drag Visual 대상을 중복으로 시작할 수 없습니다."
+                        ),
+                        layerLease
                     );
                 }
             }
 
-            var handle = new DragVisualHandle(this, target, layerUsage);
+            var handle = new DragVisualHandle(this, target, layerLease);
 
             // 계층 callback의 중첩 Begin과 Controller 종료가 같은 대상을 다시 소유하지 않게 먼저 예약한다.
             handles.Add(handle);
@@ -214,10 +241,52 @@ namespace inonego.Xeri.UI
                 ThrowIfDisposed();
                 return handle;
             }
-            catch
+            catch (Exception exception)
             {
-                handle.Dispose();
+                try
+                {
+                    handle.Dispose();
+                }
+                catch (Exception cleanupException)
+                {
+                    throw new AggregateException
+                    (
+                        "Drag Visual 시작과 획득 상태 롤백이 모두 실패했습니다.",
+                        exception,
+                        cleanupException
+                    );
+                }
+
                 throw;
+            }
+        }
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// 실패 원인과 이미 획득한 Layer Lease 반환 실패를 모두 보존한다.
+        /// </summary>
+        // ------------------------------------------------------------
+        private static Exception CombineLayerLeaseCleanupFailure
+        (
+            Exception failure,
+            PresentationLayerLease layerLease
+        )
+        {
+            if (layerLease == null) return failure;
+
+            try
+            {
+                layerLease.Dispose();
+                return failure;
+            }
+            catch (Exception cleanupException)
+            {
+                return new AggregateException
+                (
+                    "Drag Visual 요청 실패와 Presentation Layer Lease 반환이 모두 실패했습니다.",
+                    failure,
+                    cleanupException
+                );
             }
         }
 
@@ -261,11 +330,11 @@ namespace inonego.Xeri.UI
                 );
             }
 
-            if (string.IsNullOrWhiteSpace(parameters.LayerID))
+            if (!parameters.TargetPresentation.IsValid)
             {
                 throw new ArgumentException
                 (
-                    "Drag Visual Layer ID가 비어 있습니다.",
+                    "Drag Visual Presentation Target이 유효하지 않습니다.",
                     nameof(parameters)
                 );
             }
@@ -273,17 +342,17 @@ namespace inonego.Xeri.UI
 
         // ------------------------------------------------------------
         /// <summary>
-        /// Presentation Layer 기반 요청에 필요한 Registry 구성을 확인한다.
+        /// Presentation 기반 요청에 필요한 Session 구성을 확인한다.
         /// </summary>
         // ------------------------------------------------------------
-        private void ThrowIfLayerRegistryMissing()
+        private void ThrowIfLayerAcquirerMissing()
         {
-            if (layerRegistry == null)
+            if (acquireLayer == null)
             {
                 throw new InvalidOperationException
                 (
-                    "Presentation Layer 기반 Drag Visual을 사용하려면 " +
-                    "Layer Registry로 Controller를 생성해야 합니다."
+                    "PresentationTarget 기반 Drag Visual을 사용하려면 " +
+                    "Layer Lease resolver가 있는 Controller를 생성해야 합니다."
                 );
             }
         }
@@ -303,7 +372,7 @@ namespace inonego.Xeri.UI
 
     #endregion
 
-    #region IDisposable
+    #region 해제
 
         // ----------------------------------------------------------------------
         /// <summary>

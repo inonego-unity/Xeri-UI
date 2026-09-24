@@ -30,7 +30,7 @@ namespace inonego.Xeri.UI
 
     #endregion
 
-    #region UISceneFadeSource
+    #region 씬 페이드 소스 구현
 
         // ------------------------------------------------------------
         /// <summary>

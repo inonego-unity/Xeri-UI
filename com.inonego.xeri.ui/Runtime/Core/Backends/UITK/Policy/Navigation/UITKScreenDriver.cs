@@ -53,6 +53,7 @@ namespace inonego.Xeri.UI
 
         private readonly VisualElement defaultFocus = null;
         private readonly VisualElement root = null;
+        private readonly PickingMode interactablePickingMode;
         private readonly UITKPresentation presentation = null;
 
     #endregion
@@ -72,12 +73,13 @@ namespace inonego.Xeri.UI
         {
             this.root = root ?? throw new ArgumentNullException(nameof(root));
             this.defaultFocus = defaultFocus;
+            interactablePickingMode = root.pickingMode;
             presentation = new UITKPresentation(root);
         }
 
     #endregion
 
-    #region IScreenInteractionDriver
+    #region 스크린 상호작용 드라이버 구현
 
         // ------------------------------------------------------------
         /// <summary>
@@ -96,15 +98,18 @@ namespace inonego.Xeri.UI
             return false;
         }
 
-        // ------------------------------------------------------------
+        // ----------------------------------------------------------------------
         /// <summary>
-        /// Screen Root의 enabled 상태와 picking 정책을 적용한다.
+        /// <br/> Screen Root의 enabled 상태를 적용하고, 활성화 시 생성 당시의
+        /// <br/> picking 정책을 복원한다.
         /// </summary>
-        // ------------------------------------------------------------
+        // ----------------------------------------------------------------------
         public void SetInteractable(bool interactable)
         {
             root.SetEnabled(interactable);
-            root.pickingMode = interactable ? PickingMode.Position : PickingMode.Ignore;
+            root.pickingMode = interactable
+                ? interactablePickingMode
+                : PickingMode.Ignore;
         }
 
     #endregion

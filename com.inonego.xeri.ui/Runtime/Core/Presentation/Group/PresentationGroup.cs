@@ -1,14 +1,15 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : PresentationGroup.cs
-수정일 : 2026-09-19
+수정일 : 2026-10-06
 
 # 설명
 여러 IPresentation을 재사용 가능한 Composite Tree로 묶는다.
-Apply는 현재 Tree를 한 번 평가하며 parent 누적 Alpha와 Visibility를 root에서 leaf까지 전달한다.
+Apply는 현재 Tree의 대상과 합성 값을 먼저 확정하고 각 backend에 독립적으로 적용한다.
 
 # 특이사항, 제약사항
 Group은 reactive binding이나 parent subscription을 만들지 않는다.
 Member의 Base, Modified, Modifier는 변경하지 않는다.
+적용 중 topology와 값 변경은 다음 Apply에서 반영한다.
 같은 Presentation은 여러 Group에 포함될 수 있지만 한 Apply Tree 안에서는 한 번만 등장해야 한다.
 ========================================================================= BLOCK_HEADER_END */
 
@@ -32,6 +33,19 @@ namespace inonego.Xeri.UI
         IPresentation,
         IValueSetter<float>
     {
+
+    #region 내부 데이터
+
+        private sealed class ApplyTarget
+        {
+            public IPresentation Presentation;
+            public PresentationAlpha AlphaState;
+            public PresentationVisibility VisibilityState;
+            public float AlphaOutput;
+            public bool VisibilityOutput;
+        }
+
+    #endregion
 
     #region 필드
 
@@ -101,7 +115,7 @@ namespace inonego.Xeri.UI
 
     #endregion
 
-    #region Member
+    #region 멤버
 
         // ------------------------------------------------------------
         /// <summary>
@@ -169,7 +183,7 @@ namespace inonego.Xeri.UI
 
     #endregion
 
-    #region Tree 적용
+    #region 트리 적용
 
         // ------------------------------------------------------------
         /// <summary>
@@ -178,108 +192,154 @@ namespace inonego.Xeri.UI
         // ------------------------------------------------------------
         public void Apply()
         {
-            ValidateTree();
+            // 외부 backend 호출 전에 topology와 출력 값을 하나의 적용 계획으로 확정한다.
+            var targets = BuildApplyPlan();
+            List<Exception> errors = null;
 
+            foreach (var target in targets)
+            {
+                if (target.AlphaState != null)
+                {
+                    try
+                    {
+                        target.AlphaState.ApplyComposite(target.AlphaOutput);
+                    }
+                    catch (Exception exception)
+                    {
+                        (errors ??= new List<Exception>()).Add(exception);
+                    }
+                }
+
+                if (target.VisibilityState != null)
+                {
+                    try
+                    {
+                        target.VisibilityState.ApplyComposite(target.VisibilityOutput);
+                    }
+                    catch (Exception exception)
+                    {
+                        (errors ??= new List<Exception>()).Add(exception);
+                    }
+                }
+            }
+
+            if (errors != null)
+            {
+                throw new AggregateException("Presentation Tree 적용이 실패했습니다.", errors);
+            }
+        }
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// 대상과 합성 출력을 확정하고 모든 Target을 적용 전에 검증한다.
+        /// </summary>
+        // ------------------------------------------------------------
+        private List<ApplyTarget> BuildApplyPlan()
+        {
+            var targets = new List<ApplyTarget>();
             var visited = new HashSet<IPresentation>
             (
                 ReferenceEqualityComparer<IPresentation>.Instance
             );
-            List<Exception> errors = null;
+            CollectApplyTargets(this, 1.0f, true, visited, targets);
 
-            ApplyTree
-            (
-                this,
-                parentAlpha: 1.0f,
-                parentVisibility: true,
-                visited,
-                ref errors
-            );
-
-            if (errors != null)
+            // 사용자 구현의 State·Target 조회도 확정된 대상 목록 안에서 처리한다.
+            foreach (var target in targets)
             {
-                throw new AggregateException
-                (
-                    "Presentation Tree 적용이 실패했습니다.",
-                    errors
-                );
+                var alpha = target.Presentation.Alpha;
+                var visibility = target.Presentation.Visibility;
+                target.AlphaState = alpha;
+                target.VisibilityState = visibility;
+
+                if (alpha == null && visibility == null)
+                {
+                    throw new InvalidOperationException
+                    (
+                        "Presentation에 적용 가능한 State Target이 없습니다."
+                    );
+                }
+
+                if (alpha != null)
+                {
+                    if (!alpha.IsValid)
+                    {
+                        throw new InvalidOperationException("Presentation Alpha Target이 유효하지 않습니다.");
+                    }
+
+                    target.AlphaOutput *= alpha.Modified;
+                }
+
+                if (visibility != null)
+                {
+                    if (!visibility.IsValid)
+                    {
+                        throw new InvalidOperationException("Presentation Visibility Target이 유효하지 않습니다.");
+                    }
+
+                    target.VisibilityOutput &= visibility.Modified;
+                }
             }
+
+            return targets;
         }
 
-        // ----------------------------------------------------------------------
+        // ------------------------------------------------------------
         /// <summary>
-        /// 현재 Presentation 경로의 누적값을 계산하고 leaf backend까지 순회 적용한다.
+        /// Tree를 검증하며 각 leaf의 부모 합성 값을 수집한다.
         /// </summary>
-        // ----------------------------------------------------------------------
-        private static void ApplyTree
+        // ------------------------------------------------------------
+        private static void CollectApplyTargets
         (
             IPresentation presentation,
             float parentAlpha,
             bool parentVisibility,
             ISet<IPresentation> visited,
-            ref List<Exception> errors
+            List<ApplyTarget> targets
         )
         {
             if (!visited.Add(presentation))
             {
                 throw new InvalidOperationException
                 (
-                    "하나의 Presentation Tree 안에 같은 Presentation이 두 번 포함되어 있습니다."
+                    "Presentation Composite는 하나의 Apply 기준에서 Tree여야 합니다."
                 );
             }
 
-            var alpha = presentation.Alpha;
-            var visibility = presentation.Visibility;
-
             if (presentation is PresentationGroup group)
             {
-                var nextAlpha = parentAlpha * (alpha?.Modified ?? 1.0f);
-                var nextVisibility = parentVisibility && (visibility?.Modified ?? true);
+                if (group.members.Count == 0)
+                {
+                    throw new InvalidOperationException("적용할 Presentation Group에 Member가 없습니다.");
+                }
+
+                var nextAlpha = parentAlpha * group.Alpha.Modified;
+                var nextVisibility = parentVisibility && group.Visibility.Modified;
 
                 for (var index = 0; index < group.members.Count; index++)
                 {
-                    ApplyTree
+                    CollectApplyTargets
                     (
-                        group.members[index],
-                        nextAlpha,
-                        nextVisibility,
-                        visited,
-                        ref errors
+                        group.members[index], nextAlpha, nextVisibility, visited, targets
                     );
                 }
 
                 return;
             }
 
-            if (alpha != null)
-            {
-                try
+            targets.Add
+            (
+                new ApplyTarget
                 {
-                    alpha.ApplyInherited(parentAlpha);
+                    Presentation = presentation,
+                    AlphaOutput = parentAlpha,
+                    VisibilityOutput = parentVisibility,
                 }
-                catch (Exception exception)
-                {
-                    errors ??= new List<Exception>();
-                    errors.Add(exception);
-                }
-            }
-
-            if (visibility != null)
-            {
-                try
-                {
-                    visibility.ApplyInherited(parentVisibility);
-                }
-                catch (Exception exception)
-                {
-                    errors ??= new List<Exception>();
-                    errors.Add(exception);
-                }
-            }
+            );
         }
 
     #endregion
 
-    #region IValueSetter
+    #region 값 설정 구현
 
         // ----------------------------------------------------------------------
         /// <summary>
@@ -295,97 +355,6 @@ namespace inonego.Xeri.UI
     #endregion
 
     #region 검증
-
-        // ------------------------------------------------------------
-        /// <summary>
-        /// 이 Group을 Root로 현재 Composite topology 전체를 검증한다.
-        /// </summary>
-        // ------------------------------------------------------------
-        private void ValidateTree()
-        {
-            var visited = new HashSet<IPresentation>
-            (
-                ReferenceEqualityComparer<IPresentation>.Instance
-            );
-
-            ValidateTree(this, visited);
-        }
-
-        // ----------------------------------------------------------------------
-        /// <summary>
-        /// 한 Apply Tree 안의 중복 reference와 leaf backend 유효성을 재귀 검증한다.
-        /// </summary>
-        // ----------------------------------------------------------------------
-        private static void ValidateTree
-        (
-            IPresentation presentation,
-            ISet<IPresentation> visited
-        )
-        {
-            if (!visited.Add(presentation))
-            {
-                throw new InvalidOperationException
-                (
-                    "Presentation Composite는 하나의 Apply 기준에서 Tree여야 합니다."
-                );
-            }
-
-            if (presentation is PresentationGroup group)
-            {
-                if (group.members.Count == 0)
-                {
-                    throw new InvalidOperationException
-                    (
-                        "적용할 Presentation Group에 Member가 없습니다."
-                    );
-                }
-
-                for (var index = 0; index < group.members.Count; index++)
-                {
-                    ValidateTree(group.members[index], visited);
-                }
-
-                return;
-            }
-
-            var alpha = presentation.Alpha;
-            var visibility = presentation.Visibility;
-            var hasTarget = false;
-
-            if (alpha != null)
-            {
-                hasTarget = true;
-
-                if (!alpha.IsValid)
-                {
-                    throw new InvalidOperationException
-                    (
-                        "Presentation Alpha Target이 유효하지 않습니다."
-                    );
-                }
-            }
-
-            if (visibility != null)
-            {
-                hasTarget = true;
-
-                if (!visibility.IsValid)
-                {
-                    throw new InvalidOperationException
-                    (
-                        "Presentation Visibility Target이 유효하지 않습니다."
-                    );
-                }
-            }
-
-            if (!hasTarget)
-            {
-                throw new InvalidOperationException
-                (
-                    "Presentation에 적용 가능한 State Target이 없습니다."
-                );
-            }
-        }
 
         // ----------------------------------------------------------------------
         /// <summary>

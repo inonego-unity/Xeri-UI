@@ -8,14 +8,14 @@ Xeri window 상태 전환 실행 상태.
 
 namespace inonego.Xeri.UI.Window
 {
-   // ============================================================
-   /// <summary>
-   /// Xeri window 상태 전환 실행 상태.
-   /// </summary>
-   // ============================================================
-   public enum XeriWindowTransitionStatus
-   {
-      Idle,
-      Running,
-   }
+    // ============================================================
+    /// <summary>
+    /// Xeri window 상태 전환 실행 상태.
+    /// </summary>
+    // ============================================================
+    public enum XeriWindowTransitionStatus
+    {
+        Idle,
+        Running,
+    }
 }

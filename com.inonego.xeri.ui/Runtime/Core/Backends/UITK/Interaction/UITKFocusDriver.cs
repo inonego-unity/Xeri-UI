@@ -1,8 +1,10 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : UITKFocusDriver.cs
-수정일 : 2026-09-17
+수정일 : 2026-09-29
+
 # 설명
-UI Toolkit Panel의 VisualElement Focus 선택, 유효성 검사와 native Focus 변경 보고를 수행한다.
+등록된 UITK Presentation Layer 범위의 Unity native Focus를 관찰하고 선택하는 얇은 backend bridge.
+Layer Root 자체의 Focus event lifetime만 대칭 관리하고 Panel navigation/focus graph는 Unity FocusController에 위임한다.
 ========================================================================= BLOCK_HEADER_END */
 
 using System;
@@ -14,80 +16,96 @@ using UnityEngine.UIElements;
 
 namespace inonego.Xeri.UI
 {
-    // ============================================================
-    /// <summary>
-    /// UI Toolkit Panel Focus backend.
-    /// </summary>
-    // ============================================================
     public sealed class UITKFocusDriver : FocusDriverBehaviour
     {
 
     #region 필드
 
-        // ------------------------------------------------------------
-        /// <summary>
-        /// 마지막으로 Focus가 이동한 Panel의 현재 Focus Element.
-        /// </summary>
-        // ------------------------------------------------------------
-        public override object Current
-        {
-            get
-            {
-                if (currentPanelRoot == null || currentPanelRoot.panel == null) return null;
-
-                var focused = currentPanelRoot.panel.focusController?.focusedElement as VisualElement;
-                return ResolveFocusTarget(focused);
-            }
-        }
-
-        [SerializeField]
-        private UITKLayerPanel fallbackLayer = null;
+        public override object Current => IsValid(current) ? current : null;
 
         [SerializeField]
         private string fallbackName = "";
 
-        private readonly List<VisualElement> panelRoots = new List<VisualElement>();
-        private VisualElement currentPanelRoot = null;
-        private VisualElement pendingPanelRoot = null;
+        private readonly List<VisualElement> layerRoots = new();
+
+        private VisualElement current = null;
         private VisualElement reportedCurrent = null;
-        private bool focusEvaluationRequested = false;
 
     #endregion
 
-    #region FocusDriverBehaviour
+    #region 포커스 드라이버 기반 구현
 
-        // ------------------------------------------------------------
-        /// <summary>
-        /// VisualElement Focus 대상을 다룬다.
-        /// </summary>
-        // ------------------------------------------------------------
         public override bool CanSelect(object target) => target is VisualElement;
 
-        // ------------------------------------------------------------
+        // ----------------------------------------------------------------------
         /// <summary>
-        /// UI Toolkit Layer Panel을 사용자 Focus 추적 범위에 등록한다.
+        /// UITK Layer Root 자체에 native Focus 변경 callback을 등록한다.
         /// </summary>
-        // ------------------------------------------------------------
+        // ----------------------------------------------------------------------
         protected override void HandleLayerRegistered(IPresentationLayerDriver driver)
         {
-            if (driver is IPresentationLayerDriver<VisualElement> layer)
+            if
+            (
+                driver is not IPresentationLayerDriver<VisualElement> layer ||
+                layer.Root == null ||
+                layerRoots.Contains(layer.Root)
+            )
             {
-                RegisterPanel(layer.Root);
+                return;
+            }
+
+            var root = layer.Root;
+            layerRoots.Add(root);
+            root.RegisterCallback<FocusInEvent>(HandleFocusIn, TrickleDown.TrickleDown);
+            root.RegisterCallback<FocusOutEvent>(HandleFocusOut, TrickleDown.TrickleDown);
+            root.RegisterCallback<DetachFromPanelEvent>(HandleLayerDetached);
+
+            var focused = root.panel?.focusController?.focusedElement as VisualElement;
+            PublishCurrent(ResolveFocusTarget(focused));
+        }
+
+        // ----------------------------------------------------------------------
+        /// <summary>
+        /// Layer registration lifetime이 끝나면 Root callback을 대칭 해제한다.
+        /// </summary>
+        // ----------------------------------------------------------------------
+        protected override void HandleLayerUnregistered(IPresentationLayerDriver driver)
+        {
+            if
+            (
+                driver is not IPresentationLayerDriver<VisualElement> layer ||
+                layer.Root == null
+            )
+            {
+                return;
+            }
+
+            var root = layer.Root;
+
+            if (!layerRoots.Remove(root)) return;
+
+            root.UnregisterCallback<FocusInEvent>(HandleFocusIn, TrickleDown.TrickleDown);
+            root.UnregisterCallback<FocusOutEvent>(HandleFocusOut, TrickleDown.TrickleDown);
+            root.UnregisterCallback<DetachFromPanelEvent>(HandleLayerDetached);
+
+            if (IsDescendantOf(current, root))
+            {
+                PublishCurrent(null);
             }
         }
 
     #endregion
 
-    #region IFocusDriver
+    #region 포커스 드라이버 구현
 
-        // ------------------------------------------------------------
-        /// <summary>
-        /// VisualElement가 현재 Panel에서 Focus를 받을 수 있는지 확인한다.
-        /// </summary>
-        // ------------------------------------------------------------
         public override bool IsValid(object target)
         {
-            if (!(target is VisualElement element) || element.panel == null)
+            if
+            (
+                target is not VisualElement element ||
+                element.panel == null ||
+                !Owns(element)
+            )
             {
                 return false;
             }
@@ -100,100 +118,175 @@ namespace inonego.Xeri.UI
                 element.resolvedStyle.visibility == Visibility.Visible;
         }
 
-        // ------------------------------------------------------------
+        // --------------------------------------------------------------------------------
         /// <summary>
-        /// 유효한 VisualElement에 Focus를 적용한다.
+        /// Unity native FocusController에 대상 선택 또는 명시적 Focus 해제를 요청한다.
         /// </summary>
-        // ------------------------------------------------------------
+        // --------------------------------------------------------------------------------
         public override void Select(object target)
         {
             if (!IsValid(target))
             {
-                ClearTrackedFocus(null);
-                currentPanelRoot = null;
-                pendingPanelRoot = null;
-                reportedCurrent = null;
-                focusEvaluationRequested = false;
+                ClearNativeFocus();
+                PublishCurrent(null);
                 return;
             }
 
             var element = (VisualElement)target;
-            RegisterPanel(element);
-            var panelRoot = element.panel.visualTree;
-            ClearTrackedFocus(element.panel);
-            currentPanelRoot = panelRoot;
             element.Focus();
-            RequestFocusEvaluation(panelRoot);
+            PublishCurrent(element);
         }
 
-        // ------------------------------------------------------------
-        /// <summary>
-        /// 직렬화한 fallback Element가 유효하면 반환한다.
-        /// </summary>
-        // ------------------------------------------------------------
         public override object FindFallback()
         {
-            if (fallbackLayer == null || string.IsNullOrWhiteSpace(fallbackName))
+            if (string.IsNullOrWhiteSpace(fallbackName)) return null;
+
+            for (var index = layerRoots.Count - 1; index >= 0; index--)
             {
-                return null;
+                var fallback = layerRoots[index]?.Q<VisualElement>(fallbackName);
+
+                if (IsValid(fallback))
+                {
+                    return fallback;
+                }
             }
 
-            var fallback = fallbackLayer.Root?.Q<VisualElement>(fallbackName);
-            return IsValid(fallback) ? fallback : null;
+            return null;
+        }
+
+    #endregion
+
+    #region 포커스 관찰
+
+        // ----------------------------------------------------------------------
+        /// <summary>
+        /// 등록 Layer 안에서 새 native Focus가 들어오면 현재 대상으로 반영한다.
+        /// </summary>
+        // ----------------------------------------------------------------------
+        private void HandleFocusIn(FocusInEvent eventData)
+        {
+            PublishCurrent
+            (
+                ResolveFocusTarget(eventData.target as VisualElement)
+            );
+        }
+
+        // --------------------------------------------------------------------------------
+        /// <summary>
+        /// 현재 native Focus가 빠지면 공통 Driver가 같은 Frame의 다음 FocusIn을 판정하게 알린다.
+        /// </summary>
+        // --------------------------------------------------------------------------------
+        private void HandleFocusOut(FocusOutEvent eventData)
+        {
+            var losing = ResolveFocusTarget(eventData.target as VisualElement);
+
+            if
+            (
+                current == null ||
+                ReferenceEquals(current, losing) ||
+                !IsValid(current)
+            )
+            {
+                PublishCurrent(null);
+            }
+        }
+
+        // ----------------------------------------------------------------------
+        /// <summary>
+        /// Layer가 Panel에서 분리되며 현재 Focus를 잃으면 logical current도 비운다.
+        /// </summary>
+        // ----------------------------------------------------------------------
+        private void HandleLayerDetached(DetachFromPanelEvent eventData)
+        {
+            if (eventData.currentTarget is not VisualElement root) return;
+            if (!IsDescendantOf(current, root)) return;
+
+            PublishCurrent(null);
+        }
+
+        // --------------------------------------------------------------------------------
+        /// <summary>
+        /// focused element 또는 focusable ancestor 중 등록 Layer가 소유하는 대상을 반환한다.
+        /// </summary>
+        // --------------------------------------------------------------------------------
+        private VisualElement ResolveFocusTarget(VisualElement focused)
+        {
+            for (var candidate = focused; candidate != null; candidate = candidate.parent)
+            {
+                if (IsValid(candidate))
+                {
+                    return candidate;
+                }
+            }
+
+            return null;
+        }
+
+        // ----------------------------------------------------------------------
+        /// <summary>
+        /// VisualElement가 등록 Layer 중 하나의 subtree에 속하는지 확인한다.
+        /// </summary>
+        // ----------------------------------------------------------------------
+        private bool Owns(VisualElement element)
+        {
+            if (element == null) return false;
+
+            for (var currentElement = element; currentElement != null; currentElement = currentElement.parent)
+            {
+                for (var index = 0; index < layerRoots.Count; index++)
+                {
+                    if (ReferenceEquals(currentElement, layerRoots[index]))
+                    {
+                        return true;
+                    }
+                }
+            }
+
+            return false;
         }
 
         // ------------------------------------------------------------
         /// <summary>
-        /// Focus 대상이 속한 Panel의 실제 Focus 이동을 추적한다.
+        /// Element가 지정 Root subtree에 속하는지 확인한다.
         /// </summary>
         // ------------------------------------------------------------
-        internal void RegisterPanel(VisualElement element)
+        private static bool IsDescendantOf
+        (
+            VisualElement element,
+            VisualElement root
+        )
         {
-            if (element == null)
+            for (var currentElement = element; currentElement != null; currentElement = currentElement.parent)
             {
-                throw new System.ArgumentNullException(nameof(element));
+                if (ReferenceEquals(currentElement, root))
+                {
+                    return true;
+                }
             }
 
-            var panelRoot = element.panel?.visualTree;
+            return false;
+        }
 
-            if (panelRoot == null)
+        // ----------------------------------------------------------------------
+        /// <summary>
+        /// 명시적 Select(null) 요청에서 등록 Layer의 현재 native Focus를 해제한다.
+        /// </summary>
+        // ----------------------------------------------------------------------
+        private void ClearNativeFocus()
+        {
+            var visitedPanels = new HashSet<IPanel>();
+
+            for (var index = 0; index < layerRoots.Count; index++)
             {
-                throw new System.InvalidOperationException
+                var panel = layerRoots[index]?.panel;
+
+                if (panel == null || !visitedPanels.Add(panel)) continue;
+
+                if
                 (
-                    "Focus 추적 대상이 UI Toolkit Panel에 연결되지 않았습니다."
-                );
-            }
-
-            if (panelRoots.Contains(panelRoot)) return;
-
-            panelRoots.Add(panelRoot);
-            panelRoot.RegisterCallback<FocusInEvent>
-            (
-                HandleFocusIn,
-                TrickleDown.TrickleDown
-            );
-            panelRoot.RegisterCallback<FocusOutEvent>
-            (
-                HandleFocusOut,
-                TrickleDown.TrickleDown
-            );
-            panelRoot.RegisterCallback<DetachFromPanelEvent>(HandlePanelDetached);
-        }
-
-        // ------------------------------------------------------------
-        /// <summary>
-        /// 지정 Panel을 제외한 추적 Panel의 native Focus를 비운다.
-        /// </summary>
-        // ------------------------------------------------------------
-        private void ClearTrackedFocus(IPanel exceptPanel)
-        {
-            for (var i = 0; i < panelRoots.Count; i++)
-            {
-                var panel = panelRoots[i].panel;
-
-                if (panel == null || ReferenceEquals(panel, exceptPanel)) continue;
-
-                if (panel.focusController?.focusedElement is VisualElement focused)
+                    panel.focusController?.focusedElement is VisualElement focused &&
+                    Owns(focused)
+                )
                 {
                     focused.Blur();
                 }
@@ -202,185 +295,38 @@ namespace inonego.Xeri.UI
 
         // ------------------------------------------------------------
         /// <summary>
-        /// <br/> native focusedElement를 다시 선택 가능한
-        /// <br/> 가장 가까운 logical Focus 대상으로 정규화한다.
+        /// 실제 current 변경만 공통 Focus Driver에 전달한다.
         /// </summary>
         // ------------------------------------------------------------
-        private VisualElement ResolveFocusTarget(VisualElement focused)
+        private void PublishCurrent(VisualElement next)
         {
-            for (var current = focused; current != null; current = current.parent)
-            {
-                if (IsValid(current)) return current;
-            }
+            current = IsValid(next) ? next : null;
 
-            return null;
-        }
-
-        // --------------------------------------------------------------------------------
-        /// <summary>
-        /// Focus dispatch가 끝난 뒤 Panel의 최종 focusedElement를 평가하도록 요청한다.
-        /// </summary>
-        // --------------------------------------------------------------------------------
-        private void RequestFocusEvaluation(VisualElement panelRoot)
-        {
-            if (panelRoot == null) return;
-
-            pendingPanelRoot = panelRoot;
-            focusEvaluationRequested = true;
-        }
-
-        // --------------------------------------------------------------------------------
-        /// <summary>
-        /// FocusIn dispatch 중의 stale focusedElement를 읽지 않고 Panel 평가만 예약한다.
-        /// </summary>
-        // --------------------------------------------------------------------------------
-        private void HandleFocusIn(FocusInEvent eventData)
-        {
-            RequestFocusEvaluation(eventData.currentTarget as VisualElement);
-        }
-
-        // ----------------------------------------------------------------------
-        /// <summary>
-        /// FocusOut도 dispatch 종료 후 같은 안정화 경로에서 최종 상태를 판정한다.
-        /// </summary>
-        // ----------------------------------------------------------------------
-        private void HandleFocusOut(FocusOutEvent eventData)
-        {
-            RequestFocusEvaluation(eventData.currentTarget as VisualElement);
-        }
-
-        // ----------------------------------------------------------------------
-        /// <summary>
-        /// 예약한 Panel의 안정화된 Focus를 현재 대상으로 확정하고 변경을 한 번 보고한다.
-        /// </summary>
-        // ----------------------------------------------------------------------
-        private void EvaluateFocus()
-        {
-            focusEvaluationRequested = false;
-            var candidateRoot = pendingPanelRoot;
-            pendingPanelRoot = null;
-
-            if (candidateRoot != null && candidateRoot.panel != null)
-            {
-                var focused = candidateRoot.panel.focusController?.focusedElement as VisualElement;
-                var candidate = ResolveFocusTarget(focused);
-
-                if (candidate != null)
-                {
-                    currentPanelRoot = candidateRoot;
-                    ClearTrackedFocus(candidateRoot.panel);
-                    PublishCurrentIfChanged(candidate);
-                    return;
-                }
-            }
-
-            var current = Current as VisualElement;
-
-            if (IsValid(current)) return;
-
-            currentPanelRoot = candidateRoot != null && candidateRoot.panel != null
-                ? candidateRoot
-                : currentPanelRoot;
-            PublishCurrentIfChanged(null);
-        }
-
-        // ----------------------------------------------------------------------
-        /// <summary>
-        /// 동일 Focus의 중복 보고 없이 안정화된 현재 대상만 공통 Driver에 전달한다.
-        /// </summary>
-        // ----------------------------------------------------------------------
-        private void PublishCurrentIfChanged(VisualElement current)
-        {
             if (ReferenceEquals(reportedCurrent, current)) return;
 
             reportedCurrent = current;
             NotifyFocusChanged();
         }
 
-        // ------------------------------------------------------------
-        /// <summary>
-        /// 종료된 Panel의 Focus 추적 callback을 제거한다.
-        /// </summary>
-        // ------------------------------------------------------------
-        private void HandlePanelDetached(DetachFromPanelEvent eventData)
-        {
-            if (!(eventData.target is VisualElement panelRoot)) return;
-
-            var index = panelRoots.IndexOf(panelRoot);
-
-            if (index < 0) return;
-
-            panelRoots.RemoveAt(index);
-            panelRoot.UnregisterCallback<FocusInEvent>
-            (
-                HandleFocusIn,
-                TrickleDown.TrickleDown
-            );
-            panelRoot.UnregisterCallback<FocusOutEvent>
-            (
-                HandleFocusOut,
-                TrickleDown.TrickleDown
-            );
-            panelRoot.UnregisterCallback<DetachFromPanelEvent>(HandlePanelDetached);
-
-            if (ReferenceEquals(pendingPanelRoot, panelRoot))
-            {
-                pendingPanelRoot = null;
-                focusEvaluationRequested = false;
-            }
-
-            if (ReferenceEquals(currentPanelRoot, panelRoot))
-            {
-                currentPanelRoot = null;
-                PublishCurrentIfChanged(null);
-            }
-        }
-
     #endregion
 
     #region Unity 이벤트
 
-        // --------------------------------------------------------------------------------
-        /// <summary>
-        /// UI Toolkit Focus dispatch가 끝난 Frame 후반에 안정화된 Panel Focus를 확정한다.
-        /// </summary>
-        // --------------------------------------------------------------------------------
-        private void LateUpdate()
-        {
-            if (focusEvaluationRequested)
-            {
-                EvaluateFocus();
-            }
-        }
-
-        // ------------------------------------------------------------
-        /// <summary>
-        /// Host 종료 시 추적 중인 Panel callback을 모두 제거한다.
-        /// </summary>
-        // ------------------------------------------------------------
         private void OnDestroy()
         {
-            for (var i = panelRoots.Count - 1; i >= 0; i--)
+            for (var index = 0; index < layerRoots.Count; index++)
             {
-                var panelRoot = panelRoots[i];
-                panelRoots.RemoveAt(i);
-                panelRoot.UnregisterCallback<FocusInEvent>
-                (
-                    HandleFocusIn,
-                    TrickleDown.TrickleDown
-                );
-                panelRoot.UnregisterCallback<FocusOutEvent>
-                (
-                    HandleFocusOut,
-                    TrickleDown.TrickleDown
-                );
-                panelRoot.UnregisterCallback<DetachFromPanelEvent>(HandlePanelDetached);
+                var root = layerRoots[index];
+                if (root == null) continue;
+
+                root.UnregisterCallback<FocusInEvent>(HandleFocusIn, TrickleDown.TrickleDown);
+                root.UnregisterCallback<FocusOutEvent>(HandleFocusOut, TrickleDown.TrickleDown);
+                root.UnregisterCallback<DetachFromPanelEvent>(HandleLayerDetached);
             }
 
-            currentPanelRoot = null;
-            pendingPanelRoot = null;
+            layerRoots.Clear();
+            current = null;
             reportedCurrent = null;
-            focusEvaluationRequested = false;
         }
 
     #endregion

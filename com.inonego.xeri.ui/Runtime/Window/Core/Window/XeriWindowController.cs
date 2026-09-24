@@ -1,15 +1,18 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : XeriWindowController.cs
-수정일 : 2026-09-20
+수정일 : 2026-10-04
 
 # 설명
 Xeri 커스텀 윈도우 상태 전환, 명령, 이벤트를 관리하는 controller.
 ========================================================================= BLOCK_HEADER_END */
 
 using System;
+using System.Collections;
+using System.Collections.Generic;
 
 using UnityEngine;
 
+using inonego;
 using inonego.Xeri;
 
 namespace inonego.Xeri.UI.Window
@@ -26,16 +29,60 @@ namespace inonego.Xeri.UI.Window
 
         // ------------------------------------------------------------
         /// <summary>
-        /// 표시 계층 driver.
+        /// 현재 Window 위치.
         /// </summary>
         // ------------------------------------------------------------
-        public IXeriWindowDriver Driver => driver;
+        public Vector2 Pos => driver.Pos;
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// 현재 Window 크기.
+        /// </summary>
+        // ------------------------------------------------------------
+        public Vector2 Size => driver.Size;
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// 완료된 Window 상태.
+        /// </summary>
+        // ------------------------------------------------------------
+        public XeriWindowState State => driver.State;
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// 현재 Window 논리 bounds.
+        /// </summary>
+        // ------------------------------------------------------------
+        public Rect Bounds => driver.Bounds;
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// Window 내부 표시 backend.
+        /// </summary>
+        // ------------------------------------------------------------
+        internal IXeriWindowDriver Driver => driver;
 
         private readonly IXeriWindowDriver driver = null;
         private readonly IXeriWindowStateTransitioner transitioner = null;
 
         private readonly XeriWindowBoundsSnapshot boundsSnapshot = null;
         private XeriWindowState? pendingState = null;
+        private bool isDispatchingStateEvent = false;
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// 마지막 Normal 상태 bounds.
+        /// </summary>
+        // ------------------------------------------------------------
+        public Rect NormalBounds => boundsSnapshot.NormalBounds;
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// Minimized 상태에서 Restore할 완료 상태.
+        /// </summary>
+        // ------------------------------------------------------------
+        public XeriWindowState MinimizedRestoreState => minimizedRestoreState;
+
         private XeriWindowState minimizedRestoreState = XeriWindowState.Normal;
 
         // ------------------------------------------------------------
@@ -43,19 +90,15 @@ namespace inonego.Xeri.UI.Window
         /// 윈도우 동작 옵션.
         /// </summary>
         // ------------------------------------------------------------
-        public XeriWindowOptions Options
-        {
-            get => options;
-            set => options = value;
-        }
+        public XeriWindowOptions Options => options;
 
-        private XeriWindowOptions options = XeriWindowOptions.Default();
+        private readonly XeriWindowOptions options;
 
-        // ------------------------------------------------------------
+        // ----------------------------------------------------------------------
         /// <summary>
         /// 진행 중 전환 목표가 있으면 해당 상태를, 없으면 완료된 driver 상태를 반환한다.
         /// </summary>
-        // ------------------------------------------------------------
+        // ----------------------------------------------------------------------
         public XeriWindowState EffectiveState => pendingState ?? transitioner.PendingState ?? driver.State;
 
         // ------------------------------------------------------------
@@ -181,20 +224,6 @@ namespace inonego.Xeri.UI.Window
         // ------------------------------------------------------------
         public event EventHandler<XeriWindowCancelEventArgs> OnPreClose = null;
 
-        // ------------------------------------------------------------
-        /// <summary>
-        /// 윈도우 포커스 시 호출된다.
-        /// </summary>
-        // ------------------------------------------------------------
-        public event EventHandler<XeriWindowEventArgs> OnFocus = null;
-
-        // ------------------------------------------------------------
-        /// <summary>
-        /// 윈도우 포커스 해제 시 호출된다.
-        /// </summary>
-        // ------------------------------------------------------------
-        public event EventHandler<XeriWindowEventArgs> OnLoseFocus = null;
-
     #endregion
 
     #region 생성자
@@ -208,14 +237,54 @@ namespace inonego.Xeri.UI.Window
         (
             IXeriWindowDriver driver,
             XeriWindowOptions? options = null,
-            IXeriWindowStateTransitioner transitioner = null
+            IXeriWindowStateTransitioner transitioner = null,
+            Rect? normalBounds = null,
+            XeriWindowState minimizedRestoreState = XeriWindowState.Normal
         ) : base()
         {
-            this.driver  = driver ?? throw new ArgumentNullException(nameof(driver));
+            this.driver = driver ?? throw new ArgumentNullException(nameof(driver));
             this.options = options ?? XeriWindowOptions.Default();
+            ValidateOptions(this.options);
             this.transitioner = transitioner ?? new XeriImmediateWindowStateTransitioner();
-            boundsSnapshot = new XeriWindowBoundsSnapshot(this.driver.Bounds);
 
+            var initialNormalBounds = normalBounds ?? this.driver.Bounds;
+            ValidateFiniteVector(initialNormalBounds.position, nameof(normalBounds));
+            ValidateFiniteVector(initialNormalBounds.size, nameof(normalBounds));
+            initialNormalBounds.size = ClampSize(initialNormalBounds.size);
+            boundsSnapshot = new XeriWindowBoundsSnapshot(initialNormalBounds);
+            this.minimizedRestoreState = NormalizeMinimizedRestoreState(minimizedRestoreState);
+
+            if
+            (
+                this.driver.State == XeriWindowState.Normal ||
+                this.driver.State == XeriWindowState.Minimized
+            )
+            {
+                var previousBounds = this.driver.Bounds;
+
+                try
+                {
+                    this.driver.ApplyBounds(initialNormalBounds);
+                }
+                catch (Exception exception)
+                {
+                    try
+                    {
+                        this.driver.ApplyBounds(previousBounds);
+                    }
+                    catch (Exception rollbackException)
+                    {
+                        throw new AggregateException
+                        (
+                            "Window Controller 초기 bounds 적용과 rollback이 모두 실패했습니다.",
+                            exception,
+                            rollbackException
+                        );
+                    }
+
+                    throw;
+                }
+            }
         }
 
     #endregion
@@ -229,17 +298,47 @@ namespace inonego.Xeri.UI.Window
         // ------------------------------------------------------------
         public void Move(Vector2 pos)
         {
+            ValidateFiniteVector(pos, nameof(pos));
+
             if (!options.CanMove) return;
             if (!CanChangeBounds()) return;
 
             var previous = driver.Pos;
             if (previous == pos) return;
 
-            driver.Pos = pos;
-            boundsSnapshot.UpdateNormalBounds(EffectiveState, driver.Bounds);
+            try
+            {
+                driver.Pos = pos;
+                boundsSnapshot.UpdateNormalBounds(EffectiveState, driver.Bounds);
+            }
+            catch (Exception exception)
+            {
+                try
+                {
+                    driver.Pos = previous;
+                }
+                catch (Exception rollbackException)
+                {
+                    throw new AggregateException
+                    (
+                        "Window 이동 적용과 이전 위치 복원이 모두 실패했습니다.",
+                        exception,
+                        rollbackException
+                    );
+                }
 
-            OnMove?.Invoke(this, CreateEventArgs());
-            OnPosChange?.Invoke(this, new ValueChangeEventArgs<Vector2>(previous, pos));
+                throw;
+            }
+
+            var errors = new List<Exception>();
+            InvokeValueChangeHandlers
+            (
+                OnPosChange,
+                new ValueChangeEventArgs<Vector2>(previous, pos),
+                errors
+            );
+            InvokeStateHandlers(OnMove, CreateEventArgs(), errors);
+            ThrowEventErrors("Window 이동 이벤트 처리", errors);
         }
 
         // ------------------------------------------------------------
@@ -249,6 +348,8 @@ namespace inonego.Xeri.UI.Window
         // ------------------------------------------------------------
         public void Resize(Vector2 size)
         {
+            ValidateFiniteVector(size, nameof(size));
+
             if (!options.CanResize) return;
             if (!CanChangeBounds()) return;
 
@@ -256,11 +357,112 @@ namespace inonego.Xeri.UI.Window
             var clamped  = ClampSize(size);
             if (previous == clamped) return;
 
-            driver.Size = clamped;
-            boundsSnapshot.UpdateNormalBounds(EffectiveState, driver.Bounds);
+            try
+            {
+                driver.Size = clamped;
+                boundsSnapshot.UpdateNormalBounds(EffectiveState, driver.Bounds);
+            }
+            catch (Exception exception)
+            {
+                try
+                {
+                    driver.Size = previous;
+                }
+                catch (Exception rollbackException)
+                {
+                    throw new AggregateException
+                    (
+                        "Window 크기 적용과 이전 크기 복원이 모두 실패했습니다.",
+                        exception,
+                        rollbackException
+                    );
+                }
 
-            OnResize?.Invoke(this, CreateEventArgs());
-            OnSizeChange?.Invoke(this, new ValueChangeEventArgs<Vector2>(previous, clamped));
+                throw;
+            }
+
+            var errors = new List<Exception>();
+            InvokeValueChangeHandlers
+            (
+                OnSizeChange,
+                new ValueChangeEventArgs<Vector2>(previous, clamped),
+                errors
+            );
+            InvokeStateHandlers(OnResize, CreateEventArgs(), errors);
+            ThrowEventErrors("Window 크기 변경 이벤트 처리", errors);
+        }
+
+        // --------------------------------------------------------------------------------
+        /// <summary>
+        /// <br/> Resize handle이 계산한 위치와 크기를 하나의 bounds transaction으로 적용한다.
+        /// <br/> 위치 보정은 CanMove와 무관하며 Resize capability에 포함된다.
+        /// </summary>
+        // --------------------------------------------------------------------------------
+        internal void ResizeBounds
+        (
+            Vector2 pos,
+            Vector2 size
+        )
+        {
+            ValidateFiniteVector(pos, nameof(pos));
+            ValidateFiniteVector(size, nameof(size));
+
+            if (!options.CanResize) return;
+            if (!CanChangeBounds()) return;
+
+            var previous = driver.Bounds;
+            var next = new Rect(pos, ClampSize(size));
+            if (previous == next) return;
+
+            try
+            {
+                driver.ApplyBounds(next);
+                boundsSnapshot.UpdateNormalBounds(EffectiveState, driver.Bounds);
+            }
+            catch (Exception exception)
+            {
+                try
+                {
+                    driver.ApplyBounds(previous);
+                }
+                catch (Exception rollbackException)
+                {
+                    throw new AggregateException
+                    (
+                        "Window resize bounds 적용과 이전 bounds 복원이 모두 실패했습니다.",
+                        exception,
+                        rollbackException
+                    );
+                }
+
+                throw;
+            }
+
+            var errors = new List<Exception>();
+
+            if (previous.position != next.position)
+            {
+                InvokeValueChangeHandlers
+                (
+                    OnPosChange,
+                    new ValueChangeEventArgs<Vector2>(previous.position, next.position),
+                    errors
+                );
+                InvokeStateHandlers(OnMove, CreateEventArgs(), errors);
+            }
+
+            if (previous.size != next.size)
+            {
+                InvokeValueChangeHandlers
+                (
+                    OnSizeChange,
+                    new ValueChangeEventArgs<Vector2>(previous.size, next.size),
+                    errors
+                );
+                InvokeStateHandlers(OnResize, CreateEventArgs(), errors);
+            }
+
+            ThrowEventErrors("Window resize bounds 이벤트 처리", errors);
         }
 
         // ------------------------------------------------------------
@@ -350,36 +552,12 @@ namespace inonego.Xeri.UI.Window
 
         // ------------------------------------------------------------
         /// <summary>
-        /// 윈도우에 포커스를 부여한다.
-        /// </summary>
-        // ------------------------------------------------------------
-        public void Focus()
-        {
-            if (!options.CanFocus) return;
-            if (EffectiveState == XeriWindowState.Closed) return;
-
-            OnFocus?.Invoke(this, CreateEventArgs());
-        }
-
-        // ------------------------------------------------------------
-        /// <summary>
-        /// 윈도우 포커스를 해제한다.
-        /// </summary>
-        // ------------------------------------------------------------
-        public void LoseFocus()
-        {
-            if (EffectiveState == XeriWindowState.Closed) return;
-
-            OnLoseFocus?.Invoke(this, CreateEventArgs());
-        }
-
-        // ------------------------------------------------------------
-        /// <summary>
         /// 상태 전환 요청을 처리한다.
         /// </summary>
         // ------------------------------------------------------------
         public bool RequestStateCommand(XeriWindowStateCommandRequest request)
         {
+            if (isDispatchingStateEvent) return false;
             if (!CanExecuteStateCommand(request)) return false;
 
             if (!TryResolveNextState(request, out var nextState))
@@ -428,7 +606,72 @@ namespace inonego.Xeri.UI.Window
         // ------------------------------------------------------------
         private bool CanChangeBounds()
         {
+            if (isDispatchingStateEvent || IsTransitionRunning) return false;
+
             return EffectiveState == XeriWindowState.Normal;
+        }
+
+        // ----------------------------------------------------------------------
+        /// <summary>
+        /// 크기 제한 옵션이 유한하고 축별 MinSize가 MaxSize를 넘지 않는지 검증한다.
+        /// </summary>
+        // ----------------------------------------------------------------------
+        internal static void ValidateOptions(XeriWindowOptions options)
+        {
+            if
+            (
+                !IsFiniteNonNegative(options.MinSize.x) ||
+                !IsFiniteNonNegative(options.MinSize.y) ||
+                !IsFiniteNonNegative(options.MaxSize.x) ||
+                !IsFiniteNonNegative(options.MaxSize.y) ||
+                options.MinSize.x > options.MaxSize.x ||
+                options.MinSize.y > options.MaxSize.y ||
+                !Enum.IsDefined(typeof(XeriWindowStackLayer), options.StackLayer)
+            )
+            {
+                throw new ArgumentException
+                (
+                    "Window 크기 제한과 StackLayer 옵션 값이 유효해야 합니다.",
+                    nameof(options)
+                );
+            }
+        }
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// 값이 유한한 0 이상 수인지 확인한다.
+        /// </summary>
+        // ------------------------------------------------------------
+        private static bool IsFiniteNonNegative(float value)
+        {
+            return
+                !float.IsNaN(value) &&
+                !float.IsInfinity(value) &&
+                value >= 0f;
+        }
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// Vector2 두 축이 모두 유한한 값인지 검증한다.
+        /// </summary>
+        // ------------------------------------------------------------
+        private static void ValidateFiniteVector(Vector2 value, string paramName)
+        {
+            if
+            (
+                float.IsNaN(value.x) ||
+                float.IsNaN(value.y) ||
+                float.IsInfinity(value.x) ||
+                float.IsInfinity(value.y)
+            )
+            {
+                throw new ArgumentOutOfRangeException
+                (
+                    paramName,
+                    value,
+                    "Window 위치와 크기는 유한한 값이어야 합니다."
+                );
+            }
         }
 
         // ------------------------------------------------------------
@@ -462,8 +705,33 @@ namespace inonego.Xeri.UI.Window
                 Cancel = false,
             };
 
-            preEvent.Invoke(this, eventArgs);
+            var errors = new List<Exception>();
+            isDispatchingStateEvent = true;
 
+            try
+            {
+                foreach
+                (
+                    EventHandler<XeriWindowCancelEventArgs> handler in
+                    preEvent.GetInvocationList()
+                )
+                {
+                    try
+                    {
+                        handler.Invoke(this, eventArgs);
+                    }
+                    catch (Exception exception)
+                    {
+                        errors.Add(exception);
+                    }
+                }
+            }
+            finally
+            {
+                isDispatchingStateEvent = false;
+            }
+
+            ThrowEventErrors("Window 사전 이벤트 처리", errors);
             return eventArgs.Cancel;
         }
 
@@ -478,12 +746,32 @@ namespace inonego.Xeri.UI.Window
             XeriWindowStateCommandRequest request
         )
         {
-            var previous = driver.State;
-            if (previous == state) return false;
+            var effectivePrevious = EffectiveState;
 
+            if (transitioner.IsRunning)
+            {
+                try
+                {
+                    transitioner.Cancel(true);
+                }
+                catch
+                {
+                    if (!transitioner.IsRunning)
+                    {
+                        pendingState = null;
+                    }
+
+                    throw;
+                }
+            }
+
+            var previous = driver.State;
+            var previousMinimizedRestoreState = minimizedRestoreState;
+            var previousNormalBounds = boundsSnapshot.NormalBounds;
+            var previousRestoreBounds = boundsSnapshot.RestoreBounds;
             var targetBounds = default(Rect?);
 
-            CaptureMinimizedRestoreState(previous, state);
+            CaptureMinimizedRestoreState(effectivePrevious, state);
 
             if (state == XeriWindowState.Maximized)
             {
@@ -496,36 +784,85 @@ namespace inonego.Xeri.UI.Window
                 {
                     targetBounds = request.TargetBounds;
                 }
-                else if (previous == XeriWindowState.Maximized)
+                else if (effectivePrevious == XeriWindowState.Maximized)
                 {
                     targetBounds = boundsSnapshot.RestoreBounds;
                 }
             }
 
             pendingState = state;
+            var transitionCompleted = false;
 
-            var transitionStarted = transitioner.Transition
-            (
-                new XeriWindowStateTransitionRequest
-                {
-                    Driver = driver,
-                    PreviousState = previous,
-                    NextState = state,
-                    TargetBounds = targetBounds,
-                    Animate = request.Animate,
-                    InterruptPolicy = XeriWindowTransitionInterruptPolicy.CancelAndReplace,
-                    OnComplete = () => CompleteStateTransition(previous, state, request),
-                    OnCancel = ClearPendingState,
-                    OnError = _ => ClearPendingState(),
-                }
-            );
-
-            if (!transitionStarted)
+            try
             {
-                pendingState = null;
-            }
+                var transitionStarted = transitioner.Transition
+                (
+                    new XeriWindowStateTransitionRequest
+                    {
+                        Driver = driver,
+                        PreviousState = previous,
+                        NextState = state,
+                        TargetBounds = targetBounds,
+                        Animate = request.Animate,
+                        InterruptPolicy = XeriWindowTransitionInterruptPolicy.CancelAndReplace,
+                        OnComplete = () =>
+                        {
+                            try
+                            {
+                                CompleteStateTransition(previous, state, request);
+                            }
+                            finally
+                            {
+                                transitionCompleted = true;
+                            }
+                        },
+                        OnCancel = ClearPendingState,
+                        OnError = _ =>
+                        {
+                            RestoreTransitionMetadata
+                            (
+                                previousMinimizedRestoreState,
+                                previousNormalBounds,
+                                previousRestoreBounds
+                            );
+                            ClearPendingState();
+                        },
+                    }
+                );
 
-            return transitionStarted;
+                if (!transitionStarted)
+                {
+                    pendingState = null;
+                    RestoreTransitionMetadata
+                    (
+                        previousMinimizedRestoreState,
+                        previousNormalBounds,
+                        previousRestoreBounds
+                    );
+                }
+
+                return transitionStarted;
+            }
+            catch
+            {
+                var transitionRunning = transitioner.IsRunning;
+
+                // 완료 callback 안의 observer 실패는 이미 완료된 상태 전환을 되돌리지 않는다.
+                if (!transitionRunning && !transitionCompleted)
+                {
+                    RestoreTransitionMetadata
+                    (
+                        previousMinimizedRestoreState,
+                        previousNormalBounds,
+                        previousRestoreBounds
+                    );
+                }
+
+                pendingState = transitionRunning
+                    ? transitioner.PendingState
+                    : null;
+                throw;
+            }
         }
 
         // ------------------------------------------------------------
@@ -541,7 +878,33 @@ namespace inonego.Xeri.UI.Window
         {
             if (next != XeriWindowState.Minimized) return;
 
-            minimizedRestoreState = previous == XeriWindowState.Maximized
+            minimizedRestoreState = NormalizeMinimizedRestoreState(previous);
+        }
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// 실패한 상태 전환 전에 보존한 Controller metadata를 복원한다.
+        /// </summary>
+        // ------------------------------------------------------------
+        private void RestoreTransitionMetadata
+        (
+            XeriWindowState restoreState,
+            Rect normalBounds,
+            Rect restoreBounds
+        )
+        {
+            minimizedRestoreState = restoreState;
+            boundsSnapshot.Restore(normalBounds, restoreBounds);
+        }
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// Minimized 복원 상태를 Normal 또는 Maximized로 정규화한다.
+        /// </summary>
+        // ------------------------------------------------------------
+        private static XeriWindowState NormalizeMinimizedRestoreState(XeriWindowState state)
+        {
+            return state == XeriWindowState.Maximized
                 ? XeriWindowState.Maximized
                 : XeriWindowState.Normal;
         }
@@ -560,10 +923,114 @@ namespace inonego.Xeri.UI.Window
         {
             pendingState = null;
 
-            var eventArgs = CreateEventArgs();
+            if (state == XeriWindowState.Normal)
+            {
+                boundsSnapshot.UpdateNormalBounds(XeriWindowState.Normal, driver.Bounds);
+            }
 
-            GetStateEvent(request.Kind)?.Invoke(this, eventArgs);
-            OnStateChange?.Invoke(this, new ValueChangeEventArgs<XeriWindowState>(previous, state));
+            var eventArgs = CreateEventArgs();
+            var errors = new List<Exception>();
+            isDispatchingStateEvent = true;
+
+            try
+            {
+                if (previous != state)
+                {
+                    InvokeValueChangeHandlers
+                    (
+                        OnStateChange,
+                        new ValueChangeEventArgs<XeriWindowState>(previous, state),
+                        errors
+                    );
+                }
+
+                InvokeStateHandlers(GetStateEvent(request.Kind), eventArgs, errors);
+            }
+            finally
+            {
+                isDispatchingStateEvent = false;
+            }
+
+            ThrowEventErrors("Window 상태 완료 이벤트 처리", errors);
+        }
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// 모든 값 변경 구독자를 독립적으로 호출하고 실패를 수집한다.
+        /// </summary>
+        // ------------------------------------------------------------
+        private void InvokeValueChangeHandlers<T>
+        (
+            ValueChangeEventHandler<T> handlers,
+            ValueChangeEventArgs<T> eventArgs,
+            List<Exception> errors
+        )
+        {
+            if (handlers == null) return;
+
+            foreach (ValueChangeEventHandler<T> handler in handlers.GetInvocationList())
+            {
+                try
+                {
+                    handler.Invoke(this, eventArgs);
+                }
+                catch (Exception exception)
+                {
+                    errors.Add(exception);
+                }
+            }
+        }
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// 모든 상태별 완료 구독자를 독립적으로 호출하고 실패를 수집한다.
+        /// </summary>
+        // ------------------------------------------------------------
+        private void InvokeStateHandlers
+        (
+            EventHandler<XeriWindowEventArgs> handlers,
+            XeriWindowEventArgs eventArgs,
+            List<Exception> errors
+        )
+        {
+            if (handlers == null) return;
+
+            foreach (EventHandler<XeriWindowEventArgs> handler in handlers.GetInvocationList())
+            {
+                try
+                {
+                    handler.Invoke(this, eventArgs);
+                }
+                catch (Exception exception)
+                {
+                    errors.Add(exception);
+                }
+            }
+        }
+
+        // ----------------------------------------------------------------------
+        /// <summary>
+        /// 수집된 이벤트 오류를 원래 예외 또는 AggregateException으로 전달한다.
+        /// </summary>
+        // ----------------------------------------------------------------------
+        private static void ThrowEventErrors
+        (
+            string message,
+            List<Exception> errors
+        )
+        {
+            if (errors.Count == 0) return;
+
+            if (errors.Count == 1)
+            {
+                throw errors[0];
+            }
+
+            throw new AggregateException
+            (
+                $"{message} 중 하나 이상의 오류가 발생했습니다.",
+                errors
+            );
         }
 
         // ------------------------------------------------------------

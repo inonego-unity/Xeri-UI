@@ -34,11 +34,11 @@ namespace inonego.Xeri.UI.Window
         public Texture2D Icon = null;
         public XeriTrayBadge Badge = default;
         public XeriWindowState State = XeriWindowState.Normal;
+        public XeriWindowState MinimizedRestoreState = XeriWindowState.Normal;
         public Vector2 Pos = Vector2.zero;
         public Vector2 Size = Vector2.zero;
         public Vector2 NormalPos = Vector2.zero;
         public Vector2 NormalSize = Vector2.zero;
-        public int FocusOrder = 0;
         public XeriWindowStackLayer StackLayer = XeriWindowStackLayer.Normal;
         public string ThemeID = string.Empty;
         public string ViewSourceID = string.Empty;
@@ -53,16 +53,49 @@ namespace inonego.Xeri.UI.Window
 
         // ------------------------------------------------------------
         /// <summary>
+        /// Registry 내부 state와 분리된 Record 복사본을 생성한다.
+        /// </summary>
+        // ------------------------------------------------------------
+        internal XeriWindowRecord CreateSnapshot()
+        {
+            return new XeriWindowRecord
+            {
+                ID = ID,
+                Title = Title,
+                Tooltip = Tooltip,
+                Icon = Icon,
+                Badge = Badge,
+                State = State,
+                MinimizedRestoreState = MinimizedRestoreState,
+                Pos = Pos,
+                Size = Size,
+                NormalPos = NormalPos,
+                NormalSize = NormalSize,
+                StackLayer = StackLayer,
+                ThemeID = ThemeID,
+                ViewSourceID = ViewSourceID,
+                ViewDataKey = ViewDataKey,
+                UISession = UISession,
+            };
+        }
+
+        // ------------------------------------------------------------
+        /// <summary>
         /// Controller의 현재 상태를 record에 반영한다.
         /// </summary>
         // ------------------------------------------------------------
-        public void ApplyController(XeriWindowController controller)
+        internal void ApplyController(XeriWindowController controller)
         {
-            if (controller == null || controller.Driver == null) return;
+            if (controller == null) return;
 
-            Pos   = controller.Driver.Pos;
-            Size  = controller.Driver.Size;
-            State = controller.Driver.State;
+            Pos = controller.Pos;
+            Size = controller.Size;
+            State = controller.State;
+            MinimizedRestoreState = controller.MinimizedRestoreState;
+
+            var normalBounds = controller.NormalBounds;
+            NormalPos = normalBounds.position;
+            NormalSize = normalBounds.size;
         }
 
     #endregion

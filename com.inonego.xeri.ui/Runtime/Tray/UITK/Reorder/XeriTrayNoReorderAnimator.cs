@@ -21,7 +21,10 @@ namespace inonego.Xeri.UI.Tray
 
     #region 생성자
 
-        public XeriTrayNoReorderAnimator() : base() {}
+        public XeriTrayNoReorderAnimator() : base()
+        {
+            // NONE
+        }
 
     #endregion
 
@@ -34,7 +37,7 @@ namespace inonego.Xeri.UI.Tray
         // ------------------------------------------------------------
         public void Preview(IXeriTrayReorderTarget target, XeriTrayReorderSession session)
         {
-
+            // NONE
         }
 
         // ------------------------------------------------------------

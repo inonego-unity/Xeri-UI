@@ -40,7 +40,7 @@ namespace inonego.Xeri.UI.Window
                 throw new ArgumentNullException(nameof(viewSource));
             }
 
-            if (string.IsNullOrEmpty(viewSource.ID))
+            if (string.IsNullOrWhiteSpace(viewSource.ID))
             {
                 throw new ArgumentException("View source ID가 비어 있습니다.", nameof(viewSource));
             }
@@ -60,7 +60,7 @@ namespace inonego.Xeri.UI.Window
         // ------------------------------------------------------------
         public bool Unregister(string id)
         {
-            if (string.IsNullOrEmpty(id)) return false;
+            if (string.IsNullOrWhiteSpace(id)) return false;
 
             return viewSources.Remove(id);
         }
@@ -82,7 +82,7 @@ namespace inonego.Xeri.UI.Window
         // ------------------------------------------------------------
         public bool TryGetViewSource(string id, out IXeriUIViewSource viewSource)
         {
-            if (string.IsNullOrEmpty(id))
+            if (string.IsNullOrWhiteSpace(id))
             {
                 viewSource = null;
                 return false;

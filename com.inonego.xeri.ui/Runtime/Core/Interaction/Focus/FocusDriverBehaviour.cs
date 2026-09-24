@@ -1,13 +1,16 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : FocusDriverBehaviour.cs
-수정일 : 2026-09-17
+수정일 : 2026-10-03
 # 설명
-Unity Focus backend이 공통 Driver에 참여하기 위한 Component 계약을 정의한다.
+Unity Focus backend이 공통 Driver에 참여하고 Layer registration을 대칭 해제하기 위한 Component 계약을 정의한다.
 ========================================================================= BLOCK_HEADER_END */
 
 using System;
 
 using UnityEngine;
+
+using inonego;
+using inonego.Xeri;
 
 namespace inonego.Xeri.UI
 {
@@ -62,9 +65,37 @@ namespace inonego.Xeri.UI
         /// Presentation Layer가 등록되었음을 backend에 알린다.
         /// </summary>
         // ------------------------------------------------------------
-        internal void RegisterLayer(IPresentationLayerDriver driver)
+        internal IDisposable RegisterLayer(IPresentationLayerDriver driver)
         {
-            HandleLayerRegistered(driver);
+            if (driver == null)
+            {
+                throw new ArgumentNullException(nameof(driver));
+            }
+
+            try
+            {
+                HandleLayerRegistered(driver);
+            }
+            catch (Exception exception)
+            {
+                try
+                {
+                    HandleLayerUnregistered(driver);
+                }
+                catch (Exception rollbackException)
+                {
+                    throw new AggregateException
+                    (
+                        "Focus backend Layer 등록과 자체 rollback이 모두 실패했습니다.",
+                        exception,
+                        rollbackException
+                    );
+                }
+
+                throw;
+            }
+
+            return new Lease(() => HandleLayerUnregistered(driver));
         }
 
         // ------------------------------------------------------------
@@ -87,6 +118,16 @@ namespace inonego.Xeri.UI
             // NONE
         }
 
+        // ----------------------------------------------------------------------
+        /// <summary>
+        /// Presentation Layer registration lifetime이 끝났음을 backend에 알린다.
+        /// </summary>
+        // ----------------------------------------------------------------------
+        protected virtual void HandleLayerUnregistered(IPresentationLayerDriver driver)
+        {
+            // NONE
+        }
+
         // ------------------------------------------------------------
         /// <summary>
         /// native Focus 변경을 공통 Driver에 알린다.
@@ -99,7 +140,7 @@ namespace inonego.Xeri.UI
 
     #endregion
 
-    #region IFocusDriver
+    #region 포커스 드라이버 구현
 
         // ------------------------------------------------------------
         /// <summary>

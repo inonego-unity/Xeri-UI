@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : UITKSceneFadeSource.cs
-수정일 : 2026-09-17
+수정일 : 2026-10-03
 # 설명
 직렬화한 VisualTreeAsset Scene Fade View를 UITK Layer에 Clone하고 반환 소유권을 관리한다.
 ========================================================================= BLOCK_HEADER_END */
@@ -87,7 +87,7 @@ namespace inonego.Xeri.UI
 
     #endregion
 
-    #region UISceneFadeSource
+    #region 씬 페이드 소스 구현
 
         // ------------------------------------------------------------
         /// <summary>
@@ -157,18 +157,38 @@ namespace inonego.Xeri.UI
                 );
             }
 
-            layerPanel.Root.Add(container);
-
-            // Panel Attach callback이 Source를 종료했으면 새 View를 종료된 소유 목록에 공개하지 않는다.
-            if (isDisposed)
+            try
             {
-                container.RemoveFromHierarchy();
-                throw new ObjectDisposedException(nameof(UITKSceneFadeSource));
-            }
+                layerPanel.Root.Add(container);
 
-            var driver = new UITKSceneFadeDriver(root, container);
-            ownedViews.Add(new OwnedView(driver, container));
-            return driver;
+                // Panel Attach callback이 Source를 종료했으면 새 View를 종료된 소유 목록에 공개하지 않는다.
+                if (isDisposed)
+                {
+                    throw new ObjectDisposedException(nameof(UITKSceneFadeSource));
+                }
+
+                var driver = new UITKSceneFadeDriver(root, container);
+                ownedViews.Add(new OwnedView(driver, container));
+                return driver;
+            }
+            catch (Exception exception)
+            {
+                try
+                {
+                    container.RemoveFromHierarchy();
+                }
+                catch (Exception cleanupException)
+                {
+                    throw new AggregateException
+                    (
+                        "UITK Scene Fade View 획득과 hierarchy 롤백이 모두 실패했습니다.",
+                        exception,
+                        cleanupException
+                    );
+                }
+
+                throw;
+            }
         }
 
         // ------------------------------------------------------------

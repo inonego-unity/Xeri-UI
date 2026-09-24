@@ -1,0 +1,78 @@
+/* BLOCK_HEADER_BEGIN =======================================================================
+파일명 : XeriValidationTokens.uss
+수정일 : 2026-10-05
+
+# 설명
+외관 소유 Root에서 상속하는 Validation 색상, spacing, radius와 typography token.
+========================================================================= BLOCK_HEADER_END */
+
+.xeri-validation-theme {
+    --xeri-validation-desktop-a: rgb(10, 17, 29);
+    --xeri-validation-desktop-b: rgb(20, 36, 51);
+    --xeri-validation-desktop-c: rgb(33, 28, 57);
+    --xeri-validation-glass: rgba(20, 29, 41, 0.94);
+    --xeri-validation-glass-strong: rgba(14, 21, 31, 0.98);
+    --xeri-validation-surface-subtle: rgb(24, 30, 39);
+    --xeri-validation-surface-overlay: rgb(34, 41, 52);
+    --xeri-validation-dim: rgb(117, 131, 148);
+    --xeri-validation-text-on-dark: rgb(244, 247, 252);
+    --xeri-validation-muted-on-dark: rgba(226, 234, 244, 0.68);
+    --xeri-validation-accent-hover: rgb(156, 189, 255);
+    --xeri-validation-accent-soft: rgba(119, 164, 255, 0.14);
+    --xeri-validation-disabled: rgb(104, 119, 139);
+    --xeri-validation-violet: rgb(178, 157, 255);
+    --xeri-validation-cyan: rgb(76, 210, 210);
+    --xeri-validation-green: rgb(70, 201, 126);
+    --xeri-validation-success: rgb(70, 201, 126);
+    --xeri-validation-warning: rgb(245, 186, 72);
+
+    --xeri-validation-space-1: 4px;
+    --xeri-validation-space-2: 8px;
+    --xeri-validation-space-4: 16px;
+    --xeri-validation-space-5: 20px;
+    --xeri-validation-space-6: 24px;
+
+    --xeri-validation-radius-sm: 4px;
+    --xeri-validation-radius: 6px;
+    --xeri-validation-radius-large: 8px;
+    --xeri-validation-control-height: 36px;
+    --xeri-validation-chip-height: 26px;
+    --xeri-validation-icon-size: 40px;
+    --xeri-validation-motion: 0.16s;
+
+    --xeri-validation-topbar-height: 60px;
+    --xeri-validation-taskbar-height: 64px;
+    --xeri-validation-icon-width: 116px;
+    --xeri-validation-icon-height: 100px;
+
+    --xeri-validation-font-xs: 10px;
+    --xeri-validation-font-sm: 11px;
+    --xeri-validation-font-md: 12px;
+    --xeri-validation-font-lg: 16px;
+    --xeri-validation-font-xl: 22px;
+}
+
+.xeri-validation-theme--light {
+    --xeri-validation-desktop-a: rgb(231, 238, 249);
+    --xeri-validation-desktop-b: rgb(218, 237, 240);
+    --xeri-validation-desktop-c: rgb(234, 225, 249);
+    --xeri-validation-glass: rgb(238, 244, 252);
+    --xeri-validation-glass-strong: rgb(248, 251, 255);
+    --xeri-validation-surface-subtle: rgb(232, 239, 248);
+    --xeri-validation-surface-overlay: rgb(230, 237, 248);
+    --xeri-validation-dim: rgb(91, 108, 134);
+    --xeri-validation-text-on-dark: rgb(28, 43, 65);
+    --xeri-validation-muted-on-dark: rgb(76, 95, 121);
+    --xeri-validation-accent-hover: rgb(42, 77, 164);
+    --xeri-validation-accent-soft: rgba(54, 97, 194, 0.10);
+    --xeri-validation-disabled: rgb(117, 132, 150);
+    --xeri-validation-cyan: rgb(20, 120, 136);
+    --xeri-validation-violet: rgb(120, 83, 190);
+    --xeri-validation-green: rgb(29, 130, 90);
+    --xeri-validation-success: rgb(29, 130, 90);
+}
+
+.xeri-validation-theme--compact {
+    --xeri-validation-space-4: 12px;
+    --xeri-validation-space-5: 16px;
+}

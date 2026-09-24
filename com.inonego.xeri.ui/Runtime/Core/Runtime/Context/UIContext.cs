@@ -1,22 +1,26 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : UIContext.cs
-수정일 : 2026-09-17
+수정일 : 2026-10-07
+
 # 설명
-독립된 Screen Registry, Screen Stack, Modal Stack과 Focus 기록을 소유한다.
-Parent가 Child Context의 수명을 재귀적으로 소유하며 Runtime 전역 backend는 비소유로 공유한다.
+독립 Screen/Modal/Focus/Input state와 PresentationSession 참조를 소유한다.
+Context lifetime과 Base/Override authority를 분리하며 Parent가 Child Context lifetime을 재귀적으로 소유한다.
 ========================================================================= BLOCK_HEADER_END */
 
 using System;
 using System.Collections;
 using System.Collections.Generic;
 
+using inonego;
+using inonego.Xeri;
+
 namespace inonego.Xeri.UI
 {
-    // ============================================================
+    // ======================================================================
     /// <summary>
-    /// 독립 UI 상태와 재귀 Child 수명을 소유하는 Context.
+    /// 독립 UI state domain과 재귀 Child Context lifetime을 소유한다.
     /// </summary>
-    // ============================================================
+    // ======================================================================
     public sealed class UIContext : IDisposable
     {
 
@@ -24,113 +28,129 @@ namespace inonego.Xeri.UI
 
         // ------------------------------------------------------------
         /// <summary>
-        /// Context 종료가 진행 중인지 여부.
+        /// 소유 상태와 콘텐츠를 반환 중인지 여부.
         /// </summary>
         // ------------------------------------------------------------
         public bool IsDisposing { get; private set; }
-
         // ------------------------------------------------------------
         /// <summary>
-        /// Context 종료가 완료됐는지 여부.
+        /// Context 수명이 종료되었는지 여부.
         /// </summary>
         // ------------------------------------------------------------
         public bool IsDisposed { get; private set; }
-
         // ------------------------------------------------------------
         /// <summary>
-        /// 이 Context가 실제 Focus Driver 적용 권한을 갖는지 여부.
+        /// 현재 입력 권한을 가진 Context인지 여부.
         /// </summary>
         // ------------------------------------------------------------
-        public bool HasFocus => owner.IsFocusedContext(this);
-
+        public bool IsEffective => owner.IsEffectiveContext(this);
         // ------------------------------------------------------------
         /// <summary>
-        /// Screen과 Overlay를 표시할 Presentation Layer Registry.
+        /// 현재 활성 Context 경로에 포함되는지 여부.
         /// </summary>
         // ------------------------------------------------------------
-        public PresentationLayerRegistry LayerRegistry { get; }
+        public bool IsOnActivePath => owner.IsContextOnActivePath(this);
 
+        // ----------------------------------------------------------------------
+        /// <summary>
+        /// <br/> 이 Context가 사용하는 Presentation 세션.
+        /// <br/> Main Context의 Root Session 수명은 UIRuntime이 소유한다.
+        /// </summary>
+        // ----------------------------------------------------------------------
+        public PresentationSession Presentation { get; private set; }
         // ------------------------------------------------------------
         /// <summary>
-        /// 이 Context의 Screen 등록 Registry.
+        /// <br/> Context에 등록된 Screen 정의와 Source.
+        /// <br/> 이 Registry의 수명은 Context가 소유한다.
         /// </summary>
         // ------------------------------------------------------------
         public ScreenRegistry ScreenRegistry { get; }
-
         // ------------------------------------------------------------
         /// <summary>
-        /// 이 Context의 Screen 명령과 Stack Controller.
+        /// 독립 Screen 탐색 상태.
         /// </summary>
         // ------------------------------------------------------------
         public ScreenController Screens { get; }
-
         // ------------------------------------------------------------
         /// <summary>
-        /// 이 Context의 Modal Stack Controller.
+        /// <br/> 독립 Modal 스택 상태.
+        /// <br/> 이 Controller의 수명은 Context가 소유한다.
         /// </summary>
         // ------------------------------------------------------------
         public ModalController Modals { get; }
 
         // ------------------------------------------------------------
         /// <summary>
-        /// 이 Context를 직접 소유하는 Parent.
+        /// 수명을 소유한 부모 Context.
         /// </summary>
         // ------------------------------------------------------------
         internal UIContext Parent => parent;
 
         private UIContext parent = null;
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// 살아 있는 자식 Context 수.
+        /// </summary>
+        // ------------------------------------------------------------
+        internal int ChildCount => children.Count;
+
+        private readonly List<UIContext> children = new();
+        private readonly List<IDisposable> lifetimes = new();
+
         private readonly UIRuntime owner = null;
         private readonly FocusController focusController = null;
-        private readonly List<UIContext> children = new List<UIContext>();
 
     #endregion
 
     #region 생성자
 
-        // --------------------------------------------------------------------------------
+        // ------------------------------------------------------------
         /// <summary>
-        /// <br/> Context 고정 Controller를 공용 backend와 지정 Layer Registry로 조립한다.
-        /// <br/> Parent가 있는 Child는 명시적으로 Focus될 때까지 실제 Driver를 사용하지 않는다.
+        /// 독립 UI 상태를 생성하고 초기 권한을 연결한다.
         /// </summary>
-        // --------------------------------------------------------------------------------
+        // ------------------------------------------------------------
         internal UIContext
         (
             UIRuntime owner,
             UIContext parent,
-            PresentationLayerRegistry layerRegistry,
+            PresentationSession presentation,
             IPresentationTransitioner transitioner,
             IFocusDriver focusDriver,
             IScreenInputDriver inputDriver
-        ) : base()
+        )
         {
             this.owner = owner ?? throw new ArgumentNullException(nameof(owner));
             this.parent = parent;
-            LayerRegistry = layerRegistry ?? throw new ArgumentNullException(nameof(layerRegistry));
+            Presentation = presentation ?? throw new ArgumentNullException(nameof(presentation));
 
-            if (LayerRegistry.IsDisposed)
+            if (Presentation.IsDisposed)
             {
-                throw new ObjectDisposedException(nameof(layerRegistry));
+                throw new ObjectDisposedException(nameof(presentation));
             }
 
             focusController = new FocusController
             (
                 focusDriver ?? throw new ArgumentNullException(nameof(focusDriver))
             );
-            ScreenRegistry = new ScreenRegistry(LayerRegistry);
+            ScreenRegistry = new ScreenRegistry();
+            ScreenRegistry.SetOwnerControlledLifetime();
             Screens = new ScreenController
             (
                 ScreenRegistry,
-                LayerRegistry,
+                AcquireLayer,
                 transitioner ?? throw new ArgumentNullException(nameof(transitioner)),
                 focusController,
                 inputDriver ?? throw new ArgumentNullException(nameof(inputDriver))
             );
-            Modals = new ModalController();
+            Screens.OnPolicyChanged += HandleScreenStackChanged;
+            Modals = new ModalController(this);
 
-            // Child는 자신의 Focus 기록만 준비하고 Runtime이 권한을 넘길 때까지 Driver 적용을 막는다.
+            // Runtime이 active path를 계산하기 전까지 새 Child contribution은 global policy에 참여하지 않는다.
             if (parent != null)
             {
-                focusController.Unfocus(null);
+                focusController.Suspend();
+                Screens.SetInputContributionEnabled(false);
             }
 
             Screens.Activate();
@@ -138,112 +158,601 @@ namespace inonego.Xeri.UI
 
     #endregion
 
-    #region 메서드
+    #region 콘텐츠 수명
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// 자식 Context와 UI 상태보다 먼저 반환할 콘텐츠 수명을 등록한다.
+        /// </summary>
+        // ------------------------------------------------------------
+        public THandle RegisterChild<THandle>(THandle handle)
+        where THandle : class, IDisposable
+        {
+            if (handle == null)
+            {
+                throw new ArgumentNullException(nameof(handle));
+            }
+
+            ThrowIfUnavailable();
+            lifetimes.Add(handle);
+            return handle;
+        }
+
+    #endregion
+
+    #region 스크린 등록과 프레젠테이션 획득
 
         // ----------------------------------------------------------------------
         /// <summary>
-        /// <br/> 같은 Runtime backend를 공유하고 독립 Controller 상태를 소유하는
-        /// <br/> Child를 생성한다.
-        /// <br/> Layer Registry를 생략하면 Parent와 같은 표시 공간을 사용한다.
+        /// 현재 Context에 Screen 정책과 Source를 등록하고 등록 수명을 반환한다.
         /// </summary>
         // ----------------------------------------------------------------------
-        public UIContext CreateChild(PresentationLayerRegistry layerRegistry = null)
+        public ScreenRegistrationHandle RegisterScreen
+        (
+            ScreenOptions options,
+            PresentationTarget target,
+            IScreenSource source
+        )
+        {
+            ThrowIfUnavailable();
+            return ScreenRegistry.Register(options, target, source);
+        }
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// <br/> Static Placement에서 View를 획득하고 Source 반환과
+        /// <br/> Layer usage 해제를 하나의 Lease로 묶는다.
+        /// </summary>
+        // ------------------------------------------------------------
+        public Lease<TView> AcquirePlacement<TView>
+        (
+            string presentationID,
+            IPresentationSource<TView> source
+        )
+        where TView : class
+        {
+            ThrowIfUnavailable();
+
+            if (string.IsNullOrWhiteSpace(presentationID))
+            {
+                throw new ArgumentException("Presentation ID가 비어 있습니다.", nameof(presentationID));
+            }
+
+            if (source == null)
+            {
+                throw new ArgumentNullException(nameof(source));
+            }
+
+            if
+            (
+                !Presentation.TryAcquirePlacement
+                (
+                    presentationID,
+                    out var layer,
+                    out var usage
+                )
+            )
+            {
+                throw new InvalidOperationException
+                (
+                    $"Static Presentation Placement '{presentationID}'을 획득할 수 없습니다."
+                );
+            }
+
+            TView view = null;
+
+            try
+            {
+                view = source.Acquire(layer);
+
+                if (view == null)
+                {
+                    throw new InvalidOperationException
+                    (
+                        $"Presentation Source가 Placement '{presentationID}'에서 null View를 반환했습니다."
+                    );
+                }
+
+                return new Lease<TView>
+                (
+                    view,
+                    () =>
+                    {
+                        Exception failure = null;
+
+                        try
+                        {
+                            source.Release(view);
+                        }
+                        catch (Exception exception)
+                        {
+                            failure = exception;
+                        }
+
+                        try
+                        {
+                            usage.Dispose();
+                        }
+                        catch (Exception exception)
+                        {
+                            failure = failure == null
+                                ? exception
+                                : new AggregateException(failure, exception);
+                        }
+
+                        if (failure != null)
+                        {
+                            throw failure;
+                        }
+                    }
+                );
+            }
+            catch (Exception exception)
+            {
+                var errors = new List<Exception>
+                {
+                    exception,
+                };
+
+                if (view != null)
+                {
+                    try
+                    {
+                        source.Release(view);
+                    }
+                    catch (Exception cleanupException)
+                    {
+                        errors.Add(cleanupException);
+                    }
+                }
+
+                try
+                {
+                    usage.Dispose();
+                }
+                catch (Exception cleanupException)
+                {
+                    errors.Add(cleanupException);
+                }
+
+                if (errors.Count == 1)
+                {
+                    throw;
+                }
+
+                throw new AggregateException
+                (
+                    $"Static Presentation Placement '{presentationID}' 획득과 롤백이 실패했습니다.",
+                    errors
+                );
+            }
+        }
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// <br/> Target Layer에서 View를 획득하고
+        /// <br/> Source 반환과 Layer Lease 해제를 하나로 묶는다.
+        /// </summary>
+        // ------------------------------------------------------------
+        public Lease<TView> AcquirePresentation<TView>
+        (
+            PresentationTarget target,
+            IPresentationSource<TView> source
+        )
+        where TView : class
+        {
+            if (source == null)
+            {
+                throw new ArgumentNullException(nameof(source));
+            }
+
+            var layerLease = AcquireLayer(target);
+            TView view = null;
+
+            try
+            {
+                view = source.Acquire(layerLease.Layer);
+
+                if (view == null)
+                {
+                    throw new InvalidOperationException
+                    (
+                        $"Presentation Source가 Target '{target}'에서 null View를 반환했습니다."
+                    );
+                }
+
+                return new Lease<TView>
+                (
+                    view,
+                    () =>
+                    {
+                        Exception failure = null;
+
+                        try
+                        {
+                            source.Release(view);
+                        }
+                        catch (Exception exception)
+                        {
+                            failure = exception;
+                        }
+
+                        try
+                        {
+                            layerLease.Dispose();
+                        }
+                        catch (Exception exception)
+                        {
+                            failure = failure == null
+                                ? exception
+                                : new AggregateException(failure, exception);
+                        }
+
+                        if (failure != null)
+                        {
+                            throw failure;
+                        }
+                    }
+                );
+            }
+            catch (Exception exception)
+            {
+                var errors = new List<Exception>
+                {
+                    exception,
+                };
+
+                if (view != null)
+                {
+                    try
+                    {
+                        source.Release(view);
+                    }
+                    catch (Exception cleanupException)
+                    {
+                        errors.Add(cleanupException);
+                    }
+                }
+
+                try
+                {
+                    layerLease.Dispose();
+                }
+                catch (Exception cleanupException)
+                {
+                    errors.Add(cleanupException);
+                }
+
+                if (errors.Count == 1)
+                {
+                    throw;
+                }
+
+                throw new AggregateException
+                (
+                    $"Presentation Target '{target}' 획득과 롤백이 실패했습니다.",
+                    errors
+                );
+            }
+        }
+
+    #endregion
+
+    #region 레이어 획득
+
+        // --------------------------------------------------------------------------------
+        /// <summary>
+        /// Target을 resolve하고 caller가 소유할 Presentation Layer Lease를 획득한다.
+        /// </summary>
+        // --------------------------------------------------------------------------------
+        public PresentationLayerLease AcquireLayer(PresentationTarget target)
+        {
+            ThrowIfUnavailable();
+
+            if (!target.IsValid)
+            {
+                throw new ArgumentException
+                (
+                    "Presentation Target이 유효하지 않습니다.",
+                    nameof(target)
+                );
+            }
+
+            return target.Scope switch
+            {
+                PresentationTargetScope.Local =>
+                    Presentation.AcquireLayer(target.ID),
+                PresentationTargetScope.Host =>
+                    owner.PresentationHost.AcquireLayer(target.ID),
+                _ => throw new ArgumentOutOfRangeException
+                (
+                    nameof(target),
+                    target.Scope,
+                    "정의되지 않은 Presentation Target Scope입니다."
+                ),
+            };
+        }
+
+    #endregion
+
+    #region 자식 컨텍스트
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// 부모가 수명을 소유하는 자식 Context를 생성한다.
+        /// </summary>
+        // ------------------------------------------------------------
+        public UIContext CreateChild()
+        {
+            return CreateChildCore(Presentation);
+        }
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// 부모가 수명을 소유하는 자식 Context를 생성한다.
+        /// </summary>
+        // ------------------------------------------------------------
+        internal UIContext CreateChild(PresentationSession presentation)
+        {
+            if (presentation == null)
+            {
+                throw new ArgumentNullException(nameof(presentation));
+            }
+
+            if (!ReferenceEquals(presentation.Parent, Presentation))
+            {
+                throw new InvalidOperationException
+                (
+                    "Child UIContext는 Parent Context Presentation의 직접 Child Session만 사용할 수 있습니다."
+                );
+            }
+
+            return CreateChildCore(presentation);
+        }
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// 사용 가능한 Presentation으로 자식 상태를 생성한다.
+        /// </summary>
+        // ------------------------------------------------------------
+        private UIContext CreateChildCore(PresentationSession presentation)
         {
             ThrowIfUnavailable();
             owner.ThrowIfContextCreationUnavailable();
 
-            var selectedRegistry = layerRegistry ?? LayerRegistry;
-
-            if (selectedRegistry.IsDisposed)
+            if (presentation.IsDisposed)
             {
-                throw new ObjectDisposedException(nameof(layerRegistry));
+                throw new ObjectDisposedException(nameof(presentation));
             }
 
-            // 완전히 조립된 Child만 소유 목록에 공개해 생성 실패 시 부분 수명을 남기지 않는다.
             var child = new UIContext
             (
                 owner,
                 this,
-                selectedRegistry,
+                presentation,
                 owner.Transitioner,
                 owner.FocusDriver,
                 owner.InputDriver
             );
-
             children.Add(child);
-            return child;
+
+            try
+            {
+                owner.RefreshContextAuthority();
+                return child;
+            }
+            catch (Exception exception)
+            {
+                children.Remove(child);
+                var errors = child.DisposeFromParent();
+
+                if (errors.Count == 0)
+                {
+                    throw;
+                }
+
+                errors.Insert(0, exception);
+                throw new AggregateException
+                (
+                    "Child UI Context 생성과 authority 롤백이 모두 실패했습니다.",
+                    errors
+                );
+            }
         }
 
-        // ----------------------------------------------------------------------
+    #endregion
+
+    #region 컨텍스트 권한
+
+        // ------------------------------------------------------------
         /// <summary>
-        /// 이 Context의 Screen Focus 기록을 실제 Focus Driver에 적용한다.
+        /// 이 Context를 peer activation의 Base Context로 선택한다.
         /// </summary>
-        // ----------------------------------------------------------------------
-        public void Focus()
+        // ------------------------------------------------------------
+        public void SetBaseAuthority()
         {
             ThrowIfUnavailable();
-            owner.FocusContext(this);
+            owner.SetBaseContext(this);
         }
 
-        // ----------------------------------------------------------------------
+        // ------------------------------------------------------------
         /// <summary>
-        /// 이 Context의 Focus 권한을 가장 가까운 살아 있는 Parent에 반환한다.
+        /// 이 Context를 일시 Context Override Stack top으로 획득한다.
         /// </summary>
-        // ----------------------------------------------------------------------
-        public void Unfocus()
+        // ------------------------------------------------------------
+        public Lease PushAuthorityOverride()
         {
             ThrowIfUnavailable();
-            owner.UnfocusContext(this);
-        }
-
-        // ----------------------------------------------------------------------
-        /// <summary>
-        /// 현재 Top Screen 선택을 기록하고 실제 Focus Driver 적용을 중지한다.
-        /// </summary>
-        // ----------------------------------------------------------------------
-        internal void SuspendFocus()
-        {
-            focusController.Unfocus(Screens.Top);
+            return owner.PushContextOverride(this);
         }
 
         // ------------------------------------------------------------
         /// <summary>
-        /// 현재 Top Screen 기록을 실제 Focus Driver에 복원한다.
+        /// 활성 경로에 따라 Focus와 Input 기여를 변경한다.
         /// </summary>
         // ------------------------------------------------------------
-        internal void ResumeFocus()
+        internal void SetAuthorityState
+        (
+            bool onActivePath,
+            bool isEffective,
+            bool hasCursorAuthority
+        )
         {
-            focusController.Focus(Screens.Top);
-        }
+            if (IsDisposing || IsDisposed) return;
 
-        // ----------------------------------------------------------------------
-        /// <summary>
-        /// 현재 Top Screen 소유 범위의 안정화된 native Focus를 마지막 선택으로 기록한다.
-        /// </summary>
-        // ----------------------------------------------------------------------
-        internal void RecordFocus(object target)
-        {
-            if (IsDisposing || IsDisposed || !HasFocus) return;
+            var previousInput = Screens.IsInputContributionEnabled;
+            var previousCursor = Screens.IsCursorPolicyEnabled;
+            var previousFocus = focusController.HasAuthority;
 
-            focusController.RecordCurrentFocus(Screens.Top, target);
-        }
+            try
+            {
+                Screens.SetInputContributionEnabled(onActivePath);
+                Screens.SetCursorPolicyEnabled(hasCursorAuthority);
 
-        // ----------------------------------------------------------------------
-        /// <summary>
-        /// 현재 Focus 권한을 가진 Context의 Screen 선택 정책을 다시 적용한다.
-        /// </summary>
-        // ----------------------------------------------------------------------
-        internal void RestoreFocus()
-        {
-            if (IsDisposing || IsDisposed || !HasFocus) return;
+                if (isEffective)
+                {
+                    focusController.Resume();
+                }
+                else
+                {
+                    focusController.Suspend();
+                }
+            }
+            catch (Exception exception)
+            {
+                var errors = new List<Exception>
+                {
+                    exception,
+                };
 
-            // 안정화 뒤에도 native 선택이 없을 때만 마지막·기본·fallback 순서로 복원한다.
-            focusController.Restore(Screens.Top);
+                TryRestoreAuthority
+                (
+                    () =>
+                    {
+                        if (previousFocus)
+                        {
+                            focusController.Resume();
+                        }
+                        else
+                        {
+                            focusController.Suspend();
+                        }
+                    },
+                    errors
+                );
+                TryRestoreAuthority
+                (
+                    () => Screens.SetCursorPolicyEnabled(previousCursor),
+                    errors
+                );
+                TryRestoreAuthority
+                (
+                    () => Screens.SetInputContributionEnabled(previousInput),
+                    errors
+                );
+
+                if (errors.Count == 1)
+                {
+                    throw;
+                }
+
+                throw new AggregateException
+                (
+                    "UI Context authority 적용과 롤백이 모두 실패했습니다.",
+                    errors
+                );
+            }
         }
 
         // ------------------------------------------------------------
         /// <summary>
-        /// 지정 Context가 이 Context Subtree에 속하는지 확인한다.
+        /// Context authority rollback primitive를 독립적으로 시도한다.
+        /// </summary>
+        // ------------------------------------------------------------
+        private static void TryRestoreAuthority
+        (
+            Action restore,
+            List<Exception> errors
+        )
+        {
+            try
+            {
+                restore();
+            }
+            catch (Exception exception)
+            {
+                errors.Add(exception);
+            }
+        }
+
+        // ----------------------------------------------------------------------
+        /// <summary>
+        /// Screen Stack 변경을 Runtime의 Context/Cursor authority 계산에 반영한다.
+        /// </summary>
+        // ----------------------------------------------------------------------
+        private void HandleScreenStackChanged()
+        {
+            if (IsDisposing || IsDisposed) return;
+
+            owner.RefreshContextAuthority();
+        }
+
+    #endregion
+
+    #region 포커스 범위
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// Context 내부의 포커스 범위를 등록한다.
+        /// </summary>
+        // ------------------------------------------------------------
+        public FocusScopeHandle RegisterFocusScope(IFocusScope scope)
+        {
+            ThrowIfUnavailable();
+            return focusController.RegisterScope(scope);
+        }
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// Context의 기본 포커스 범위를 지정한다.
+        /// </summary>
+        // ------------------------------------------------------------
+        public void SetPrimaryFocusScope(FocusScopeHandle handle)
+        {
+            ThrowIfUnavailable();
+            focusController.SetPrimary(handle);
+        }
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// 기본 범위보다 우선하는 포커스 수명을 추가한다.
+        /// </summary>
+        // ------------------------------------------------------------
+        public Lease PushFocusOverride(FocusScopeHandle handle)
+        {
+            ThrowIfUnavailable();
+            return focusController.PushOverride(handle);
+        }
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// 네이티브 포커스 변경을 내부 상태에 반영한다.
+        /// </summary>
+        // ------------------------------------------------------------
+        internal void HandleNativeFocusChanged(object target)
+        {
+            if (IsDisposing || IsDisposed || !IsEffective) return;
+
+            focusController.HandleNativeFocusChanged(target);
+        }
+
+    #endregion
+
+    #region 트리 조회
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// 대상이 이 Context의 수명 하위 트리에 포함되는지 확인한다.
         /// </summary>
         // ------------------------------------------------------------
         internal bool Contains(UIContext context)
@@ -262,7 +771,26 @@ namespace inonego.Xeri.UI
 
         // ------------------------------------------------------------
         /// <summary>
-        /// Runtime 종료가 Root Main과 전체 Child Tree를 정리한다.
+        /// 루트부터 현재 Context까지 활성 경로를 추가한다.
+        /// </summary>
+        // ------------------------------------------------------------
+        internal void AppendPathTo(List<UIContext> target)
+        {
+            if (parent != null)
+            {
+                parent.AppendPathTo(target);
+            }
+
+            target.Add(this);
+        }
+
+    #endregion
+
+    #region 해제
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// Runtime 종료에 맞춰 루트 상태를 반환한다.
         /// </summary>
         // ------------------------------------------------------------
         internal List<Exception> DisposeFromRuntime()
@@ -271,13 +799,13 @@ namespace inonego.Xeri.UI
             (
                 removeFromParent: false,
                 allowRoot: true,
-                restoreFocus: false
+                restoreAuthority: false
             );
         }
 
         // ------------------------------------------------------------
         /// <summary>
-        /// Parent가 소유 목록에서 먼저 제거한 Child를 정리한다.
+        /// 부모 종료에 맞춰 자식 상태를 반환한다.
         /// </summary>
         // ------------------------------------------------------------
         private List<Exception> DisposeFromParent()
@@ -286,22 +814,20 @@ namespace inonego.Xeri.UI
             (
                 removeFromParent: false,
                 allowRoot: false,
-                restoreFocus: true
+                restoreAuthority: true
             );
         }
 
-        // --------------------------------------------------------------------------------
+        // ------------------------------------------------------------
         /// <summary>
-        /// <br/> Context를 소유 Tree에서 분리하고 Child와 고정 Controller를
-        /// <br/> attempt-once로 정리한다.
-        /// <br/> 시작된 종료는 결과와 관계없이 Terminal이며 전달 Registry는 해제하지 않는다.
+        /// 콘텐츠와 자식 상태를 반환하고 정리 실패를 모은다.
         /// </summary>
-        // --------------------------------------------------------------------------------
+        // ------------------------------------------------------------
         private List<Exception> Release
         (
             bool removeFromParent,
             bool allowRoot,
-            bool restoreFocus
+            bool restoreAuthority
         )
         {
             var errors = new List<Exception>();
@@ -318,7 +844,6 @@ namespace inonego.Xeri.UI
 
             IsDisposing = true;
 
-            // 외부 callback 전에 Parent 소유 목록과 Focus 권한을 먼저 닫는다.
             if (removeFromParent)
             {
                 parent.children.Remove(this);
@@ -326,14 +851,22 @@ namespace inonego.Xeri.UI
 
             try
             {
-                owner.ReleaseContextFocus(this, restoreFocus);
+                owner.ReleaseContextAuthority(this, restoreAuthority);
             }
             catch (Exception exception)
             {
                 errors.Add(exception);
             }
 
-            // Child callback이 형제를 정리해도 매번 남은 마지막 소유 항목만 가져온다.
+            // 콘텐츠가 자신의 Screen과 Modal을 정리할 수 있을 때 먼저 반환한다.
+            while (lifetimes.Count > 0)
+            {
+                var index = lifetimes.Count - 1;
+                var lifetime = lifetimes[index];
+                lifetimes.RemoveAt(index);
+                DisposeOwned(lifetime, errors);
+            }
+
             while (children.Count > 0)
             {
                 var index = children.Count - 1;
@@ -342,7 +875,8 @@ namespace inonego.Xeri.UI
                 errors.AddRange(child.DisposeFromParent());
             }
 
-            DisposeOwned(Modals, errors);
+            DisposeModalController(Modals, errors);
+            Screens.OnPolicyChanged -= HandleScreenStackChanged;
 
             try
             {
@@ -353,8 +887,16 @@ namespace inonego.Xeri.UI
                 errors.Add(exception);
             }
 
-            DisposeOwned(ScreenRegistry, errors);
+            try
+            {
+                focusController.Clear();
+            }
+            catch (Exception exception)
+            {
+                errors.Add(exception);
+            }
 
+            DisposeScreenRegistry(ScreenRegistry, errors);
             parent = null;
             IsDisposing = false;
             IsDisposed = true;
@@ -363,7 +905,7 @@ namespace inonego.Xeri.UI
 
         // ------------------------------------------------------------
         /// <summary>
-        /// Context가 새 명령을 받을 수 있는지 확인한다.
+        /// 종료 중이거나 종료된 Context의 새 동작을 거부한다.
         /// </summary>
         // ------------------------------------------------------------
         private void ThrowIfUnavailable()
@@ -374,16 +916,46 @@ namespace inonego.Xeri.UI
             }
         }
 
-        // ----------------------------------------------------------------------
-        /// <summary>
-        /// Context가 소유한 IDisposable 하나를 Terminal화하고 오류를 수집한다.
-        /// </summary>
-        // ----------------------------------------------------------------------
-        private static void DisposeOwned
+        // ------------------------------------------------------------
+        private static void DisposeModalController
         (
-            IDisposable owned,
-            List<Exception> errors
+            ModalController controller,
+            ICollection<Exception> errors
         )
+        {
+            try
+            {
+                controller?.DisposeFromOwner();
+            }
+            catch (Exception exception)
+            {
+                errors.Add(exception);
+            }
+        }
+
+        // ------------------------------------------------------------
+        private static void DisposeScreenRegistry
+        (
+            ScreenRegistry registry,
+            ICollection<Exception> errors
+        )
+        {
+            try
+            {
+                registry?.DisposeFromOwner();
+            }
+            catch (Exception exception)
+            {
+                errors.Add(exception);
+            }
+        }
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// 개별 정리 실패를 모아 나머지 반환을 계속한다.
+        /// </summary>
+        // ------------------------------------------------------------
+        private static void DisposeOwned(IDisposable owned, ICollection<Exception> errors)
         {
             try
             {
@@ -397,32 +969,35 @@ namespace inonego.Xeri.UI
 
     #endregion
 
-    #region IDisposable
+    #region 수명 해제
 
-        // ----------------------------------------------------------------------
+        // ------------------------------------------------------------
         /// <summary>
-        /// <br/> Child Context를 Parent에서 분리하고 전체 하위 UI 수명을 종료한다.
-        /// <br/> Root Main은 Runtime이 최종 소유하므로 공개 Dispose를 거부한다.
+        /// 부모 추적에서 분리하고 소유 상태를 반환한다.
         /// </summary>
-        // ----------------------------------------------------------------------
+        // ------------------------------------------------------------
         public void Dispose()
         {
             if (IsDisposed || IsDisposing) return;
+
+            if (parent == null)
+            {
+                throw new InvalidOperationException
+                (
+                    "Main UI Context는 UIRuntime.Shutdown으로만 종료할 수 있습니다."
+                );
+            }
 
             var errors = Release
             (
                 removeFromParent: true,
                 allowRoot: false,
-                restoreFocus: true
+                restoreAuthority: true
             );
 
             if (errors.Count > 0)
             {
-                throw new AggregateException
-                (
-                    "UI Context 종료 중 하나 이상의 정리가 실패했습니다.",
-                    errors
-                );
+                throw new AggregateException("UI Context 해제가 실패했습니다.", errors);
             }
         }
 

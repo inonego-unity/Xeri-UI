@@ -3,7 +3,7 @@
 수정일 : 2026-09-20
 
 # 설명
-Xeri 커스텀 윈도우 controller가 실제 표시 계층에 상태를 반영하기 위한 driver 계약.
+Xeri 커스텀 윈도우 상태와 Core Presentation을 실제 표시 계층에 반영하는 driver 계약.
 ========================================================================= BLOCK_HEADER_END */
 
 using UnityEngine;
@@ -15,7 +15,7 @@ namespace inonego.Xeri.UI.Window
     /// Xeri 커스텀 윈도우 표시 driver 계약.
     /// </summary>
     // ============================================================
-    public interface IXeriWindowDriver
+    public interface IXeriWindowDriver : IPresentation
     {
 
     #region 프로퍼티
@@ -39,7 +39,7 @@ namespace inonego.Xeri.UI.Window
         /// 윈도우 표시 상태.
         /// </summary>
         // ------------------------------------------------------------
-        XeriWindowState State { get; set; }
+        XeriWindowState State { get; }
 
         // ------------------------------------------------------------
         /// <summary>
@@ -51,13 +51,6 @@ namespace inonego.Xeri.UI.Window
     #endregion
 
     #region 메서드
-
-        // ------------------------------------------------------------
-        /// <summary>
-        /// 표시 여부만 즉시 반영한다.
-        /// </summary>
-        // ------------------------------------------------------------
-        void SetVisible(bool visible);
 
         // ------------------------------------------------------------
         /// <summary>

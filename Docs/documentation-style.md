@@ -1,63 +1,121 @@
 # Xeri UI 문서 작성 규칙
 
-이 문서는 Xeri UI 저장소의 README, 공개 Manual, 개념 문서, 사용 가이드와 유지보수 문서의 공통 작성 기준을 정의합니다.
-표시 제목과 본문은 한글을 기본으로 하며 코드 식별자와 고유 기술 용어는 원래 표기를 유지합니다.
+Xeri UI 문서는 완성된 제품의 구조와 사용법을 현재형으로 설명합니다. 변경 이력이나 migration 과정은 공개 Manual에 섞지 않습니다.
 
-## 문서 종류
+## Source of truth
 
-- **모듈 개요**: 모듈의 목적, 책임 경계, 핵심 개념과 구조를 설명합니다.
-- **사용 가이드**: 특정 작업을 실제로 수행하는 절차를 설명합니다.
-- **개념 문서**: 여러 모듈에 공통으로 적용되는 설계 개념과 규칙을 설명합니다.
-- **유지보수 문서**: 내부 구현, 검증 기준과 변경 제약을 설명합니다.
+문서는 네 역할로 나눕니다.
 
-`Runtime/**/README.md`는 기본적으로 모듈 개요로 사용합니다.
-사용 절차가 길거나 여러 모듈을 가로지르면 `Documentation~` 사용 가이드로 분리합니다.
-내부 구현 규칙과 테스트 경로는 일반 사용자 개요 문서와 분리합니다.
+```text
+Documentation~/
+├─ getting-started/   설치와 최초 구성
+├─ architecture/      안정된 구조와 invariant
+├─ core/              Core 기능 사용법
+├─ window/            Window 기능 사용법
+├─ tray.md            Tray 사용법
+├─ bar.md             Bar 사용법
+└─ guides/            특정 작업 절차
 
-## 문서 위치
+Docs/
+├─ documentation-style.md
+├─ site-maintenance.md
+├─ api-bridge/
+└─ work/              삭제 가능한 내부 작업 문서
 
-- `Docs/`: 문서 작성 규칙과 문서 사이트 유지보수 자료
-- `Docs/api-bridge/`: DocFX API Reference 진입 페이지
-- `com.inonego.xeri.ui/Documentation~/`: 공개 Manual의 source of truth
-- `com.inonego.xeri.ui/Runtime/**/README.md`: 해당 코드 영역의 모듈 개요
-- `index.md`, `toc.yml`: GitHub Pages/DocFX 최상위 진입점
+Runtime/**/README.md  코드 폴더 안내판
+C# XML docs           API Reference source
+```
 
-## 제목과 용어
+## 공개 Manual
 
-- 제품명은 `Xeri UI`로 통일합니다.
-- package ID는 `com.inonego.xeri.ui`, runtime assembly는 `inonego.Xeri.UI`로 표기합니다.
-- `Runtime`, `Context`, `Lease`, `Handle`, `Screen`, `Window`처럼 코드와 직접 대응하는 용어는 억지로 번역하지 않습니다.
-- public 타입, 멤버와 파일명은 백틱으로 감쌉니다.
-- Window와 Screen처럼 수명 계약이 다른 개념은 유사하다는 이유로 같은 용어로 합치지 않습니다.
+`com.inonego.xeri.ui/Documentation~/`가 사용자-facing Manual의 source of truth입니다.
 
-## 내용 작성 원칙
+공개 문서는 다음 원칙을 따릅니다.
 
-- 폴더와 파일 목록보다 모듈이 제공하는 계약과 책임을 먼저 설명합니다.
-- 주요 시스템 문서는 최소한 `왜 필요한가`, `언제 사용하는가`, `기본 사용`에 답해야 합니다.
-- 코드가 실제로 보장하지 않는 사용법이나 미래 계획을 현재 기능처럼 서술하지 않습니다.
-- API 멤버 전체를 Manual에 복제하지 않고 상세 멤버는 API Reference에 맡깁니다.
-- 소유권과 종료 순서가 중요한 기능은 누가 획득하고 누가 종료하는지 명시합니다.
-- callback/부분 생성 실패가 중요한 시스템은 rollback과 실패 후 상태를 함께 설명합니다.
-- base Xeri 기능과 Xeri UI 기능의 책임을 혼동하지 않습니다.
+- 완성된 시스템을 현재형으로 설명
+- 제거된 API나 이전 구조의 변경 이력을 설명하지 않음
+- public entrypoint와 ownership/lifetime을 우선 설명
+- 내부 타입 전체를 Manual에 복제하지 않음
+- detailed member reference는 DocFX API Reference에 맡김
+- 실제 API가 보장하지 않는 사용법을 현재 기능처럼 쓰지 않음
+
+## Architecture
+
+`Documentation~/architecture/`는 구조 계약을 설명합니다.
+
+- responsibility / ownership
+- topology / ordering
+- lifetime / authority
+- public / composition / backend extension boundary
+- invariant
+- 금지 설계
+
+Architecture 문서는 migration plan이나 작업 완료 상태를 참조하지 않습니다.
+
+## 기능 문서
+
+`core/`, `window/`, `tray.md`, `bar.md`는 사용자가 실제 기능을 사용하는 방법을 설명합니다.
+
+기본 순서:
+
+1. 기능의 의미
+2. Common API
+3. lifetime / ownership
+4. 필요한 advanced composition
+5. 관련 문서
+
+## Guides
+
+`guides/`는 하나의 concrete 작업을 처음부터 끝까지 수행하는 절차를 설명합니다.
+
+기능 개념 설명을 Guide에 중복하지 않고 해당 Core/Window 문서로 연결합니다.
+
+## Runtime README
+
+`Runtime/**/README.md`는 코드 폴더 안내판입니다.
+
+다음만 유지합니다.
+
+- 이 폴더가 구현하는 책임
+- 주요 코드 영역
+- 관련 Manual 링크
+- 관련 Architecture 링크
+
+긴 사용 예제나 별도의 architecture 설명을 복제하지 않습니다.
+
+## 내부 작업 문서
+
+`Docs/work/`는 구현 중 필요한 임시 checklist, migration 기록, 조사 메모를 둘 수 있는 내부 영역입니다.
+
+- DocFX 공개 Manual에 포함하지 않음
+- 공개 문서가 `Docs/work/`를 참조하지 않음
+- 작업 종료 후 삭제 가능
+
+## 용어
+
+- 제품명: `Xeri UI`
+- package: `com.inonego.xeri.ui`
+- runtime assembly: `inonego.Xeri.UI`
+- 코드 타입/멤버/파일명은 백틱으로 표기
+- `Runtime`, `Context`, `Session`, `Lease`, `Handle`, `Screen`, `Window`처럼 코드 의미와 직접 대응하는 용어는 억지로 번역하지 않음
+
+동일 semantic에 여러 이름을 만들지 않습니다. 예를 들어 Window application mount root는 `ContentRoot` 하나만 사용합니다.
 
 ## Base Xeri와의 경계
 
-범용 `Lease`, primitive, serialization, bootstrapper, Drag/Drop과 Picker는 base Xeri 문서를 참조합니다.
-Xeri UI 문서는 이 기능을 자체 소유 API처럼 설명하지 않고 UI 모듈이 어떻게 소비하는지만 설명합니다.
+범용 `Lease`, primitive, serialization, Bootstrapper, Drag/Drop과 Picker는 base `com.inonego.xeri`가 소유합니다.
 
-## 파일명과 링크
+Xeri UI 문서는 해당 기능을 자체 소유 API처럼 재정의하지 않고 UI domain에서 어떻게 소비하는지만 설명합니다.
 
-- `README.md` 외 공개 문서 파일명은 영문 kebab-case를 기본으로 합니다.
-- 같은 저장소 안에서는 상대 링크를 우선합니다.
-- base Xeri 문서는 해당 Xeri 저장소 또는 공개 문서 사이트로 명시적으로 연결합니다.
-- 문서를 이동하거나 분할한 뒤에는 저장소 전체 Markdown 상대 링크를 검사합니다.
+## 링크와 목차
 
-## 공개 목차
-
-`com.inonego.xeri.ui/Documentation~/toc.yml`이 공개 Manual의 탐색 구조를 정의합니다.
-Runtime README는 모듈 개요 원본으로 유지하고 상세 절차는 Manual 페이지로 분리합니다.
+- 공개 navigation은 `Documentation~/toc.yml`이 정의
+- 저장소 내부 링크는 상대 경로 우선
+- 파일 이동 후 Markdown 상대 링크와 TOC href를 검사
+- 공개 Manual에서 `Docs/work/`로 링크하지 않음
 
 ## API Reference
 
-public API 멤버 설명은 C# XML documentation과 DocFX API Reference를 기준으로 합니다.
-Manual은 사용 목적, 계약, 흐름과 주의사항에 집중합니다.
+public API member 설명은 C# XML documentation과 DocFX generated API를 기준으로 합니다.
+
+public API 또는 assembly 구성이 바뀌면 `build-docs.ps1`로 API snapshot을 갱신합니다.

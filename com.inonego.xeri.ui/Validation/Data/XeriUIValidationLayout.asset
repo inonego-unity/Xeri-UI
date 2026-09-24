@@ -1,0 +1,45 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a8c3acf55705d9c448ef833fe63996ad, type: 3}
+  m_Name: XeriUIValidationLayout
+  m_EditorClassIdentifier: inonego.Xeri.UI::inonego.Xeri.UI.PresentationLayout
+  layers:
+  - layerID: Desktop
+    displayName: Desktop
+    layerOrder: 100
+    backend: 1
+  - layerID: Desktop.Windows
+    displayName: Window
+    layerOrder: 200
+    backend: 1
+  - layerID: Desktop.Overlay
+    displayName: Global Overlay
+    layerOrder: 300
+    backend: 1
+  - layerID: Desktop.Modal
+    displayName: Global Modal
+    layerOrder: 400
+    backend: 1
+  - layerID: SystemFade
+    displayName: System Fade
+    layerOrder: 10000
+    backend: 0
+  placements:
+  - presentationID: Desktop.Status
+    layerID: Desktop
+    localOrder: 10
+  - presentationID: Desktop.Checklist
+    layerID: Desktop
+    localOrder: 20
+  - presentationID: Desktop.Taskbar
+    layerID: Desktop
+    localOrder: 30

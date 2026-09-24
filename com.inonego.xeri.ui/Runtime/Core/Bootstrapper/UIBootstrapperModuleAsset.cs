@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : UIBootstrapperModuleAsset.cs
-수정일 : 2026-09-17
+수정일 : 2026-10-04
 # 설명
 Initial Scene 확정 뒤 App 단위 UI Host를 조립하고 Unity native UI output으로 초기화한다.
 Application startup policy는 Host 내부의 프로젝트 composition에 위임한다.
@@ -9,6 +9,7 @@ Application startup policy는 Host 내부의 프로젝트 composition에 위임�
 using System;
 
 using UnityEngine;
+using UnityEngine.SceneManagement;
 
 using inonego;
 using inonego.Xeri;
@@ -60,6 +61,21 @@ namespace inonego.Xeri.UI
         // --------------------------------------------------------------------------------
         public override async Awaitable Init()
         {
+            // Initial Scene이 자체 UIRuntime composition을 제공하거나
+            // 이미 초기화된 Runtime이 있으면 Bootstrapper fallback Host를 생성하지 않는다.
+            if
+            (
+                HasSceneOwnedRuntime(SceneManager.GetActiveScene()) ||
+                (
+                    UIRuntime.TryCurrent(out var current) &&
+                    current != null &&
+                    current.IsInitialized
+                )
+            )
+            {
+                return;
+            }
+
             if (hostPrefab == null)
             {
                 throw new InvalidOperationException("UI Host Prefab이 설정되지 않았습니다.");
@@ -93,6 +109,38 @@ namespace inonego.Xeri.UI
                 Destroy(instance);
                 throw;
             }
+        }
+
+        // ----------------------------------------------------------------------
+        /// <summary>
+        /// active Initial Scene이 자체 UIRuntime composition을 포함하는지 확인한다.
+        /// </summary>
+        // ----------------------------------------------------------------------
+        internal static bool HasSceneOwnedRuntime(Scene scene)
+        {
+            if (!scene.IsValid() || !scene.isLoaded)
+            {
+                return false;
+            }
+
+            var runtimes = FindObjectsByType<UIRuntime>
+            (
+                FindObjectsInactive.Include
+            );
+
+            foreach (var runtime in runtimes)
+            {
+                if
+                (
+                    runtime != null &&
+                    runtime.gameObject.scene == scene
+                )
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
     #endregion

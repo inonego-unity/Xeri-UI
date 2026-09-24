@@ -1,10 +1,10 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : IPresentation.cs
-수정일 : 2026-09-19
+수정일 : 2026-10-06
 
 # 설명
 Alpha와 Visibility 상태를 노출하는 Presentation 최소 계약을 정의한다.
-각 상태는 기존 MValue 기반 concrete state이며 leaf와 Composite에서 동일하게 사용한다.
+각 상태는 local Base·Modified와 Modifier를 소유하고 leaf와 Composite에서 동일하게 사용한다.
 ========================================================================= BLOCK_HEADER_END */
 
 namespace inonego.Xeri.UI

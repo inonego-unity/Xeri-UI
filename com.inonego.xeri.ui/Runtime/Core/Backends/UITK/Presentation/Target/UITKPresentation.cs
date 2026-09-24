@@ -2,7 +2,7 @@
 파일명 : UITKPresentation.cs
 수정일 : 2026-09-19
 # 설명
-기존 VisualElement를 Xeri Presentation State에 연결한다.
+지정 VisualElement를 Xeri Presentation State에 연결한다.
 Visual Tree hierarchy는 소유하지 않으며 opacity와 display 표현 상태만 제어한다.
 ========================================================================= BLOCK_HEADER_END */
 
@@ -15,7 +15,7 @@ namespace inonego.Xeri.UI
 {
     // ============================================================
     /// <summary>
-    /// <br/> 기존 VisualElement를 Xeri Alpha·Visibility
+    /// <br/> 지정 VisualElement를 Xeri Alpha·Visibility
     /// <br/> Presentation State에 연결하는 adapter.
     /// </summary>
     // ============================================================
@@ -62,7 +62,7 @@ namespace inonego.Xeri.UI
 
     #endregion
 
-    #region IPresentationAlphaTarget
+    #region 프레젠테이션 알파 대상 구현
 
         // ------------------------------------------------------------
         /// <summary>
@@ -90,7 +90,7 @@ namespace inonego.Xeri.UI
 
     #endregion
 
-    #region IPresentationVisibilityTarget
+    #region 프레젠테이션 가시성 대상 구현
 
         // ----------------------------------------------------------------------
         /// <summary>

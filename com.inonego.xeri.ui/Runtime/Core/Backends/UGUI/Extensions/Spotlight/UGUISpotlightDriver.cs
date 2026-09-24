@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : UGUISpotlightDriver.cs
-수정일 : 2026-09-17
+수정일 : 2026-10-03
 # 설명
 실제 RectTransform 대상의 현재 World Corner를 UGUI Spotlight Graphic의 여러 로컬 구멍으로 갱신한다.
 ========================================================================= BLOCK_HEADER_END */
@@ -79,7 +79,7 @@ namespace inonego.Xeri.UI
 
     #endregion
 
-    #region ISpotlightDriver
+    #region 스포트라이트 드라이버 구현
 
         // ------------------------------------------------------------
         /// <summary>
@@ -145,16 +145,44 @@ namespace inonego.Xeri.UI
         {
             activeParams = null;
             holes.Clear();
+            var errors = new List<Exception>();
 
             if (graphic != null)
             {
-                graphic.ClearHoles();
+                try
+                {
+                    graphic.ClearHoles();
+                }
+                catch (Exception exception)
+                {
+                    errors.Add(exception);
+                }
             }
 
             if (root != null)
             {
-                root.SetActive(false);
+                try
+                {
+                    root.SetActive(false);
+                }
+                catch (Exception exception)
+                {
+                    errors.Add(exception);
+                }
             }
+
+            if (errors.Count == 0) return;
+
+            if (errors.Count == 1)
+            {
+                throw errors[0];
+            }
+
+            throw new AggregateException
+            (
+                "UGUI Spotlight 숨김 처리 중 하나 이상의 정리가 실패했습니다.",
+                errors
+            );
         }
 
     #endregion

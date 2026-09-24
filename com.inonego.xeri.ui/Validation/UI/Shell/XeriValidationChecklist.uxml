@@ -1,0 +1,67 @@
+<!-- BLOCK_HEADER_BEGIN =====================================================================
+파일명 : XeriValidationChecklist.uxml
+수정일 : 2026-10-03
+
+# 설명
+자율 탐색을 방해하지 않고 이미 행사된 Validation contract만 기록하는 compact checklist drawer.
+======================================================================= BLOCK_HEADER_END -->
+<ui:UXML xmlns:ui="UnityEngine.UIElements" editor-extension-mode="False">
+    <Style src="../Shared/XeriValidationTokens.uss" />
+    <Style src="../Shared/XeriValidationComponents.uss" />
+    <Style src="XeriValidationShell.uss" />
+
+    <ui:VisualElement name="ChecklistRoot" class="xeri-validation xeri-validation-checklist">
+        <ui:VisualElement class="xeri-validation-checklist__header">
+            <ui:VisualElement>
+                <ui:Label text="VALIDATION" class="xeri-validation-eyebrow" />
+                <ui:Label text="Explored" class="xeri-validation-title" />
+            </ui:VisualElement>
+            <ui:Label name="ChecklistSummary" text="0 / 11" class="xeri-validation-checklist__summary" />
+        </ui:VisualElement>
+
+        <ui:VisualElement class="xeri-validation-checklist__item">
+            <ui:Label text="Scene-authored Host" class="xeri-validation-checklist__name" />
+            <ui:Label name="CheckHost" text="○" class="xeri-validation-checklist__state" />
+        </ui:VisualElement>
+        <ui:VisualElement class="xeri-validation-checklist__item">
+            <ui:Label text="Taskbar Source" class="xeri-validation-checklist__name" />
+            <ui:Label name="CheckTaskbar" text="○" class="xeri-validation-checklist__state" />
+        </ui:VisualElement>
+        <ui:VisualElement class="xeri-validation-checklist__item">
+            <ui:Label text="Launcher with open windows" class="xeri-validation-checklist__name" />
+            <ui:Label name="CheckDesktopInput" text="○" class="xeri-validation-checklist__state" />
+        </ui:VisualElement>
+        <ui:VisualElement class="xeri-validation-checklist__item">
+            <ui:Label text="Root Screen Stack" class="xeri-validation-checklist__name" />
+            <ui:Label name="CheckCoreScreen" text="○" class="xeri-validation-checklist__state" />
+        </ui:VisualElement>
+        <ui:VisualElement class="xeri-validation-checklist__item">
+            <ui:Label text="Window Open" class="xeri-validation-checklist__name" />
+            <ui:Label name="CheckWindowOpen" text="○" class="xeri-validation-checklist__state" />
+        </ui:VisualElement>
+        <ui:VisualElement class="xeri-validation-checklist__item">
+            <ui:Label text="Window State" class="xeri-validation-checklist__name" />
+            <ui:Label name="CheckWindowState" text="○" class="xeri-validation-checklist__state" />
+        </ui:VisualElement>
+        <ui:VisualElement class="xeri-validation-checklist__item">
+            <ui:Label text="Tray Activate" class="xeri-validation-checklist__name" />
+            <ui:Label name="CheckTrayActivate" text="○" class="xeri-validation-checklist__state" />
+        </ui:VisualElement>
+        <ui:VisualElement class="xeri-validation-checklist__item">
+            <ui:Label text="Independent app contexts" class="xeri-validation-checklist__name" />
+            <ui:Label name="CheckApplicationIsolation" text="○" class="xeri-validation-checklist__state" />
+        </ui:VisualElement>
+        <ui:VisualElement class="xeri-validation-checklist__item">
+            <ui:Label text="Modal Stack" class="xeri-validation-checklist__name" />
+            <ui:Label name="CheckModal" text="○" class="xeri-validation-checklist__state" />
+        </ui:VisualElement>
+        <ui:VisualElement class="xeri-validation-checklist__item">
+            <ui:Label text="Presentation Overlay" class="xeri-validation-checklist__name" />
+            <ui:Label name="CheckOverlay" text="○" class="xeri-validation-checklist__state" />
+        </ui:VisualElement>
+        <ui:VisualElement class="xeri-validation-checklist__item">
+            <ui:Label text="System Fade" class="xeri-validation-checklist__name" />
+            <ui:Label name="CheckFade" text="○" class="xeri-validation-checklist__state" />
+        </ui:VisualElement>
+    </ui:VisualElement>
+</ui:UXML>

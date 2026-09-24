@@ -1,9 +1,9 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : SceneFader.cs
-수정일 : 2026-09-17
+수정일 : 2026-10-07
 # 설명
-App 기본 Layer의 Scene Fade Presentation을 Cover부터 Reveal 또는 종료까지 소유하는 상태 머신이다.
-Fade lifecycle은 일반 Presentation acquisition과 PresentationAlpha를 사용해 Presentation 전용 Core 계약 없이 동작한다.
+PresentationHost의 System destination Layer Lease를 Cover부터 Reveal 또는 종료까지 소유하는 상태 머신이다.
+Fade Source lifetime과 PresentationAlpha를 결합해 Presentation 수명 Core 위에 구성한다.
 
 # 시간 정책
 Scene 전환은 게임 시간 정지와 독립적이어야 하므로 항상 Unscaled 시간으로 재생한다.
@@ -41,17 +41,19 @@ namespace inonego.Xeri.UI
         // ------------------------------------------------------------
         public Exception LastFailure { get; private set; }
 
-        private readonly PresentationLayerRegistry layerRegistry = null;
-        private readonly string layerID = "";
+        private readonly PresentationHost presentationHost = null;
         private readonly IPresentationSource<ISceneFadeDriver> source = null;
         private readonly IPresentationTransitioner transitioner = null;
 
-        private Lease<ISceneFadeDriver> presentationLease = null;
+        private PresentationLayerLease presentationLayerLease = null;
+        private ISceneFadeDriver presentationDriver = null;
         private PresentationAlpha alpha = null;
         private bool presentationInitialized = false;
         private PresentationTransitionHandle transition = null;
         private SceneFadeState stableState = SceneFadeState.Clear;
+        private Color stableColor = Color.black;
         private int generation = 0;
+        private bool ownerControlsLifetime = false;
         private bool isDisposed = false;
 
     #endregion
@@ -65,20 +67,13 @@ namespace inonego.Xeri.UI
         // ------------------------------------------------------------
         public SceneFader
         (
-            PresentationLayerRegistry layerRegistry,
-            string layerID,
+            PresentationHost presentationHost,
             IPresentationSource<ISceneFadeDriver> source,
             IPresentationTransitioner transitioner
         ) : base()
         {
-            this.layerRegistry = layerRegistry ?? throw new ArgumentNullException(nameof(layerRegistry));
-
-            if (string.IsNullOrWhiteSpace(layerID))
-            {
-                throw new ArgumentException("Scene Fade Layer ID가 비어 있습니다.", nameof(layerID));
-            }
-
-            this.layerID = layerID;
+            this.presentationHost = presentationHost ??
+                throw new ArgumentNullException(nameof(presentationHost));
             this.source = source ?? throw new ArgumentNullException(nameof(source));
             this.transitioner = transitioner ?? throw new ArgumentNullException(nameof(transitioner));
         }
@@ -106,7 +101,7 @@ namespace inonego.Xeri.UI
             try
             {
                 AcquirePresentation();
-                driver = presentationLease.Value;
+                driver = presentationDriver;
 
                 // 새 요청은 기존 실행을 끝낸 뒤 색상과 상태를 함께 교체한다.
                 CancelTransition();
@@ -121,7 +116,7 @@ namespace inonego.Xeri.UI
                     1.0f,
                     parameters.Duration,
                     currentGeneration,
-                    () => CompleteCover(onCompleted),
+                    () => CompleteCover(parameters.Color, onCompleted),
                     onFailed
                 );
             }
@@ -157,12 +152,12 @@ namespace inonego.Xeri.UI
         {
             ThrowIfDisposed();
 
-            if (presentationLease == null || !presentationInitialized)
+            if (presentationLayerLease == null || presentationDriver == null || !presentationInitialized)
             {
                 throw new InvalidOperationException("Reveal할 초기화된 Fade Presentation가 없습니다.");
             }
 
-            var driver = presentationLease.Value;
+            var driver = presentationDriver;
 
             try
             {
@@ -201,22 +196,27 @@ namespace inonego.Xeri.UI
         // ------------------------------------------------------------
         private void AcquirePresentation()
         {
-            if (presentationLease != null && presentationInitialized) return;
-
-            if (presentationLease == null)
+            if
+            (
+                presentationLayerLease != null &&
+                presentationDriver != null &&
+                presentationInitialized
+            )
             {
-                presentationLease = PresentationLease.Acquire
-                (
-                    layerRegistry,
-                    layerID,
-                    source
-                );
+                return;
             }
 
             try
             {
-                var driver = presentationLease.Value;
-                alpha = driver.Alpha;
+                presentationLayerLease ??= presentationHost.AcquireLayer(PresentationDestinationID.System);
+                presentationDriver ??= source.Acquire(presentationLayerLease.Layer);
+
+                if (presentationDriver == null)
+                {
+                    throw new InvalidOperationException("Scene Fade Source가 null Driver를 반환했습니다.");
+                }
+
+                alpha = presentationDriver.Alpha;
 
                 if (alpha == null || !alpha.IsValid)
                 {
@@ -355,8 +355,13 @@ namespace inonego.Xeri.UI
         /// Cover 상태를 확정한 뒤 현재 요청의 완료 callback을 호출한다.
         /// </summary>
         // ------------------------------------------------------------
-        private void CompleteCover(Action onCompleted)
+        private void CompleteCover
+        (
+            Color color,
+            Action onCompleted
+        )
         {
+            stableColor = color;
             stableState = SceneFadeState.Covered;
             State = SceneFadeState.Covered;
             LastFailure = null;
@@ -408,6 +413,19 @@ namespace inonego.Xeri.UI
                 failure,
             };
             var stableAlpha = stableState == SceneFadeState.Covered ? 1.0f : 0.0f;
+
+            // Covered 안정 상태는 요청이 바꾼 색상도 마지막 성공 상태로 함께 복원한다.
+            if (stableState == SceneFadeState.Covered && presentationDriver != null)
+            {
+                try
+                {
+                    presentationDriver.SetColor(stableColor);
+                }
+                catch (Exception exception)
+                {
+                    errors.Add(exception);
+                }
+            }
 
             // Presentation 반환이 이미 terminal 처리된 경우에는 마지막 적용값을 유지하고 backend를 다시 건드리지 않는다.
             if (alpha != null)
@@ -472,13 +490,53 @@ namespace inonego.Xeri.UI
         // ------------------------------------------------------------
         private void ReleasePresentation()
         {
-            if (presentationLease == null) return;
+            if (presentationLayerLease == null && presentationDriver == null) return;
 
-            var current = presentationLease;
-            presentationLease = null;
+            var currentLayerLease = presentationLayerLease;
+            var currentDriver = presentationDriver;
+            presentationLayerLease = null;
+            presentationDriver = null;
             alpha = null;
             presentationInitialized = false;
-            current.Dispose();
+            var errors = new List<Exception>();
+
+            if (currentDriver != null)
+            {
+                try
+                {
+                    source.Release(currentDriver);
+                }
+                catch (Exception exception)
+                {
+                    errors.Add(exception);
+                }
+            }
+
+            if (currentLayerLease != null)
+            {
+                try
+                {
+                    currentLayerLease.Dispose();
+                }
+                catch (Exception exception)
+                {
+                    errors.Add(exception);
+                }
+            }
+
+            if (errors.Count == 1)
+            {
+                throw errors[0];
+            }
+
+            if (errors.Count > 1)
+            {
+                throw new AggregateException
+                (
+                    "Scene Fade Presentation 반환이 실패했습니다.",
+                    errors
+                );
+            }
         }
 
         // ------------------------------------------------------------
@@ -496,14 +554,51 @@ namespace inonego.Xeri.UI
 
     #endregion
 
-    #region IDisposable
+    #region 수명 해제
 
         // ------------------------------------------------------------
         /// <summary>
-        /// 진행 중 Fade를 취소하고 보유 Presentation를 반환한다.
+        /// <br/> 진행 중 Fade를 취소하고 보유 Presentation를 반환한다.
+        /// <br/> owner-controlled Scene Fader는 직접 해제할 수 없다.
         /// </summary>
         // ------------------------------------------------------------
         public void Dispose()
+        {
+            if (isDisposed) return;
+
+            if (ownerControlsLifetime)
+            {
+                throw new InvalidOperationException
+                (
+                    "이 Scene Fader의 수명은 소유자가 관리합니다."
+                );
+            }
+
+            DisposeCore();
+        }
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// 이후 Scene Fader 수명을 조립 owner만 종료하도록 고정한다.
+        /// </summary>
+        // ------------------------------------------------------------
+        internal void SetOwnerControlledLifetime()
+        {
+            ThrowIfDisposed();
+            ownerControlsLifetime = true;
+        }
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// owner-controlled Scene Fader를 소유자 종료 경로에서 해제한다.
+        /// </summary>
+        // ------------------------------------------------------------
+        internal void DisposeFromOwner()
+        {
+            DisposeCore();
+        }
+
+        private void DisposeCore()
         {
             if (isDisposed) return;
 

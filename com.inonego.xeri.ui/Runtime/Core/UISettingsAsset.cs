@@ -1,8 +1,8 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : UISettingsAsset.cs
-수정일 : 2026-09-17
+수정일 : 2026-10-07
 # 설명
-UI Runtime의 기본 Profile, Scene Fade와 Input System 공통 설정을 정의한다.
+UI Runtime의 기본 PresentationLayout, app-wide Presentation destination, backend capability와 Input System 공통 설정을 정의한다.
 ========================================================================= BLOCK_HEADER_END */
 
 using System;
@@ -11,6 +11,7 @@ using System.Collections.Generic;
 
 using UnityEngine;
 using UnityEngine.InputSystem;
+using UnityEngine.UIElements;
 
 using inonego;
 using inonego.Xeri;
@@ -35,23 +36,57 @@ namespace inonego.Xeri.UI
 
         // ------------------------------------------------------------
         /// <summary>
-        /// App 수명 기본 Layer Profile.
+        /// App 수명 기본 Presentation Layout.
         /// </summary>
         // ------------------------------------------------------------
-        public UIProfileAsset DefaultProfile => defaultProfile;
+        public PresentationLayout DefaultLayout => defaultLayout;
 
         [SerializeField]
-        private UIProfileAsset defaultProfile = null;
+        private PresentationLayout defaultLayout = null;
+
+        // ----------------------------------------------------------------------
+        /// <summary>
+        /// Top-level UITK Layer Output마다 복제할 PanelSettings template.
+        /// </summary>
+        // ----------------------------------------------------------------------
+        public PanelSettings UITKPanelSettingsTemplate => uitkPanelSettingsTemplate;
+
+        [SerializeField]
+        private PanelSettings uitkPanelSettingsTemplate = null;
 
         // ------------------------------------------------------------
         /// <summary>
-        /// Scene Fade Overlay를 표시할 기본 Profile Layer ID.
+        /// <br/> Top-level UGUI Layer Output의 authoring template.
+        /// <br/> 비어 있으면 package 기본 template을 사용한다.
         /// </summary>
         // ------------------------------------------------------------
-        public string SceneFadeLayerID => sceneFadeLayerID;
+        public UGUIPresentationOutput UGUIOutputTemplate => uguiOutputTemplate;
 
         [SerializeField]
-        private string sceneFadeLayerID = "";
+        private UGUIPresentationOutput uguiOutputTemplate = null;
+
+        // ----------------------------------------------------------------------
+        /// <summary>
+        /// Root Presentation Layer에 연결할 app-wide semantic destination 정의.
+        /// </summary>
+        // ----------------------------------------------------------------------
+        public IReadOnlyList<PresentationDestinationDefinition> DestinationDefinitions =>
+            presentationDestinations;
+
+        [SerializeField]
+        private PresentationDestinationDefinition[] presentationDestinations =
+            Array.Empty<PresentationDestinationDefinition>();
+
+        // ----------------------------------------------------------------------
+        /// <summary>
+        /// Runtime bootstrap에서 지원할 UI backend infrastructure capability.
+        /// </summary>
+        // ----------------------------------------------------------------------
+        public PresentationBackendSupport BackendSupport => backendSupport;
+
+        [SerializeField]
+        private PresentationBackendSupport backendSupport =
+            PresentationBackendSupport.UITK;
 
         // ------------------------------------------------------------
         /// <summary>
@@ -73,6 +108,16 @@ namespace inonego.Xeri.UI
         [SerializeField]
         [Min(0.0f)]
         private float defaultFadeDuration = 0.25f;
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// UI Toolkit/Input policy가 사용할 UI Action Asset.
+        /// </summary>
+        // ------------------------------------------------------------
+        public InputActionAsset UIActionsAsset => uiActionsAsset;
+
+        [SerializeField]
+        private InputActionAsset uiActionsAsset = null;
 
         // ------------------------------------------------------------
         /// <summary>
@@ -129,15 +174,17 @@ namespace inonego.Xeri.UI
         // ------------------------------------------------------------
         internal void Validate()
         {
-            if (defaultProfile == null)
+            if (defaultLayout == null)
             {
-                throw new InvalidOperationException("UI 기본 Profile이 설정되지 않았습니다.");
+                throw new InvalidOperationException("UI 기본 Presentation Layout이 설정되지 않았습니다.");
             }
 
-            if (string.IsNullOrWhiteSpace(sceneFadeLayerID))
+            if (uitkPanelSettingsTemplate == null)
             {
-                throw new InvalidOperationException("Scene Fade Layer ID가 비어 있습니다.");
+                throw new InvalidOperationException("UITK PanelSettings Template이 설정되지 않았습니다.");
             }
+
+            ValidatePresentationComposition();
 
             if
             (
@@ -178,6 +225,122 @@ namespace inonego.Xeri.UI
                     );
                 }
             }
+        }
+
+        // --------------------------------------------------------------------------------
+        /// <summary>
+        /// destination mapping과 backend capability가 Root Layout 계약과 일치하는지 검증한다.
+        /// </summary>
+        // --------------------------------------------------------------------------------
+        private void ValidatePresentationComposition()
+        {
+            if (presentationDestinations == null || presentationDestinations.Length == 0)
+            {
+                throw new InvalidOperationException("Presentation Destination이 하나 이상 필요합니다.");
+            }
+
+            if (backendSupport == PresentationBackendSupport.None)
+            {
+                throw new InvalidOperationException("Presentation Backend capability가 비어 있습니다.");
+            }
+
+            var unsupportedCapabilities =
+                backendSupport & ~PresentationBackendSupport.All;
+
+            if (unsupportedCapabilities != PresentationBackendSupport.None)
+            {
+                throw new InvalidOperationException
+                (
+                    $"정의되지 않은 Presentation Backend capability '{unsupportedCapabilities}'가 있습니다."
+                );
+            }
+
+            var destinationIDs = new HashSet<string>(StringComparer.Ordinal);
+
+            for (var index = 0; index < presentationDestinations.Length; index++)
+            {
+                var definition = presentationDestinations[index];
+
+                if (definition == null)
+                {
+                    throw new InvalidOperationException
+                    (
+                        $"Presentation Destination {index} 정의가 비어 있습니다."
+                    );
+                }
+
+                if
+                (
+                    string.IsNullOrWhiteSpace(definition.DestinationID) ||
+                    !destinationIDs.Add(definition.DestinationID)
+                )
+                {
+                    throw new InvalidOperationException
+                    (
+                        $"Presentation Destination ID '{definition.DestinationID}'가 비어 있거나 중복됐습니다."
+                    );
+                }
+
+                if (string.IsNullOrWhiteSpace(definition.LayerID))
+                {
+                    throw new InvalidOperationException
+                    (
+                        $"Presentation Destination '{definition.DestinationID}' Layer ID가 비어 있습니다."
+                    );
+                }
+            }
+
+            if (!destinationIDs.Contains(PresentationDestinationID.System))
+            {
+                throw new InvalidOperationException
+                (
+                    $"Scene Fade에 필요한 Presentation Destination '{PresentationDestinationID.System}'이 없습니다."
+                );
+            }
+
+            var layers = defaultLayout.Layers;
+
+            for (var index = 0; index < layers.Count; index++)
+            {
+                var layer = layers[index];
+                if (layer == null) continue;
+
+                var required = layer.Backend switch
+                {
+                    PresentationBackend.UGUI => PresentationBackendSupport.UGUI,
+                    PresentationBackend.UITK => PresentationBackendSupport.UITK,
+                    _ => throw new InvalidOperationException
+                    (
+                        $"Presentation Layer '{layer.LayerID}' backend 값 '{layer.Backend}'이 정의되지 않았습니다."
+                    ),
+                };
+
+                if ((backendSupport & required) != required)
+                {
+                    throw new InvalidOperationException
+                    (
+                        $"Presentation Layer '{layer.LayerID}' backend '{layer.Backend}'이 " +
+                        "Runtime Backend capability에 포함되지 않았습니다."
+                    );
+                }
+            }
+        }
+
+        internal bool SupportsBackend(PresentationBackend backend)
+        {
+            var required = backend switch
+            {
+                PresentationBackend.UGUI => PresentationBackendSupport.UGUI,
+                PresentationBackend.UITK => PresentationBackendSupport.UITK,
+                _ => throw new ArgumentOutOfRangeException
+                (
+                    nameof(backend),
+                    backend,
+                    "정의되지 않은 Presentation Backend입니다."
+                ),
+            };
+
+            return (backendSupport & required) == required;
         }
 
     #endregion

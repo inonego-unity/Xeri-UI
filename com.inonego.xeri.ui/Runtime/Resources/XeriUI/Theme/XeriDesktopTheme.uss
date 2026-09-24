@@ -1,0 +1,241 @@
+/* Xeri Desktop: optional window chrome and native UITK controls.
+   Attach this stylesheet and xeri-desktop-theme to a root.
+   Add xeri-desktop-theme--light for the light palette. */
+
+.xeri-desktop-theme {
+    --xeri-desktop-chrome: rgba(12, 18, 27, 0.94);
+    --xeri-desktop-surface: rgb(19, 24, 34);
+    --xeri-desktop-surface-raised: rgb(28, 35, 47);
+    --xeri-desktop-surface-hover: rgb(39, 47, 59);
+    --xeri-desktop-surface-input: rgb(17, 22, 29);
+    --xeri-desktop-border: rgba(218, 228, 240, 0.13);
+    --xeri-desktop-border-strong: rgba(218, 228, 240, 0.24);
+    --xeri-desktop-text: rgb(236, 241, 248);
+    --xeri-desktop-muted: rgb(165, 176, 190);
+    --xeri-desktop-accent: rgb(119, 164, 255);
+    --xeri-desktop-on-accent: rgb(12, 24, 45);
+    --xeri-desktop-pressed: rgb(46, 61, 80);
+    --xeri-desktop-danger: rgb(245, 105, 105);
+    --xeri-desktop-danger-soft: rgba(245, 105, 105, 0.16);
+    --xeri-desktop-space-3: 12px;
+    --xeri-desktop-radius-lg: 8px;
+}
+
+.xeri-desktop-theme--light {
+    --xeri-desktop-chrome: rgb(244, 248, 254);
+    --xeri-desktop-surface: rgb(240, 245, 251);
+    --xeri-desktop-surface-raised: rgb(255, 255, 255);
+    --xeri-desktop-surface-hover: rgb(217, 230, 247);
+    --xeri-desktop-surface-input: rgb(249, 251, 254);
+    --xeri-desktop-border: rgba(42, 64, 96, 0.15);
+    --xeri-desktop-border-strong: rgba(42, 64, 96, 0.30);
+    --xeri-desktop-text: rgb(28, 43, 65);
+    --xeri-desktop-muted: rgb(76, 95, 121);
+    --xeri-desktop-accent: rgb(54, 97, 194);
+    --xeri-desktop-on-accent: rgb(255, 255, 255);
+    --xeri-desktop-pressed: rgb(204, 221, 242);
+    --xeri-desktop-danger: rgb(182, 50, 67);
+    --xeri-desktop-danger-soft: rgba(182, 50, 67, 0.12);
+}
+
+.xeri-desktop-theme--compact {
+    --xeri-desktop-space-3: 8px;
+}
+
+.xeri-desktop-theme.xeri-window {
+    background-color: var(--xeri-desktop-surface);
+    border-width: 1px;
+    border-color: var(--xeri-desktop-border-strong);
+    border-radius: var(--xeri-desktop-radius-lg);
+
+}
+.xeri-desktop-theme.xeri-window .xeri-window__title-bar {
+    height: 40px;
+    min-height: 40px;
+    background-color: var(--xeri-desktop-chrome);
+    border-bottom-width: 1px;
+    border-bottom-color: var(--xeri-desktop-border);
+}
+.xeri-desktop-theme.xeri-window .xeri-window__title-label {
+    padding-left: var(--xeri-desktop-space-3);
+    color: var(--xeri-desktop-muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.xeri-desktop-theme.xeri-window .xeri-window__content {
+    min-height: 0;
+    padding: 0;
+    color: var(--xeri-desktop-text);
+    background-color: var(--xeri-desktop-surface);
+}
+.xeri-desktop-theme.xeri-window--theme-windows .xeri-window__button,
+.xeri-desktop-theme.xeri-window--theme-windows .xeri-window__button .xeri-window__button-icon {
+    color: var(--xeri-desktop-muted);
+}
+
+.xeri-desktop-theme.xeri-window--theme-minimal .xeri-window__button,
+.xeri-desktop-theme.xeri-window--theme-minimal .xeri-window__button .xeri-window__button-icon {
+    color: var(--xeri-desktop-muted);
+}
+.xeri-desktop-theme.xeri-window--theme-windows .xeri-window__button {
+    background-color: rgba(0, 0, 0, 0);
+}
+
+.xeri-desktop-theme.xeri-window--theme-minimal .xeri-window__button {
+    background-color: rgba(0, 0, 0, 0);
+}
+.xeri-desktop-theme.xeri-window--theme-windows .xeri-window__button:hover {
+    background-color: var(--xeri-desktop-surface-hover);
+}
+
+.xeri-desktop-theme.xeri-window--theme-minimal .xeri-window__button:hover {
+    background-color: var(--xeri-desktop-surface-hover);
+}
+.xeri-desktop-theme.xeri-window--theme-windows .xeri-window__button:active {
+    background-color: var(--xeri-desktop-pressed);
+}
+
+.xeri-desktop-theme.xeri-window--theme-minimal .xeri-window__button:active {
+    background-color: var(--xeri-desktop-pressed);
+}
+.xeri-desktop-theme.xeri-window--theme-windows .xeri-window__button.xeri-window__button--close {
+    background-color: rgba(0, 0, 0, 0);
+}
+
+.xeri-desktop-theme.xeri-window--theme-minimal .xeri-window__button.xeri-window__button--close {
+    background-color: rgba(0, 0, 0, 0);
+}
+.xeri-desktop-theme.xeri-window--theme-windows .xeri-window__button.xeri-window__button--close:hover {
+    background-color: var(--xeri-desktop-danger-soft);
+}
+
+.xeri-desktop-theme.xeri-window--theme-minimal .xeri-window__button.xeri-window__button--close:hover {
+    background-color: var(--xeri-desktop-danger-soft);
+}
+.xeri-desktop-theme.xeri-window--theme-windows .xeri-window__button.xeri-window__button--close .xeri-window__button-icon {
+    color: var(--xeri-desktop-danger);
+}
+
+.xeri-desktop-theme.xeri-window--theme-minimal .xeri-window__button.xeri-window__button--close .xeri-window__button-icon {
+    color: var(--xeri-desktop-danger);
+}
+.xeri-desktop-theme.xeri-window--maximized {
+    border-radius: 0;
+    border-width: 0;
+}
+
+/* Keep the three existing chrome silhouettes distinct. */
+.xeri-desktop-theme.xeri-window--theme-windows { border-radius: 4px; }
+.xeri-desktop-theme.xeri-window--theme-mac { border-radius: 8px; }
+.xeri-desktop-theme.xeri-window--theme-minimal { border-radius: 0; }
+.xeri-desktop-theme.xeri-window--maximized { border-radius: 0; }
+
+/* Toggle input is a layout row; only its checkmark is the checkbox surface. */
+.xeri-desktop-theme .unity-toggle > .unity-toggle__input {
+    min-width: 20px;
+    min-height: 24px;
+    flex-grow: 0;
+    flex-shrink: 0;
+    align-items: center;
+    background-color: rgba(0, 0, 0, 0);
+    border-width: 0;
+}
+.xeri-desktop-theme .unity-toggle__checkmark {
+    width: 18px;
+    min-width: 18px;
+    height: 18px;
+    min-height: 18px;
+    flex-grow: 0;
+    flex-shrink: 0;
+    margin: 0;
+    background-color: var(--xeri-desktop-surface-input);
+    border-width: 1px;
+    border-color: var(--xeri-desktop-border-strong);
+    border-radius: 3px;
+    -unity-background-image-tint-color: var(--xeri-desktop-on-accent);
+}
+.xeri-desktop-theme .unity-toggle:checked .unity-toggle__checkmark {
+    background-color: var(--xeri-desktop-accent);
+    border-color: var(--xeri-desktop-accent);
+}
+.xeri-desktop-theme .unity-toggle:hover .unity-toggle__checkmark,
+.xeri-desktop-theme .unity-toggle:focus .unity-toggle__checkmark {
+    border-color: var(--xeri-desktop-accent);
+}
+.xeri-desktop-theme .unity-toggle:disabled .unity-toggle__checkmark {
+    opacity: 0.45;
+}
+
+/* A value slider and a scrollbar share Unity's base class, but not geometry. */
+.xeri-desktop-theme #ScaleField > .unity-base-slider__input {
+    min-height: 28px;
+    margin: 0;
+}
+.xeri-desktop-theme #ScaleField .unity-base-slider__tracker {
+    height: 4px;
+    border-width: 0;
+    border-radius: 2px;
+    background-color: var(--xeri-desktop-border-strong);
+}
+.xeri-desktop-theme #ScaleField .unity-base-slider__dragger {
+    width: 14px;
+    height: 14px;
+    margin-top: -8px;
+    border-width: 2px;
+    border-color: var(--xeri-desktop-surface-raised);
+    border-radius: 7px;
+    background-color: var(--xeri-desktop-accent);
+}
+.xeri-desktop-theme #ScaleField .unity-base-slider__dragger-border {
+    display: none;
+}
+
+/* The thumb length remains owned by ScrollView; only the cross-axis is styled. */
+.xeri-desktop-theme .unity-scroller {
+    background-color: rgba(0, 0, 0, 0);
+}
+.xeri-desktop-theme .unity-scroller--vertical {
+    width: 12px;
+    min-width: 12px;
+    margin-left: 4px;
+}
+.xeri-desktop-theme .unity-scroller--horizontal {
+    height: 12px;
+    min-height: 12px;
+    margin-top: 4px;
+}
+.xeri-desktop-theme .unity-scroller .unity-scroller__slider {
+    min-width: 0;
+    min-height: 0;
+    margin: 0;
+}
+.xeri-desktop-theme .unity-scroller__low-button,
+.xeri-desktop-theme .unity-scroller__high-button {
+    display: none;
+}
+.xeri-desktop-theme .unity-scroller .unity-base-slider__tracker {
+    border-width: 0;
+    background-color: rgba(0, 0, 0, 0);
+}
+.xeri-desktop-theme .unity-scroller .unity-base-slider__dragger {
+    border-width: 0;
+    border-radius: 3px;
+    background-color: var(--xeri-desktop-border-strong);
+}
+.xeri-desktop-theme .unity-scroller--vertical .unity-base-slider__dragger {
+    width: 6px;
+    min-width: 6px;
+    margin-left: 3px;
+}
+.xeri-desktop-theme .unity-scroller--horizontal .unity-base-slider__dragger {
+    height: 6px;
+    min-height: 6px;
+    margin-top: 3px;
+}
+.xeri-desktop-theme .unity-scroller .unity-base-slider__dragger:hover {
+    background-color: var(--xeri-desktop-muted);
+}
+.xeri-desktop-theme .unity-scroller .unity-base-slider__dragger-border {
+    display: none;
+}

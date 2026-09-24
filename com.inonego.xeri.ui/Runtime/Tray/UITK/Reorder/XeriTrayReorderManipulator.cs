@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명: XeriTrayReorderManipulator.cs
-수정일 : 2026-09-20
+수정일 : 2026-10-03
 
 # 설명
 UITK pointer 입력을 Tray entry reorder drag로 변환한다.
@@ -20,7 +20,7 @@ namespace inonego.Xeri.UI.Tray
     /// Tray entry reorder pointer manipulator.
     /// </summary>
     // ============================================================
-    public sealed class XeriTrayReorderManipulator : Manipulator
+    internal sealed class XeriTrayReorderManipulator : Manipulator
     {
 
     #region 필드
@@ -32,6 +32,7 @@ namespace inonego.Xeri.UI.Tray
         private readonly XeriTrayReorderVisual visual = new();
 
         private XeriTrayReorderSession session = null;
+        private XeriTrayButton activeButton = null;
         private bool isDragging = false;
         private int pointerID = -1;
 
@@ -46,7 +47,8 @@ namespace inonego.Xeri.UI.Tray
         // ------------------------------------------------------------
         public XeriTrayReorderManipulator(IXeriTrayReorderTarget reorderTarget) : base()
         {
-            this.reorderTarget = reorderTarget;
+            this.reorderTarget = reorderTarget ??
+                throw new ArgumentNullException(nameof(reorderTarget));
         }
 
     #endregion
@@ -73,10 +75,98 @@ namespace inonego.Xeri.UI.Tray
         // ------------------------------------------------------------
         protected override void UnregisterCallbacksFromTarget()
         {
-            target.UnregisterCallback<PointerDownEvent>(OnPointerDown, TrickleDown.TrickleDown);
-            target.UnregisterCallback<PointerMoveEvent>(OnPointerMove, TrickleDown.TrickleDown);
-            target.UnregisterCallback<PointerUpEvent>(OnPointerUp, TrickleDown.TrickleDown);
-            target.UnregisterCallback<PointerCancelEvent>(OnPointerCancel, TrickleDown.TrickleDown);
+            var errors = new List<Exception>();
+
+            TryCleanup(CancelActive, errors);
+            TryCleanup
+            (
+                () => target.UnregisterCallback<PointerDownEvent>
+                (
+                    OnPointerDown,
+                    TrickleDown.TrickleDown
+                ),
+                errors
+            );
+            TryCleanup
+            (
+                () => target.UnregisterCallback<PointerMoveEvent>
+                (
+                    OnPointerMove,
+                    TrickleDown.TrickleDown
+                ),
+                errors
+            );
+            TryCleanup
+            (
+                () => target.UnregisterCallback<PointerUpEvent>
+                (
+                    OnPointerUp,
+                    TrickleDown.TrickleDown
+                ),
+                errors
+            );
+            TryCleanup
+            (
+                () => target.UnregisterCallback<PointerCancelEvent>
+                (
+                    OnPointerCancel,
+                    TrickleDown.TrickleDown
+                ),
+                errors
+            );
+
+            ThrowCleanupErrors("Tray reorder callback 해제", errors);
+        }
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// 진행 중 reorder session과 preview를 즉시 취소한다.
+        /// </summary>
+        // ------------------------------------------------------------
+        internal void CancelActive()
+        {
+            if (session == null) return;
+
+            var currentSession = session;
+            var currentButton = activeButton;
+            var currentPointerID = pointerID;
+            var errors = new List<Exception>();
+
+            // 외부 animator/callback 재진입이 같은 drag 종료를 다시 시작하지 않게 먼저 terminalize한다.
+            ResetActiveState();
+
+            TryCleanup
+            (
+                () =>
+                {
+                    if
+                    (
+                        currentPointerID >= 0 &&
+                        target != null &&
+                        target.HasPointerCapture(currentPointerID)
+                    )
+                    {
+                        target.ReleasePointer(currentPointerID);
+                    }
+                },
+                errors
+            );
+            TryCleanup
+            (
+                () => reorderTarget.ReorderAnimator?.Cancel
+                (
+                    reorderTarget,
+                    currentSession
+                ),
+                errors
+            );
+            TryCleanup
+            (
+                () => visual.Clear(currentButton, currentSession),
+                errors
+            );
+
+            ThrowCleanupErrors("Tray reorder 취소", errors);
         }
 
     #endregion
@@ -90,9 +180,9 @@ namespace inonego.Xeri.UI.Tray
         // ------------------------------------------------------------
         private bool CanStartDrag()
         {
-            return reorderTarget != null &&
-                   reorderTarget.Reorderable &&
-                   reorderTarget.GetEntryButtons().Count >= 2;
+            return
+                reorderTarget.Reorderable &&
+                reorderTarget.GetEntryButtons().Count >= 2;
         }
 
         // ------------------------------------------------------------
@@ -156,6 +246,7 @@ namespace inonego.Xeri.UI.Tray
         // ------------------------------------------------------------
         private void OnPointerDown(PointerDownEvent evt)
         {
+            if (session != null) return;
             if (evt.button != 0) return;
             if (!CanStartDrag()) return;
 
@@ -166,9 +257,10 @@ namespace inonego.Xeri.UI.Tray
             var sourceIndex = IndexOf(buttons, button);
             if (sourceIndex < 0) return;
 
+            activeButton = button;
             session = new XeriTrayReorderSession
             (
-                button,
+                button.Entry,
                 sourceIndex,
                 ToEntryContainerPos(evt.position)
             );
@@ -176,11 +268,11 @@ namespace inonego.Xeri.UI.Tray
             pointerID = evt.pointerId;
         }
 
-        // ------------------------------------------------------------
+        // ----------------------------------------------------------------------
         /// <summary>
         /// Pointer 이동량이 threshold를 넘으면 reorder preview를 갱신한다.
         /// </summary>
-        // ------------------------------------------------------------
+        // ----------------------------------------------------------------------
         private void OnPointerMove(PointerMoveEvent evt)
         {
             if (session == null) return;
@@ -197,7 +289,7 @@ namespace inonego.Xeri.UI.Tray
             }
 
             isDragging = true;
-            visual.Move(session, currentPos, reorderTarget);
+            visual.Move(activeButton, session, currentPos, reorderTarget);
 
             var bounds = reorderTarget.GetEntryBounds();
             var targetIndex = calculator.CalculateTargetIndex
@@ -217,51 +309,89 @@ namespace inonego.Xeri.UI.Tray
             evt.StopPropagation();
         }
 
-        // ------------------------------------------------------------
+        // ----------------------------------------------------------------------
         /// <summary>
         /// Pointer release 시 reorder 요청을 확정하거나 preview를 취소한다.
         /// </summary>
-        // ------------------------------------------------------------
+        // ----------------------------------------------------------------------
         private void OnPointerUp(PointerUpEvent evt)
         {
             if (session == null) return;
             if (evt.pointerId != pointerID) return;
 
+            var currentSession = session;
+            var currentButton = activeButton;
             var wasDragging = isDragging;
+            var shouldCommit =
+                wasDragging &&
+                currentSession.TargetIndex != currentSession.SourceIndex;
+            var errors = new List<Exception>();
 
-            if (target.HasPointerCapture(evt.pointerId))
-            {
-                target.ReleasePointer(evt.pointerId);
-            }
+            // 확정 observer가 재진입해 Panel을 reload해도 같은 drag 수명을 다시 정리하지 않게 먼저 종료한다.
+            ResetActiveState();
 
-            if (isDragging && session.TargetIndex != session.SourceIndex)
+            TryCleanup
+            (
+                () =>
+                {
+                    if (target.HasPointerCapture(evt.pointerId))
+                    {
+                        target.ReleasePointer(evt.pointerId);
+                    }
+                },
+                errors
+            );
+
+            if (shouldCommit)
             {
-                reorderTarget.InvokeEntryReorder
+                TryCleanup
                 (
-                    new XeriTrayReorderRequest
+                    () => reorderTarget.InvokeEntryReorder
                     (
-                        session.Entry,
-                        session.SourceIndex,
-                        session.TargetIndex
-                    )
+                        new XeriTrayReorderRequest
+                        (
+                            currentSession.Entry,
+                            currentSession.SourceIndex,
+                            currentSession.TargetIndex
+                        )
+                    ),
+                    errors
                 );
-
-                reorderTarget.ReorderAnimator?.Commit(reorderTarget, session);
+                TryCleanup
+                (
+                    () => reorderTarget.ReorderAnimator?.Commit
+                    (
+                        reorderTarget,
+                        currentSession
+                    ),
+                    errors
+                );
             }
             else
             {
-                reorderTarget.ReorderAnimator?.Cancel(reorderTarget, session);
+                TryCleanup
+                (
+                    () => reorderTarget.ReorderAnimator?.Cancel
+                    (
+                        reorderTarget,
+                        currentSession
+                    ),
+                    errors
+                );
             }
 
-            visual.Clear(session);
-            session = null;
-            isDragging = false;
-            pointerID = -1;
+            TryCleanup
+            (
+                () => visual.Clear(currentButton, currentSession),
+                errors
+            );
 
             if (wasDragging)
             {
                 evt.StopImmediatePropagation();
             }
+
+            ThrowCleanupErrors("Tray reorder 확정", errors);
         }
 
         // ------------------------------------------------------------
@@ -274,16 +404,98 @@ namespace inonego.Xeri.UI.Tray
             if (session == null) return;
             if (evt.pointerId != pointerID) return;
 
-            if (target.HasPointerCapture(evt.pointerId))
-            {
-                target.ReleasePointer(evt.pointerId);
-            }
+            var currentSession = session;
+            var currentButton = activeButton;
+            var errors = new List<Exception>();
 
-            reorderTarget.ReorderAnimator?.Cancel(reorderTarget, session);
-            visual.Clear(session);
+            ResetActiveState();
+
+            TryCleanup
+            (
+                () =>
+                {
+                    if (target.HasPointerCapture(evt.pointerId))
+                    {
+                        target.ReleasePointer(evt.pointerId);
+                    }
+                },
+                errors
+            );
+            TryCleanup
+            (
+                () => reorderTarget.ReorderAnimator?.Cancel
+                (
+                    reorderTarget,
+                    currentSession
+                ),
+                errors
+            );
+            TryCleanup
+            (
+                () => visual.Clear(currentButton, currentSession),
+                errors
+            );
+
+            ThrowCleanupErrors("Tray reorder pointer 취소", errors);
+        }
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// 현재 reorder 입력 소유권을 terminal 상태로 초기화한다.
+        /// </summary>
+        // ------------------------------------------------------------
+        private void ResetActiveState()
+        {
+            activeButton = null;
             session = null;
             isDragging = false;
             pointerID = -1;
+        }
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// 독립 cleanup을 끝까지 시도하고 실패를 수집한다.
+        /// </summary>
+        // ------------------------------------------------------------
+        private static void TryCleanup
+        (
+            Action cleanup,
+            List<Exception> errors
+        )
+        {
+            try
+            {
+                cleanup();
+            }
+            catch (Exception exception)
+            {
+                errors.Add(exception);
+            }
+        }
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// 수집한 reorder cleanup 실패를 원래 형태로 전달한다.
+        /// </summary>
+        // ------------------------------------------------------------
+        private static void ThrowCleanupErrors
+        (
+            string message,
+            List<Exception> errors
+        )
+        {
+            if (errors.Count == 0) return;
+
+            if (errors.Count == 1)
+            {
+                throw errors[0];
+            }
+
+            throw new AggregateException
+            (
+                $"{message} 중 하나 이상의 작업이 실패했습니다.",
+                errors
+            );
         }
 
     #endregion

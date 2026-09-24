@@ -10,24 +10,24 @@ using UnityEngine;
 
 namespace inonego.Xeri.UI.Window
 {
-   // ============================================================
-   /// <summary>
-   /// Xeri window animation 목표 bounds provider.
-   /// </summary>
-   // ============================================================
-   public interface IXeriWindowAnimationTargetProvider
-   {
+    // ============================================================
+    /// <summary>
+    /// Xeri window animation 목표 bounds provider.
+    /// </summary>
+    // ============================================================
+    public interface IXeriWindowAnimationTargetProvider
+    {
 
-   #region 메서드
+    #region 메서드
 
-      // ------------------------------------------------------------
-      /// <summary>
-      /// 상태 전환 목표 bounds를 반환한다.
-      /// </summary>
-      // ------------------------------------------------------------
-      Rect GetTargetBounds(XeriWindowState nextState, Rect currentBounds);
+        // ------------------------------------------------------------
+        /// <summary>
+        /// 상태 전환 목표 bounds를 반환한다.
+        /// </summary>
+        // ------------------------------------------------------------
+        Rect GetTargetBounds(XeriWindowState nextState, Rect currentBounds);
 
-   #endregion
+    #endregion
 
-   }
+    }
 }

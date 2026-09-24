@@ -1,8 +1,8 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : InputSystemScreenInputDriver.cs
-수정일 : 2026-09-17
+수정일 : 2026-10-03
 # 설명
-Screen 입력 정책을 Input System Action Map과 Cursor 상태에 합성하고 입력 해제 장벽을 갱신한다.
+Screen 입력 정책을 active Context contribution만 사용해 Action Map과 Cursor 상태에 합성하고 입력 해제 장벽을 갱신한다.
 ========================================================================= BLOCK_HEADER_END */
 
 using System;
@@ -41,13 +41,6 @@ namespace inonego.Xeri.UI
 
             // ------------------------------------------------------------
             /// <summary>
-            /// 같은 우선순위에서 최신 정책을 선택할 획득 순서.
-            /// </summary>
-            // ------------------------------------------------------------
-            public long Sequence { get; }
-
-            // ------------------------------------------------------------
-            /// <summary>
             /// 입력 해제 후 복원을 허용할 최초 Frame.
             /// </summary>
             // ------------------------------------------------------------
@@ -58,14 +51,9 @@ namespace inonego.Xeri.UI
             /// 입력 Session 상태를 생성한다.
             /// </summary>
             // ------------------------------------------------------------
-            public SessionState
-            (
-                ScreenInputSession session,
-                long sequence
-            ) : base()
+            public SessionState(ScreenInputSession session)
             {
                 Session = session ?? throw new ArgumentNullException(nameof(session));
-                Sequence = sequence;
             }
         }
 
@@ -91,7 +79,6 @@ namespace inonego.Xeri.UI
         private readonly List<SessionState> sessionsReadyForRelease = new List<SessionState>();
         private readonly List<InputAction> releaseActions = new List<InputAction>();
 
-        private InputSystemUIInputModule inputModule = null;
         private InputActionMap uiActionMap = null;
         private InputActionMap gameplayActionMap = null;
 
@@ -109,7 +96,7 @@ namespace inonego.Xeri.UI
 
         private int batchDepth = 0;
         private bool applyPending = false;
-        private long nextSequence = 0;
+        private ScreenInputSession retainedCursorOwner = null;
         private bool isDisposed = false;
 
     #endregion
@@ -148,18 +135,20 @@ namespace inonego.Xeri.UI
                 throw new ObjectDisposedException(nameof(InputSystemScreenInputDriver));
             }
 
-            this.inputModule = inputModule ?? throw new ArgumentNullException(nameof(inputModule));
-
             if (settings == null)
             {
                 throw new ArgumentNullException(nameof(settings));
             }
 
-            var uiActionsAsset = inputModule.actionsAsset;
+            var uiActionsAsset = settings.UIActionsAsset ?? inputModule?.actionsAsset;
 
             if (uiActionsAsset == null)
             {
-                throw new InvalidOperationException("InputSystemUIInputModule Actions Asset이 설정되지 않았습니다.");
+                throw new InvalidOperationException
+                (
+                    "UI Action Asset이 설정되지 않았습니다. " +
+                    "UISettingsAsset.UIActionsAsset 또는 mixed UGUI InputModule actionsAsset이 필요합니다."
+                );
             }
 
             var gameplayActionsAsset = settings.GameplayActionsAsset;
@@ -183,7 +172,8 @@ namespace inonego.Xeri.UI
             }
 
             BuildReleaseActions(settings.ReleaseActionNames);
-            InputSystem.onActionChange += HandleActionChange;
+            SubscribeInputDeviceTracking(uiActionMap);
+            SubscribeInputDeviceTracking(gameplayActionMap);
             IsInitialized = true;
         }
 
@@ -230,7 +220,13 @@ namespace inonego.Xeri.UI
 
             for (var i = 0; i < sessionsReadyForRelease.Count; i++)
             {
-                sessions.Remove(sessionsReadyForRelease[i]);
+                var sessionState = sessionsReadyForRelease[i];
+                sessions.Remove(sessionState);
+
+                if (ReferenceEquals(retainedCursorOwner, sessionState.Session))
+                {
+                    retainedCursorOwner = null;
+                }
             }
 
             try
@@ -318,14 +314,18 @@ namespace inonego.Xeri.UI
 
     #endregion
 
-    #region IScreenInputDriver
+    #region 스크린 입력 드라이버 구현
 
         // ------------------------------------------------------------
         /// <summary>
         /// Screen Options에 맞는 입력 정책 Session을 획득한다.
         /// </summary>
         // ------------------------------------------------------------
-        public ScreenInputSession Acquire(ScreenOptions options)
+        public ScreenInputSession Acquire
+        (
+            ScreenOptions options,
+            bool contributionEnabled = true
+        )
         {
             ThrowIfUnavailable();
 
@@ -339,8 +339,14 @@ namespace inonego.Xeri.UI
                 CaptureBaselineState();
             }
 
-            var session = new ScreenInputSession(options, RequestSessionRelease);
-            var sessionState = new SessionState(session, nextSequence++);
+            var session = new ScreenInputSession
+            (
+                options,
+                RequestSessionRelease,
+                HandleContributionChanged,
+                contributionEnabled
+            );
+            var sessionState = new SessionState(session);
             sessions.Add(sessionState);
 
             try
@@ -448,8 +454,30 @@ namespace inonego.Xeri.UI
 
             if (waitForInputRelease && IsReleaseInputPressed())
             {
+                if
+                (
+                    retainCursorWhileAwaitingRelease &&
+                    retainedCursorOwner != null &&
+                    !ReferenceEquals(retainedCursorOwner, session)
+                )
+                {
+                    throw new InvalidOperationException
+                    (
+                        "입력 해제 대기 Cursor owner는 동시에 하나만 존재할 수 있습니다."
+                    );
+                }
+
                 sessionState.ReleaseFrame = -1;
                 session.MarkAwaitingRelease(retainCursorWhileAwaitingRelease);
+
+                if (retainCursorWhileAwaitingRelease)
+                {
+                    retainedCursorOwner = session;
+                }
+                else if (ReferenceEquals(retainedCursorOwner, session))
+                {
+                    retainedCursorOwner = null;
+                }
 
                 try
                 {
@@ -458,6 +486,12 @@ namespace inonego.Xeri.UI
                 catch
                 {
                     sessions.RemoveAt(index);
+
+                    if (ReferenceEquals(retainedCursorOwner, session))
+                    {
+                        retainedCursorOwner = null;
+                    }
+
                     ResetApplyStateAfterFailure();
                     ReleaseSession
                     (
@@ -472,6 +506,11 @@ namespace inonego.Xeri.UI
             }
 
             sessions.RemoveAt(index);
+
+            if (ReferenceEquals(retainedCursorOwner, session))
+            {
+                retainedCursorOwner = null;
+            }
 
             try
             {
@@ -531,6 +570,18 @@ namespace inonego.Xeri.UI
             return -1;
         }
 
+        // --------------------------------------------------------------------------------
+        /// <summary>
+        /// Screen Session contribution 변경을 현재 effective input state에 반영한다.
+        /// </summary>
+        // --------------------------------------------------------------------------------
+        private void HandleContributionChanged(ScreenInputSession session)
+        {
+            if (!IsInitialized || isDisposed || session == null || session.IsReleased) return;
+
+            RequestApply();
+        }
+
         // ------------------------------------------------------------
         /// <summary>
         /// 현재 입력 정책 적용 또는 Batch 종료 시점 적용을 요청한다.
@@ -553,14 +604,8 @@ namespace inonego.Xeri.UI
         // --------------------------------------------------------------------------------
         private void ResetApplyStateAfterFailure()
         {
+            // 실패한 실제 backend 상태를 다시 덮어쓸 기준 snapshot은 성공적으로 복원할 때까지 유지한다.
             applyPending = false;
-
-            if (sessions.Count == 0)
-            {
-                baselineCaptured = false;
-                baselineUIActionsEnabled = null;
-                baselineGameplayActionsEnabled = null;
-            }
         }
 
         // ----------------------------------------------------------------------
@@ -580,6 +625,7 @@ namespace inonego.Xeri.UI
             }
 
             sessions.Clear();
+            retainedCursorOwner = null;
             batchDepth = 0;
             applyPending = true;
 
@@ -632,52 +678,70 @@ namespace inonego.Xeri.UI
                 return;
             }
 
+            var hasContribution = false;
             var blocksGameplay = false;
             var hasReleaseBarrier = false;
-            SessionState cursorSession = null;
-            SessionState retainedCursorSession = null;
+            ScreenInputSession cursorOwner = null;
 
             for (var i = 0; i < sessions.Count; i++)
             {
-                var sessionState = sessions[i];
+                var session = sessions[i].Session;
 
-                if (sessionState.Session.IsAwaitingRelease)
+                if (!session.IsContributionEnabled) continue;
+
+                hasContribution = true;
+
+                if (session.IsAwaitingRelease)
                 {
                     hasReleaseBarrier = true;
-
-                    if
-                    (
-                        sessionState.Session.RetainsCursorWhileAwaitingRelease &&
-                        (retainedCursorSession == null ||
-                        sessionState.Sequence > retainedCursorSession.Sequence)
-                    )
-                    {
-                        retainedCursorSession = sessionState;
-                    }
-
                     continue;
                 }
 
-                blocksGameplay |= sessionState.Session.Options.BlocksGameplayInput;
+                blocksGameplay |= session.Options.BlocksGameplayInput;
 
-                if
-                (
-                    cursorSession == null ||
-                    sessionState.Session.Options.InputPriority > cursorSession.Session.Options.InputPriority ||
-                    (sessionState.Session.Options.InputPriority == cursorSession.Session.Options.InputPriority &&
-                    sessionState.Sequence > cursorSession.Sequence)
-                )
+                if (!session.IsCursorPolicyEnabled) continue;
+
+                if (cursorOwner != null && !ReferenceEquals(cursorOwner, session))
                 {
-                    cursorSession = sessionState;
+                    throw new InvalidOperationException
+                    (
+                        "동시에 둘 이상의 Screen이 Cursor policy owner로 활성화됐습니다."
+                    );
                 }
+
+                cursorOwner = session;
             }
 
-            var effectiveCursorSession = retainedCursorSession ?? cursorSession;
-            var cursorVisible = effectiveCursorSession != null
-                ? effectiveCursorSession.Session.Options.ShowsCursor
+            if (!hasContribution)
+            {
+                ApplyCapturedBaselineState();
+                applyPending = false;
+                return;
+            }
+
+            var retainedOwner = retainedCursorOwner;
+
+            if
+            (
+                retainedOwner != null &&
+                (
+                    retainedOwner.IsReleased ||
+                    !retainedOwner.IsAwaitingRelease ||
+                    !retainedOwner.RetainsCursorWhileAwaitingRelease ||
+                    !retainedOwner.IsContributionEnabled
+                )
+            )
+            {
+                retainedOwner = null;
+                retainedCursorOwner = null;
+            }
+
+            var effectiveCursorOwner = retainedOwner ?? cursorOwner;
+            var cursorVisible = effectiveCursorOwner != null
+                ? effectiveCursorOwner.Options.ShowsCursor
                 : baselineCursorVisible;
-            var cursorLockMode = effectiveCursorSession != null
-                ? effectiveCursorSession.Session.Options.CursorLockMode
+            var cursorLockMode = effectiveCursorOwner != null
+                ? effectiveCursorOwner.Options.CursorLockMode
                 : baselineCursorLockMode;
 
             ApplyState
@@ -689,6 +753,77 @@ namespace inonego.Xeri.UI
             );
 
             applyPending = false;
+        }
+
+        // --------------------------------------------------------------------------------
+        /// <summary>
+        /// 캡처한 baseline을 적용하되 살아 있는 suspended Session을 위해 snapshot은 유지한다.
+        /// </summary>
+        // --------------------------------------------------------------------------------
+        private void ApplyCapturedBaselineState()
+        {
+            var errors = new List<Exception>();
+
+            try
+            {
+                RestoreActionStates(uiActionMap, baselineUIActionsEnabled);
+            }
+            catch (Exception exception)
+            {
+                errors.Add(exception);
+            }
+
+            appliedUIEnabled = AreAllActionsEnabled(uiActionMap);
+
+            try
+            {
+                RestoreActionStates(gameplayActionMap, baselineGameplayActionsEnabled);
+            }
+            catch (Exception exception)
+            {
+                errors.Add(exception);
+            }
+
+            appliedGameplayEnabled = gameplayActionMap.enabled;
+
+            if (baselineCursorVisible != appliedCursorVisible)
+            {
+                try
+                {
+                    Cursor.visible = baselineCursorVisible;
+                    appliedCursorVisible = baselineCursorVisible;
+                }
+                catch (Exception exception)
+                {
+                    errors.Add(exception);
+                }
+            }
+
+            if (baselineCursorLockMode != appliedCursorLockMode)
+            {
+                try
+                {
+                    Cursor.lockState = baselineCursorLockMode;
+                    appliedCursorLockMode = baselineCursorLockMode;
+                }
+                catch (Exception exception)
+                {
+                    errors.Add(exception);
+                }
+            }
+
+            if (errors.Count == 0) return;
+
+            if (errors.Count == 1)
+            {
+                throw errors[0];
+            }
+
+            throw new AggregateException
+            (
+                "Input baseline 상태 복원 중 하나 이상의 적용이 실패했습니다.",
+                errors
+            );
         }
 
         // ----------------------------------------------------------------------
@@ -704,24 +839,7 @@ namespace inonego.Xeri.UI
                 return;
             }
 
-            // Map 단위 Enable로 원래 꺼져 있던 Action까지 켜지 않도록 개별 상태를 복원한다.
-            RestoreActionStates(uiActionMap, baselineUIActionsEnabled);
-            RestoreActionStates(gameplayActionMap, baselineGameplayActionsEnabled);
-            appliedUIEnabled = AreAllActionsEnabled(uiActionMap);
-            appliedGameplayEnabled = gameplayActionMap.enabled;
-
-            if (baselineCursorVisible != appliedCursorVisible)
-            {
-                Cursor.visible = baselineCursorVisible;
-                appliedCursorVisible = baselineCursorVisible;
-            }
-
-            if (baselineCursorLockMode != appliedCursorLockMode)
-            {
-                Cursor.lockState = baselineCursorLockMode;
-                appliedCursorLockMode = baselineCursorLockMode;
-            }
-
+            ApplyCapturedBaselineState();
             baselineCaptured = false;
             baselineUIActionsEnabled = null;
             baselineGameplayActionsEnabled = null;
@@ -774,16 +892,45 @@ namespace inonego.Xeri.UI
             bool[] states
         )
         {
-            map.Disable();
+            var errors = new List<Exception>();
+
+            try
+            {
+                map.Disable();
+            }
+            catch (Exception exception)
+            {
+                errors.Add(exception);
+            }
+
             var actions = map.actions;
 
             for (var i = 0; i < actions.Count; i++)
             {
-                if (states[i])
+                if (!states[i]) continue;
+
+                try
                 {
                     actions[i].Enable();
                 }
+                catch (Exception exception)
+                {
+                    errors.Add(exception);
+                }
             }
+
+            if (errors.Count == 0) return;
+
+            if (errors.Count == 1)
+            {
+                throw errors[0];
+            }
+
+            throw new AggregateException
+            (
+                $"Input Action Map '{map.name}' 상태 복원 중 하나 이상의 Action 적용이 실패했습니다.",
+                errors
+            );
         }
 
         // ------------------------------------------------------------
@@ -799,38 +946,87 @@ namespace inonego.Xeri.UI
             CursorLockMode cursorLockMode
         )
         {
+            var errors = new List<Exception>();
+
             if (uiEnabled != appliedUIEnabled)
             {
-                SetMapEnabled(uiActionMap, uiEnabled);
-                appliedUIEnabled = uiEnabled;
+                try
+                {
+                    SetMapEnabled(uiActionMap, uiEnabled);
+                    appliedUIEnabled = uiEnabled;
+                }
+                catch (Exception exception)
+                {
+                    // 부분 적용 여부를 bool cache로 추정하지 않고 다음 요청에서 같은 목표를 다시 적용한다.
+                    appliedUIEnabled = !uiEnabled;
+                    errors.Add(exception);
+                }
             }
 
             if (gameplayEnabled != appliedGameplayEnabled)
             {
-                if (gameplayEnabled)
+                try
                 {
-                    // 차단 해제 시 Map 전체가 아니라 Session 직전의 Action별 상태를 복원한다.
-                    RestoreActionStates(gameplayActionMap, baselineGameplayActionsEnabled);
-                }
-                else
-                {
-                    SetMapEnabled(gameplayActionMap, false);
-                }
+                    if (gameplayEnabled)
+                    {
+                        // 차단 해제 시 Map 전체가 아니라 Session 직전의 Action별 상태를 복원한다.
+                        RestoreActionStates(gameplayActionMap, baselineGameplayActionsEnabled);
+                    }
+                    else
+                    {
+                        SetMapEnabled(gameplayActionMap, false);
+                    }
 
-                appliedGameplayEnabled = gameplayEnabled;
+                    appliedGameplayEnabled = gameplayEnabled;
+                }
+                catch (Exception exception)
+                {
+                    // baseline은 Action별 상태이므로 map.enabled만으로 복원 성공을 판정할 수 없다.
+                    appliedGameplayEnabled = !gameplayEnabled;
+                    errors.Add(exception);
+                }
             }
 
             if (cursorVisible != appliedCursorVisible)
             {
-                Cursor.visible = cursorVisible;
-                appliedCursorVisible = cursorVisible;
+                try
+                {
+                    Cursor.visible = cursorVisible;
+                    appliedCursorVisible = cursorVisible;
+                }
+                catch (Exception exception)
+                {
+                    appliedCursorVisible = !cursorVisible;
+                    errors.Add(exception);
+                }
             }
 
             if (cursorLockMode != appliedCursorLockMode)
             {
-                Cursor.lockState = cursorLockMode;
-                appliedCursorLockMode = cursorLockMode;
+                try
+                {
+                    Cursor.lockState = cursorLockMode;
+                    appliedCursorLockMode = cursorLockMode;
+                }
+                catch (Exception exception)
+                {
+                    appliedCursorLockMode = Cursor.lockState;
+                    errors.Add(exception);
+                }
             }
+
+            if (errors.Count == 0) return;
+
+            if (errors.Count == 1)
+            {
+                throw errors[0];
+            }
+
+            throw new AggregateException
+            (
+                "Screen 입력 정책 적용 중 하나 이상의 backend 변경이 실패했습니다.",
+                errors
+            );
         }
 
         // ------------------------------------------------------------
@@ -974,43 +1170,62 @@ namespace inonego.Xeri.UI
 
         // ------------------------------------------------------------
         /// <summary>
-        /// 수행된 Input Action의 장치가 바뀌면 마지막 입력 장치를 갱신한다.
+        /// Action Map의 수행 입력을 마지막 입력 장치 추적에 연결한다.
         /// </summary>
         // ------------------------------------------------------------
-        private void HandleActionChange
-        (
-            object changedObject,
-            InputActionChange change
-        )
+        private void SubscribeInputDeviceTracking(InputActionMap map)
         {
-            if (change != InputActionChange.ActionPerformed || changedObject is not InputAction action)
-            {
-                return;
-            }
+            var actions = map.actions;
 
-            if
-            (
-                !ReferenceEquals(action.actionMap, uiActionMap) &&
-                !ReferenceEquals(action.actionMap, gameplayActionMap)
-            )
+            for (var i = 0; i < actions.Count; i++)
             {
-                return;
+                actions[i].performed += HandleActionPerformed;
             }
+        }
 
-            var device = action.activeControl?.device;
+        // ------------------------------------------------------------
+        /// <summary>
+        /// Action Map의 마지막 입력 장치 추적 구독을 해제한다.
+        /// </summary>
+        // ------------------------------------------------------------
+        private void UnsubscribeInputDeviceTracking(InputActionMap map)
+        {
+            if (map == null) return;
+
+            var actions = map.actions;
+
+            for (var i = 0; i < actions.Count; i++)
+            {
+                actions[i].performed -= HandleActionPerformed;
+            }
+        }
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// 구성된 Action 수행 장치가 바뀌면 마지막 입력 장치를 갱신한다.
+        /// </summary>
+        // ------------------------------------------------------------
+        private void HandleActionPerformed(InputAction.CallbackContext context)
+        {
+            var device = context.control?.device;
 
             if (device == null || ReferenceEquals(device, LastInputDevice)) return;
 
             LastInputDevice = device;
+            var handlers = OnLastInputDeviceChanged;
+            if (handlers == null) return;
 
-            try
+            foreach (Action<InputDevice> handler in handlers.GetInvocationList())
             {
-                OnLastInputDeviceChanged?.Invoke(device);
-            }
-            catch (Exception exception)
-            {
-                // Input System 전역 callback은 구독자 예외를 외부 루프까지 전파하지 않는다.
-                Debug.LogException(exception, this);
+                try
+                {
+                    handler.Invoke(device);
+                }
+                catch (Exception exception)
+                {
+                    // 한 observer 실패가 뒤 observer와 Input System update를 차단하지 않게 격리한다.
+                    Debug.LogException(exception, this);
+                }
             }
         }
 
@@ -1034,7 +1249,7 @@ namespace inonego.Xeri.UI
 
     #endregion
 
-    #region IDisposable
+    #region 수명 해제
 
         // ------------------------------------------------------------
         /// <summary>
@@ -1052,7 +1267,8 @@ namespace inonego.Xeri.UI
             if (wasInitialized)
             {
                 errors.AddRange(ReleaseAllSessions());
-                InputSystem.onActionChange -= HandleActionChange;
+                UnsubscribeInputDeviceTracking(uiActionMap);
+                UnsubscribeInputDeviceTracking(gameplayActionMap);
             }
 
             releaseActions.Clear();
@@ -1060,7 +1276,6 @@ namespace inonego.Xeri.UI
             sessionsReadyForRelease.Clear();
             baselineUIActionsEnabled = null;
             baselineGameplayActionsEnabled = null;
-            inputModule = null;
             uiActionMap = null;
             gameplayActionMap = null;
             OnLastInputDeviceChanged = null;

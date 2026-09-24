@@ -1,12 +1,14 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명: XeriTrayButton.cs
-수정일 : 2026-09-20
+수정일 : 2026-10-05
 
 # 설명
 공통 Tray entry 하나를 표시하는 UITK VisualElement.
 ========================================================================= BLOCK_HEADER_END */
 
 using System;
+using System.Collections;
+using System.Collections.Generic;
 
 using UnityEngine;
 using UnityEngine.UIElements;
@@ -24,7 +26,7 @@ namespace inonego.Xeri.UI.Tray
     #region 필드
 
         private const string TRAY_BUTTON_UXML_PATH = "XeriUI/Tray/XeriTrayButton";
-        private const string TRAY_BUTTON_USS_PATH  = "XeriUI/Tray/XeriTrayButton";
+        private const string TRAY_BUTTON_USS_PATH  = "XeriUI/Tray/XeriTrayButtonStyles";
 
         // ------------------------------------------------------------
         /// <summary>
@@ -116,6 +118,8 @@ namespace inonego.Xeri.UI.Tray
         public void Refresh(XeriTrayEntry entry, XeriTrayOptions options)
         {
             this.entry = entry;
+            EnableInClassList("xeri-tray-button--active", entry != null && entry.IsActive);
+            EnableInClassList("xeri-tray-button--visible", entry != null && entry.IsVisible);
 
             var content = options != null
                 ? options.VisibleContent
@@ -134,11 +138,11 @@ namespace inonego.Xeri.UI.Tray
 
     #region 내부 메서드
 
-        // ------------------------------------------------------------
+        // ----------------------------------------------------------------------
         /// <summary>
         /// Tray button USS를 Resources에서 로드해 현재 element에 연결한다.
         /// </summary>
-        // ------------------------------------------------------------
+        // ----------------------------------------------------------------------
         private void LoadStyleSheet()
         {
             var styleSheet = Resources.Load<StyleSheet>(TRAY_BUTTON_USS_PATH);
@@ -282,7 +286,7 @@ namespace inonego.Xeri.UI.Tray
         {
             if (entry == null) return;
 
-            OnEntrySelect?.Invoke(this, new XeriTrayEventArgs(entry));
+            InvokeHandlers(OnEntrySelect, new XeriTrayEventArgs(entry));
         }
 
         // ------------------------------------------------------------
@@ -296,7 +300,48 @@ namespace inonego.Xeri.UI.Tray
 
             evt.StopPropagation();
 
-            OnEntryClose?.Invoke(this, new XeriTrayEventArgs(entry));
+            InvokeHandlers(OnEntryClose, new XeriTrayEventArgs(entry));
+        }
+
+        // ----------------------------------------------------------------------
+        /// <summary>
+        /// Button observer를 독립적으로 호출하고 모든 실패를 호출자에게 함께 전달한다.
+        /// </summary>
+        // ----------------------------------------------------------------------
+        private void InvokeHandlers
+        (
+            EventHandler<XeriTrayEventArgs> handlers,
+            XeriTrayEventArgs eventArgs
+        )
+        {
+            if (handlers == null) return;
+
+            var errors = new List<Exception>();
+
+            foreach (EventHandler<XeriTrayEventArgs> handler in handlers.GetInvocationList())
+            {
+                try
+                {
+                    handler.Invoke(this, eventArgs);
+                }
+                catch (Exception exception)
+                {
+                    errors.Add(exception);
+                }
+            }
+
+            if (errors.Count == 0) return;
+
+            if (errors.Count == 1)
+            {
+                throw errors[0];
+            }
+
+            throw new AggregateException
+            (
+                "Tray Button 이벤트 처리 중 하나 이상의 observer가 실패했습니다.",
+                errors
+            );
         }
 
     #endregion

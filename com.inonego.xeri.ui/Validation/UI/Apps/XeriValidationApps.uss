@@ -1,0 +1,349 @@
+/* BLOCK_HEADER_BEGIN =======================================================================
+파일명 : XeriValidationApps.uss
+수정일 : 2026-10-04
+
+# 설명
+Task Board, Preferences와 Application validation view의 dark responsive layout.
+========================================================================= BLOCK_HEADER_END */
+
+.xeri-validation-app {
+    position: absolute;
+    left: 0;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    min-width: 0;
+    min-height: 0;
+    padding: var(--xeri-validation-space-4);
+    gap: var(--xeri-desktop-space-3);
+    color: var(--xeri-desktop-text);
+    background-color: var(--xeri-desktop-surface);
+}
+
+.xeri-validation-app__header {
+    min-width: 0;
+    min-height: 54px;
+    flex-shrink: 0;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--xeri-validation-space-2);
+}
+
+.xeri-validation-app__heading {
+    min-width: 180px;
+    flex-grow: 1;
+    min-height: 0;
+}
+
+.xeri-validation-app__title {
+    color: var(--xeri-desktop-text);
+    font-size: 20px;
+    -unity-font-style: bold;
+}
+
+.xeri-validation-app__subtitle {
+    margin-top: 3px;
+    color: var(--xeri-desktop-muted);
+    font-size: var(--xeri-validation-font-sm);
+    white-space: normal;
+}
+
+.xeri-validation-app__status {
+    min-height: 26px;
+    flex-shrink: 0;
+    padding-left: var(--xeri-desktop-space-3);
+    padding-right: var(--xeri-desktop-space-3);
+    align-items: center;
+    justify-content: center;
+    color: var(--xeri-validation-accent-hover);
+    background-color: var(--xeri-validation-accent-soft);
+    border-top-left-radius: 13px;
+    border-top-right-radius: 13px;
+    border-bottom-left-radius: 13px;
+    border-bottom-right-radius: 13px;
+    font-size: var(--xeri-validation-font-xs);
+    -unity-font-style: bold;
+    -unity-text-align: middle-center;
+}
+
+.xeri-validation-app__scroll {
+    flex-grow: 1;
+    min-width: 0;
+    min-height: 0;
+}
+
+.xeri-validation-app__scroll .unity-scroll-view__content-container {
+    min-width: 0;
+    padding-right: var(--xeri-validation-space-1);
+    gap: var(--xeri-desktop-space-3);
+}
+
+.xeri-validation-app__section {
+    min-width: 0;
+    padding: var(--xeri-validation-space-4);
+    gap: var(--xeri-validation-space-2);
+    color: var(--xeri-desktop-text);
+    background-color: var(--xeri-desktop-surface-raised);
+    border-left-width: 1px;
+    border-right-width: 1px;
+    border-top-width: 1px;
+    border-bottom-width: 1px;
+    border-color: var(--xeri-desktop-border);
+    border-top-left-radius: var(--xeri-validation-radius);
+    border-top-right-radius: var(--xeri-validation-radius);
+    border-bottom-left-radius: var(--xeri-validation-radius);
+    border-bottom-right-radius: var(--xeri-validation-radius);
+}
+
+.xeri-validation-app__section-title {
+    color: var(--xeri-desktop-text);
+    font-size: var(--xeri-validation-font-md);
+    -unity-font-style: bold;
+}
+
+.xeri-validation-app__section-copy {
+    color: var(--xeri-desktop-muted);
+    font-size: var(--xeri-validation-font-sm);
+    white-space: normal;
+}
+
+.xeri-validation-app__input-row {
+    min-width: 0;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--xeri-validation-space-2);
+}
+
+.xeri-validation-app__input-row .unity-text-field {
+    min-width: 190px;
+    flex-grow: 1;
+    flex-basis: 220px;
+}
+
+.xeri-validation-app .unity-text-field,
+.xeri-validation-app .unity-popup-field,
+.xeri-validation-app .unity-toggle,
+.xeri-validation-app #ScaleField {
+    min-width: 0;
+    min-height: 34px;
+    margin-left: 0;
+    margin-right: 0;
+    margin-top: 0;
+    margin-bottom: 0;
+    color: var(--xeri-desktop-text);
+}
+
+.xeri-validation-app .unity-text-field > .unity-base-field__label,
+.xeri-validation-app .unity-popup-field > .unity-base-field__label,
+.xeri-validation-app .unity-toggle > .unity-base-field__label,
+.xeri-validation-app #ScaleField > .unity-base-field__label {
+    min-width: 96px;
+    color: var(--xeri-desktop-muted);
+    -unity-font-style: bold;
+}
+
+.xeri-validation-app .unity-base-text-field__input,
+.xeri-validation-app .unity-base-popup-field__input {
+    min-height: 34px;
+    color: var(--xeri-desktop-text);
+    background-color: var(--xeri-desktop-surface-input);
+    border-left-width: 1px;
+    border-right-width: 1px;
+    border-top-width: 1px;
+    border-bottom-width: 1px;
+    border-color: var(--xeri-desktop-border-strong);
+    border-top-left-radius: var(--xeri-validation-radius-sm);
+    border-top-right-radius: var(--xeri-validation-radius-sm);
+    border-bottom-left-radius: var(--xeri-validation-radius-sm);
+    border-bottom-right-radius: var(--xeri-validation-radius-sm);
+}
+
+.xeri-validation-app .unity-base-text-field__input:focus,
+.xeri-validation-app .unity-base-popup-field__input:focus {
+    border-color: var(--xeri-desktop-accent);
+}
+
+.xeri-validation-app .unity-base-popup-field__arrow {
+    -unity-background-image-tint-color: var(--xeri-desktop-muted);
+}
+
+.xeri-validation-app__list {
+    min-height: 132px;
+    padding: var(--xeri-validation-space-2);
+    gap: var(--xeri-validation-space-2);
+    background-color: var(--xeri-desktop-surface-input);
+    border-left-width: 1px;
+    border-right-width: 1px;
+    border-top-width: 1px;
+    border-bottom-width: 1px;
+    border-color: var(--xeri-desktop-border);
+    border-top-left-radius: var(--xeri-validation-radius-sm);
+    border-top-right-radius: var(--xeri-validation-radius-sm);
+    border-bottom-left-radius: var(--xeri-validation-radius-sm);
+    border-bottom-right-radius: var(--xeri-validation-radius-sm);
+}
+.xeri-validation-app__task {
+    min-width: 0;
+    min-height: 38px;
+    margin-left: 0;
+    margin-right: 0;
+    margin-top: 0;
+    margin-bottom: 0;
+    padding-left: var(--xeri-validation-space-2);
+    padding-right: var(--xeri-validation-space-2);
+    padding-top: var(--xeri-validation-space-1);
+    padding-bottom: var(--xeri-validation-space-1);
+    flex-direction: row;
+    align-items: center;
+    gap: var(--xeri-validation-space-2);
+    color: var(--xeri-desktop-text);
+    background-color: var(--xeri-validation-surface-subtle);
+    border-top-left-radius: var(--xeri-validation-radius-sm);
+    border-top-right-radius: var(--xeri-validation-radius-sm);
+    border-bottom-left-radius: var(--xeri-validation-radius-sm);
+    border-bottom-right-radius: var(--xeri-validation-radius-sm);
+}
+
+.xeri-validation-app__task .unity-toggle__text {
+    min-width: 0;
+    flex-grow: 1;
+    color: var(--xeri-desktop-text);
+    font-size: var(--xeri-validation-font-sm);
+    white-space: normal;
+}
+
+.xeri-validation-preferences__grid {
+    gap: var(--xeri-desktop-space-3);
+}
+
+.xeri-validation-preferences__footer {
+    min-width: 0;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--xeri-validation-space-2);
+}
+
+.xeri-validation-preferences__hint {
+    min-width: 180px;
+    flex-grow: 1;
+    color: var(--xeri-validation-dim);
+    font-size: var(--xeri-validation-font-xs);
+    white-space: normal;
+}
+
+.xeri-validation-application__hero {
+    min-width: 0;
+    min-height: 240px;
+    padding: var(--xeri-validation-space-5);
+    gap: var(--xeri-desktop-space-3);
+    color: var(--xeri-desktop-text);
+    background-color: var(--xeri-desktop-surface-raised);
+    border-left-width: 1px;
+    border-right-width: 1px;
+    border-top-width: 1px;
+    border-bottom-width: 1px;
+    border-color: var(--xeri-desktop-border);
+    border-top-left-radius: var(--xeri-desktop-radius-lg);
+    border-top-right-radius: var(--xeri-desktop-radius-lg);
+    border-bottom-left-radius: var(--xeri-desktop-radius-lg);
+    border-bottom-right-radius: var(--xeri-desktop-radius-lg);
+}
+
+.xeri-validation-application__eyebrow {
+    color: var(--xeri-validation-dim);
+    font-size: var(--xeri-validation-font-xs);
+    -unity-font-style: bold;
+}
+
+.xeri-validation-application__screen-title {
+    color: var(--xeri-desktop-text);
+    font-size: 28px;
+    -unity-font-style: bold;
+}
+
+.xeri-validation-application__actions {
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: var(--xeri-validation-space-2);
+}
+
+.xeri-validation-application__summary {
+    min-width: 0;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: var(--xeri-validation-space-2);
+}
+
+.xeri-validation-application__summary-card {
+    min-width: 140px;
+    flex-grow: 1;
+    flex-basis: 140px;
+    padding: var(--xeri-desktop-space-3);
+    gap: 3px;
+    background-color: var(--xeri-validation-accent-soft);
+    border-left-width: 1px;
+    border-right-width: 1px;
+    border-top-width: 1px;
+    border-bottom-width: 1px;
+    border-color: var(--xeri-desktop-border);
+    border-top-left-radius: var(--xeri-validation-radius-sm);
+    border-top-right-radius: var(--xeri-validation-radius-sm);
+    border-bottom-left-radius: var(--xeri-validation-radius-sm);
+    border-bottom-right-radius: var(--xeri-validation-radius-sm);
+}
+
+.xeri-validation-application__summary-label {
+    color: var(--xeri-validation-dim);
+    font-size: 9px;
+    -unity-font-style: bold;
+}
+
+.xeri-validation-application__summary-value {
+    color: var(--xeri-desktop-text);
+    font-size: var(--xeri-validation-font-sm);
+    white-space: normal;
+}
+
+.xeri-validation-preferences__grid > .unity-base-field {
+    flex-direction: column;
+    align-items: stretch;
+    flex-shrink: 0;
+}
+.xeri-validation-preferences__grid > .unity-base-field > .unity-base-field__label {
+    min-width: 0;
+    margin-bottom: var(--xeri-validation-space-2);
+}
+.xeri-validation-app__section,
+.xeri-validation-application__hero,
+.xeri-validation-application__summary,
+.xeri-validation-preferences__footer {
+    flex-shrink: 0;
+}
+.xeri-validation-app__status {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.xeri-validation-theme .xeri-validation-app__task > .unity-toggle__input {
+    flex-grow: 1;
+    flex-shrink: 1;
+    min-width: 0;
+}
+.xeri-validation-app__task .unity-toggle__text {
+    margin-left: 10px;
+}
+.xeri-validation-preferences__grid > #CompactModeField {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+}
+.xeri-validation-preferences__grid > #CompactModeField > .unity-base-field__label {
+    flex-grow: 1;
+    margin-bottom: 0;
+}

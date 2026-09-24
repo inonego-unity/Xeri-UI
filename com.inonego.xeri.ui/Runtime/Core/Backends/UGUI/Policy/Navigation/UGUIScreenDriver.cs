@@ -70,7 +70,7 @@ namespace inonego.Xeri.UI
 
     #endregion
 
-    #region IScreenInteractionDriver
+    #region 스크린 상호작용 드라이버 구현
 
         // ------------------------------------------------------------
         /// <summary>

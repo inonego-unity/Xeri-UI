@@ -1,8 +1,8 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : DragVisualParams.cs
-수정일 : 2026-09-17
+수정일 : 2026-10-07
 # 설명
-UGUI Drag Visual 대상과 사용할 Presentation Layer ID를 불변 호출 인자로 정의한다.
+UGUI Drag Visual 대상과 사용할 PresentationTarget을 불변 호출 인자로 정의한다.
 ========================================================================= BLOCK_HEADER_END */
 
 using System;
@@ -30,10 +30,10 @@ namespace inonego.Xeri.UI
 
         // ------------------------------------------------------------
         /// <summary>
-        /// Drag Visual을 표시할 Presentation Layer ID.
+        /// Drag Visual을 표시할 local Layer 또는 Host destination.
         /// </summary>
         // ------------------------------------------------------------
-        public string LayerID { get; }
+        public PresentationTarget TargetPresentation { get; }
 
     #endregion
 
@@ -47,23 +47,23 @@ namespace inonego.Xeri.UI
         public DragVisualParams
         (
             RectTransform target,
-            string layerID
+            PresentationTarget presentationTarget
         ) : this()
         {
             Target = target != null
                 ? target
                 : throw new ArgumentNullException(nameof(target));
 
-            if (string.IsNullOrWhiteSpace(layerID))
+            if (!presentationTarget.IsValid)
             {
                 throw new ArgumentException
                 (
-                    "Drag Visual Layer ID가 비어 있습니다.",
-                    nameof(layerID)
+                    "Drag Visual Presentation Target이 유효하지 않습니다.",
+                    nameof(presentationTarget)
                 );
             }
 
-            LayerID = layerID;
+            TargetPresentation = presentationTarget;
         }
 
     #endregion

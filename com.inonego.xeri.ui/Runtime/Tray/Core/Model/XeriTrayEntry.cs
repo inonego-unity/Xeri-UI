@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : XeriTrayEntry.cs
-수정일 : 2026-09-20
+수정일 : 2026-10-05
 
 # 설명
 Tray에 표시할 단일 항목의 공통 데이터.
@@ -31,7 +31,10 @@ namespace inonego.Xeri.UI.Tray
         public string ID
         {
             get => id;
-            set => id = value ?? string.Empty;
+            set
+            {
+                id = value ?? string.Empty;
+            }
         }
 
         [SerializeField]
@@ -45,7 +48,10 @@ namespace inonego.Xeri.UI.Tray
         public string Title
         {
             get => title;
-            set => title = value ?? string.Empty;
+            set
+            {
+                title = value ?? string.Empty;
+            }
         }
 
         [SerializeField]
@@ -59,7 +65,10 @@ namespace inonego.Xeri.UI.Tray
         public string Tooltip
         {
             get => tooltip;
-            set => tooltip = value ?? string.Empty;
+            set
+            {
+                tooltip = value ?? string.Empty;
+            }
         }
 
         [SerializeField]
@@ -73,7 +82,10 @@ namespace inonego.Xeri.UI.Tray
         public Texture2D Icon
         {
             get => icon;
-            set => icon = value;
+            set
+            {
+                icon = value;
+            }
         }
 
         [SerializeField]
@@ -87,7 +99,10 @@ namespace inonego.Xeri.UI.Tray
         public XeriTrayBadge Badge
         {
             get => badge;
-            set => badge = value;
+            set
+            {
+                badge = value;
+            }
         }
 
         [SerializeField]
@@ -101,11 +116,31 @@ namespace inonego.Xeri.UI.Tray
         public bool IsActive
         {
             get => isActive;
-            set => isActive = value;
+            set
+            {
+                isActive = value;
+            }
         }
 
         [SerializeField]
         private bool isActive = false;
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// 연결 콘텐츠가 숨김 없이 표시된 상태이며 현재 포커스와 별개이다.
+        /// </summary>
+        // ------------------------------------------------------------
+        public bool IsVisible
+        {
+            get => isVisible;
+            set
+            {
+                isVisible = value;
+            }
+        }
+
+        [SerializeField]
+        private bool isVisible = false;
 
         // ------------------------------------------------------------
         /// <summary>
@@ -115,7 +150,10 @@ namespace inonego.Xeri.UI.Tray
         public bool CanClose
         {
             get => canClose;
-            set => canClose = value;
+            set
+            {
+                canClose = value;
+            }
         }
 
         [SerializeField]
@@ -129,7 +167,10 @@ namespace inonego.Xeri.UI.Tray
         public string PayloadID
         {
             get => payloadID;
-            set => payloadID = value ?? string.Empty;
+            set
+            {
+                payloadID = value ?? string.Empty;
+            }
         }
 
         [SerializeField]
@@ -143,7 +184,10 @@ namespace inonego.Xeri.UI.Tray
         public object Payload
         {
             get => payload;
-            set => payload = value;
+            set
+            {
+                payload = value;
+            }
         }
 
         [NonSerialized]
@@ -153,7 +197,10 @@ namespace inonego.Xeri.UI.Tray
 
     #region 생성자
 
-        public XeriTrayEntry() : base() {}
+        public XeriTrayEntry()
+        {
+            // NONE
+        }
 
         // ------------------------------------------------------------
         /// <summary>

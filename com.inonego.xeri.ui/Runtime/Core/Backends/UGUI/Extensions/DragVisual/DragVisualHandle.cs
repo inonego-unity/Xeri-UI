@@ -1,11 +1,13 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : DragVisualHandle.cs
-수정일 : 2026-09-17
+수정일 : 2026-10-07
 # 설명
-드래그 시각물의 원래 계층·RectTransform pose와 Presentation Layer Usage를 함께 소유한다.
+드래그 시각물의 원래 계층·RectTransform pose와 Presentation lifetime을 함께 소유한다.
 ========================================================================= BLOCK_HEADER_END */
 
 using System;
+using System.Collections;
+using System.Collections.Generic;
 
 using UnityEngine;
 
@@ -37,7 +39,7 @@ namespace inonego.Xeri.UI
 
         private RectTransform target = null;
         private DragVisualController owner = null;
-        private Lease layerUsage = null;
+        private IDisposable presentationLifetime = null;
         private readonly Transform originalParent = null;
         private readonly int originalSibling = 0;
         private readonly Vector2 originalAnchorMin = default;
@@ -61,12 +63,12 @@ namespace inonego.Xeri.UI
         (
             DragVisualController owner,
             RectTransform target,
-            Lease layerUsage
+            IDisposable presentationLifetime
         ) : base()
         {
             this.owner = owner ?? throw new ArgumentNullException(nameof(owner));
             this.target = target ?? throw new ArgumentNullException(nameof(target));
-            this.layerUsage = layerUsage;
+            this.presentationLifetime = presentationLifetime;
             originalParent = target.parent;
             originalSibling = target.GetSiblingIndex();
             originalAnchorMin = target.anchorMin;
@@ -80,7 +82,7 @@ namespace inonego.Xeri.UI
 
     #endregion
 
-    #region IDisposable
+    #region 해제
 
         // ------------------------------------------------------------
         /// <summary>
@@ -105,36 +107,71 @@ namespace inonego.Xeri.UI
 
             var current = target;
             var currentOwner = owner;
-            var usage = layerUsage;
-            owner = null;
-            layerUsage = null;
+            var currentPresentationLifetime = presentationLifetime;
+            var errors = new List<Exception>();
 
+            // 외부 hierarchy callback이 재진입해도 같은 Handle 종료를 다시 시작하지 않게 먼저 terminalize한다.
+            owner = null;
+            presentationLifetime = null;
+
+            if (current != null)
+            {
+                TryCleanup(() => current.SetParent(originalParent, false), errors);
+                TryCleanup(() => current.SetSiblingIndex(originalSibling), errors);
+                TryCleanup(() => current.anchorMin = originalAnchorMin, errors);
+                TryCleanup(() => current.anchorMax = originalAnchorMax, errors);
+                TryCleanup(() => current.pivot = originalPivot, errors);
+                TryCleanup(() => current.anchoredPosition3D = originalAnchoredPosition, errors);
+                TryCleanup(() => current.sizeDelta = originalSizeDelta, errors);
+                TryCleanup(() => current.localRotation = originalRotation, errors);
+                TryCleanup(() => current.localScale = originalScale, errors);
+            }
+
+            // 계층 복원 callback 동안에는 Target 점유를 유지하고 모든 authored state 복원 시도 뒤 해제한다.
+            target = null;
+
+            if (removeFromHandles)
+            {
+                TryCleanup(() => currentOwner.Release(this), errors);
+            }
+
+            if (currentPresentationLifetime != null)
+            {
+                TryCleanup(currentPresentationLifetime.Dispose, errors);
+            }
+
+            if (errors.Count == 0) return;
+
+            if (errors.Count == 1)
+            {
+                throw errors[0];
+            }
+
+            throw new AggregateException
+            (
+                "Drag Visual pose와 Presentation Layer Lease 정리 중 하나 이상의 작업이 실패했습니다.",
+                errors
+            );
+        }
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// 독립 cleanup 하나를 끝까지 시도하고 실패를 수집한다.
+        /// </summary>
+        // ------------------------------------------------------------
+        private static void TryCleanup
+        (
+            Action cleanup,
+            List<Exception> errors
+        )
+        {
             try
             {
-                if (current != null)
-                {
-                    current.SetParent(originalParent, false);
-                    current.SetSiblingIndex(originalSibling);
-                    current.anchorMin = originalAnchorMin;
-                    current.anchorMax = originalAnchorMax;
-                    current.pivot = originalPivot;
-                    current.anchoredPosition3D = originalAnchoredPosition;
-                    current.sizeDelta = originalSizeDelta;
-                    current.localRotation = originalRotation;
-                    current.localScale = originalScale;
-                }
+                cleanup();
             }
-            finally
+            catch (Exception exception)
             {
-                // 계층 복원 callback 동안 같은 Target의 새 Begin을 막은 뒤 점유와 Layer Usage를 종료한다.
-                target = null;
-
-                if (removeFromHandles)
-                {
-                    currentOwner.Release(this);
-                }
-
-                usage?.Dispose();
+                errors.Add(exception);
             }
         }
 

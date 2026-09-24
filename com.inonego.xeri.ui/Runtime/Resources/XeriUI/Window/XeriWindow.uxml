@@ -9,7 +9,7 @@
                 <ui:Button name="close-button" text="X" class="xeri-window__button xeri-window__button--close" />
             </ui:VisualElement>
         </ui:VisualElement>
-        <ui:VisualElement name="content" class="xeri-window__content" />
+        <ui:VisualElement name="content-root" class="xeri-window__content" />
         <ui:VisualElement name="resize-left" class="xeri-window__resize xeri-window__resize--left" />
         <ui:VisualElement name="resize-top" class="xeri-window__resize xeri-window__resize--top" />
         <ui:VisualElement name="resize-right" class="xeri-window__resize xeri-window__resize--right" />

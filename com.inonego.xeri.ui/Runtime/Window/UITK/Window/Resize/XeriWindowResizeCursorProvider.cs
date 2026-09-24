@@ -23,10 +23,7 @@ namespace inonego.Xeri.UI.Window
         private const int CURSOR_SIZE = 12;
         private const int CURSOR_CENTER = 6;
 
-        private static Texture2D horizontalCursor = null;
-        private static Texture2D verticalCursor = null;
-        private static Texture2D diagonalDownCursor = null;
-        private static Texture2D diagonalUpCursor = null;
+        private Texture2D activeCursor = null;
 
     #endregion
 
@@ -39,9 +36,22 @@ namespace inonego.Xeri.UI.Window
         // ------------------------------------------------------------
         public void Apply(XeriWindowResizeMode mode)
         {
-            var texture = GetCursorTexture(mode);
+            Cursor.SetCursor(null, Vector2.zero, CursorMode.Auto);
+            ReleaseActiveCursor();
 
-            Cursor.SetCursor(texture, new Vector2(CURSOR_CENTER, CURSOR_CENTER), CursorMode.Auto);
+            if (mode == XeriWindowResizeMode.None)
+            {
+                Cursor.SetCursor(null, Vector2.zero, CursorMode.Auto);
+                return;
+            }
+
+            activeCursor = CreateCursorTexture(mode);
+            Cursor.SetCursor
+            (
+                activeCursor,
+                new Vector2(CURSOR_CENTER, CURSOR_CENTER),
+                CursorMode.Auto
+            );
         }
 
         // ------------------------------------------------------------
@@ -52,6 +62,7 @@ namespace inonego.Xeri.UI.Window
         public void Reset()
         {
             Cursor.SetCursor(null, Vector2.zero, CursorMode.Auto);
+            ReleaseActiveCursor();
         }
 
     #endregion
@@ -60,23 +71,23 @@ namespace inonego.Xeri.UI.Window
 
         // ------------------------------------------------------------
         /// <summary>
-        /// Resize 방향에 대응하는 cursor texture를 반환한다.
+        /// 현재 생성한 임시 cursor texture의 native 수명을 반환한다.
         /// </summary>
         // ------------------------------------------------------------
-        private static Texture2D GetCursorTexture(XeriWindowResizeMode mode)
+        private void ReleaseActiveCursor()
         {
-            return mode switch
+            var texture = activeCursor;
+            activeCursor = null;
+
+            if (texture == null) return;
+
+            if (Application.isPlaying)
             {
-                XeriWindowResizeMode.Left or XeriWindowResizeMode.Right =>
-                    horizontalCursor ??= CreateCursorTexture(XeriWindowResizeMode.Left),
-                XeriWindowResizeMode.Top or XeriWindowResizeMode.Bottom =>
-                    verticalCursor ??= CreateCursorTexture(XeriWindowResizeMode.Top),
-                XeriWindowResizeMode.TopLeft or XeriWindowResizeMode.BottomRight =>
-                    diagonalDownCursor ??= CreateCursorTexture(XeriWindowResizeMode.TopLeft),
-                XeriWindowResizeMode.TopRight or XeriWindowResizeMode.BottomLeft =>
-                    diagonalUpCursor ??= CreateCursorTexture(XeriWindowResizeMode.TopRight),
-                _ => null,
-            };
+                UnityEngine.Object.Destroy(texture);
+                return;
+            }
+
+            UnityEngine.Object.DestroyImmediate(texture);
         }
 
         // ------------------------------------------------------------

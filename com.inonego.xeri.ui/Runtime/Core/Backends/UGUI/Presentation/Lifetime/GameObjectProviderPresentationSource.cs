@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : GameObjectProviderPresentationSource.cs
-수정일 : 2026-09-17
+수정일 : 2026-10-03
 # 설명
 IGameObjectProvider를 일반 Presentation View Source로 연결하고 Parent와 View 반환 수명을 관리한다.
 ========================================================================= BLOCK_HEADER_END */
@@ -83,7 +83,7 @@ namespace inonego.Xeri.UI
 
     #endregion
 
-    #region IPresentationSource
+    #region 프레젠테이션 소스 구현
 
         // ----------------------------------------------------------------------
         /// <summary>
@@ -110,15 +110,51 @@ namespace inonego.Xeri.UI
 
             var previousParent = provider.Parent;
             GameObject instance = null;
+            var acquisitionErrors = new List<Exception>();
 
             try
             {
                 provider.Parent = layerCanvas.Root;
                 instance = provider.Acquire(false);
             }
-            finally
+            catch (Exception exception)
+            {
+                acquisitionErrors.Add(exception);
+            }
+
+            try
             {
                 provider.Parent = previousParent;
+            }
+            catch (Exception exception)
+            {
+                acquisitionErrors.Add(exception);
+            }
+
+            if (acquisitionErrors.Count > 0)
+            {
+                if (instance != null)
+                {
+                    try
+                    {
+                        ReleaseInstance(instance);
+                    }
+                    catch (Exception exception)
+                    {
+                        acquisitionErrors.Add(exception);
+                    }
+                }
+
+                if (acquisitionErrors.Count == 1)
+                {
+                    throw acquisitionErrors[0];
+                }
+
+                throw new AggregateException
+                (
+                    "Presentation View 획득과 Provider Parent 복원이 실패했습니다.",
+                    acquisitionErrors
+                );
             }
 
             if (instance == null)
@@ -249,7 +285,7 @@ namespace inonego.Xeri.UI
 
     #endregion
 
-    #region IDisposable
+    #region 수명 해제
 
         // ----------------------------------------------------------------------
         /// <summary>

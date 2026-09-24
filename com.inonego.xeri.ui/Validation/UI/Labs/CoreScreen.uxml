@@ -1,0 +1,27 @@
+<!-- BLOCK_HEADER_BEGIN =====================================================================
+파일명 : CoreScreen.uxml
+수정일 : 2026-10-03
+
+# 설명
+Root UIContext Screen stack의 Home/Detail instance를 실제 ScreenController 경로로 표시하는 Validation view.
+======================================================================= BLOCK_HEADER_END -->
+<ui:UXML xmlns:ui="UnityEngine.UIElements" editor-extension-mode="False">
+    <Style src="../Shared/XeriValidationTokens.uss" />
+    <Style src="../Shared/XeriValidationComponents.uss" />
+    <Style src="XeriValidationLabs.uss" />
+
+    <ui:VisualElement name="CoreScreenRoot" class="xeri-validation xeri-validation-core-screen">
+        <ui:VisualElement class="xeri-validation-core-screen__card">
+            <ui:Label text="Root screen stack" class="xeri-validation-eyebrow" />
+            <ui:Label name="CoreScreenTitle" text="Home" class="xeri-validation-core-screen__title" />
+            <ui:Label
+                text="This view is owned by the root ScreenController and can be pushed, replaced, popped, or cleared from Core Lab."
+                class="xeri-validation-copy" />
+            <ui:VisualElement class="xeri-validation-row">
+                <ui:Label text="State" class="xeri-validation-core-screen__label" />
+                <ui:Label name="CoreScreenLifecycle" text="Opening" class="xeri-validation-status" />
+            </ui:VisualElement>
+            <ui:Button name="CoreScreenFocus" text="Focus target" class="xeri-validation-button xeri-validation-button--quiet" />
+        </ui:VisualElement>
+    </ui:VisualElement>
+</ui:UXML>

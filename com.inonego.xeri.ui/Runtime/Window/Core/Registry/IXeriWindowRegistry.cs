@@ -31,7 +31,7 @@ namespace inonego.Xeri.UI.Window
 
         // ------------------------------------------------------------
         /// <summary>
-        /// 등록된 윈도우 record 목록.
+        /// 등록된 윈도우 상태의 읽기용 record snapshot 목록.
         /// </summary>
         // ------------------------------------------------------------
         IReadOnlyList<XeriWindowRecord> Records { get; }
@@ -61,11 +61,11 @@ namespace inonego.Xeri.UI.Window
         // ------------------------------------------------------------
         event EventHandler<XeriWindowEventArgs> OnUnregister;
 
-        // ------------------------------------------------------------
+        // ----------------------------------------------------------------------
         /// <summary>
-        /// Active window가 변경될 때 호출된다.
+        /// Active window가 변경될 때 호출되며 active 해제 시 Handle은 null이다.
         /// </summary>
-        // ------------------------------------------------------------
+        // ----------------------------------------------------------------------
         event EventHandler<XeriWindowEventArgs> OnActiveChange;
 
         // ------------------------------------------------------------
@@ -109,7 +109,7 @@ namespace inonego.Xeri.UI.Window
 
         // ------------------------------------------------------------
         /// <summary>
-        /// Handle에 대응하는 record를 조회한다.
+        /// Handle에 대응하는 읽기용 record snapshot을 조회한다.
         /// </summary>
         // ------------------------------------------------------------
         bool TryGetRecord(XeriWindowHandle handle, out XeriWindowRecord record);
@@ -134,6 +134,13 @@ namespace inonego.Xeri.UI.Window
         /// </summary>
         // ------------------------------------------------------------
         void Focus(XeriWindowHandle handle);
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// 지정 Window가 active이면 active 상태를 해제한다.
+        /// </summary>
+        // ------------------------------------------------------------
+        void Deactivate(XeriWindowHandle handle);
 
         // ------------------------------------------------------------
         /// <summary>

@@ -1,10 +1,14 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : XeriWindowResizeManipulator.cs
-수정일 : 2026-09-20
+수정일 : 2026-10-03
 
 # 설명
 XeriWindowPanel의 resize handle 입력을 controller resize 명령으로 연결한다.
 ========================================================================= BLOCK_HEADER_END */
+
+using System;
+using System.Collections;
+using System.Collections.Generic;
 
 using UnityEngine;
 using UnityEngine.UIElements;
@@ -23,13 +27,6 @@ namespace inonego.Xeri.UI.Window
 
         private readonly XeriWindowPanel panel = null;
         private readonly XeriWindowController controller = null;
-        // ------------------------------------------------------------
-        /// <summary>
-        /// Resize cursor 적용자.
-        /// </summary>
-        // ------------------------------------------------------------
-        public IXeriWindowResizeCursorProvider CursorProvider => cursorProvider;
-
         private readonly IXeriWindowResizeCursorProvider cursorProvider = null;
 
         private Vector2 beginInputPos = Vector2.zero;
@@ -37,6 +34,7 @@ namespace inonego.Xeri.UI.Window
         private Vector2 beginSize = Vector2.zero;
         private XeriWindowResizeMode resizeMode = XeriWindowResizeMode.None;
         private int activeID = -1;
+        private VisualElement activeHandle = null;
         private bool isAttached = false;
 
     #endregion
@@ -55,8 +53,8 @@ namespace inonego.Xeri.UI.Window
             IXeriWindowResizeCursorProvider cursorProvider = null
         ) : base()
         {
-            this.panel = panel;
-            this.controller = controller;
+            this.panel = panel ?? throw new System.ArgumentNullException(nameof(panel));
+            this.controller = controller ?? throw new System.ArgumentNullException(nameof(controller));
             this.cursorProvider = cursorProvider ?? new XeriWindowResizeCursorProvider();
         }
 
@@ -72,18 +70,22 @@ namespace inonego.Xeri.UI.Window
         public void Attach()
         {
             if (isAttached) return;
-            if (panel == null || controller == null) return;
 
-            RegisterHandle(panel.ResizeLeft, XeriWindowResizeMode.Left);
-            RegisterHandle(panel.ResizeTop, XeriWindowResizeMode.Top);
-            RegisterHandle(panel.ResizeRight, XeriWindowResizeMode.Right);
-            RegisterHandle(panel.ResizeBottom, XeriWindowResizeMode.Bottom);
-            RegisterHandle(panel.ResizeTopLeft, XeriWindowResizeMode.TopLeft);
-            RegisterHandle(panel.ResizeTopRight, XeriWindowResizeMode.TopRight);
-            RegisterHandle(panel.ResizeBottomLeft, XeriWindowResizeMode.BottomLeft);
-            RegisterHandle(panel.ResizeBottomRight, XeriWindowResizeMode.BottomRight);
-
-            isAttached = true;
+            try
+            {
+                RegisterAllHandles();
+                isAttached = true;
+            }
+            catch (Exception exception)
+            {
+                var errors = new List<Exception>
+                {
+                    exception,
+                };
+                UnregisterAllHandles(errors);
+                TryCleanup(cursorProvider.Reset, errors);
+                ThrowErrors("Window resize callback 연결 rollback", errors);
+            }
         }
 
         // ------------------------------------------------------------
@@ -94,24 +96,60 @@ namespace inonego.Xeri.UI.Window
         public void Detach()
         {
             if (!isAttached) return;
-            if (panel == null) return;
 
-            UnregisterHandle(panel.ResizeLeft);
-            UnregisterHandle(panel.ResizeTop);
-            UnregisterHandle(panel.ResizeRight);
-            UnregisterHandle(panel.ResizeBottom);
-            UnregisterHandle(panel.ResizeTopLeft);
-            UnregisterHandle(panel.ResizeTopRight);
-            UnregisterHandle(panel.ResizeBottomLeft);
-            UnregisterHandle(panel.ResizeBottomRight);
-
-            cursorProvider.Reset();
             isAttached = false;
+            var errors = new List<Exception>();
+
+            try
+            {
+                ClearResizeState(activeHandle);
+            }
+            catch (Exception exception)
+            {
+                errors.Add(exception);
+            }
+
+            UnregisterAllHandles(errors);
+            ThrowErrors("Window resize callback 해제", errors);
         }
 
     #endregion
 
     #region 내부 메서드
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// 모든 resize handle callback을 등록한다.
+        /// </summary>
+        // ------------------------------------------------------------
+        private void RegisterAllHandles()
+        {
+            RegisterHandle(panel.ResizeLeft, XeriWindowResizeMode.Left);
+            RegisterHandle(panel.ResizeTop, XeriWindowResizeMode.Top);
+            RegisterHandle(panel.ResizeRight, XeriWindowResizeMode.Right);
+            RegisterHandle(panel.ResizeBottom, XeriWindowResizeMode.Bottom);
+            RegisterHandle(panel.ResizeTopLeft, XeriWindowResizeMode.TopLeft);
+            RegisterHandle(panel.ResizeTopRight, XeriWindowResizeMode.TopRight);
+            RegisterHandle(panel.ResizeBottomLeft, XeriWindowResizeMode.BottomLeft);
+            RegisterHandle(panel.ResizeBottomRight, XeriWindowResizeMode.BottomRight);
+        }
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// 모든 resize handle callback을 해제한다.
+        /// </summary>
+        // ------------------------------------------------------------
+        private void UnregisterAllHandles(List<Exception> errors)
+        {
+            UnregisterHandle(panel.ResizeLeft, errors);
+            UnregisterHandle(panel.ResizeTop, errors);
+            UnregisterHandle(panel.ResizeRight, errors);
+            UnregisterHandle(panel.ResizeBottom, errors);
+            UnregisterHandle(panel.ResizeTopLeft, errors);
+            UnregisterHandle(panel.ResizeTopRight, errors);
+            UnregisterHandle(panel.ResizeBottomLeft, errors);
+            UnregisterHandle(panel.ResizeBottomRight, errors);
+        }
 
         // ------------------------------------------------------------
         /// <summary>
@@ -134,14 +172,74 @@ namespace inonego.Xeri.UI.Window
         /// Resize handle callback을 해제한다.
         /// </summary>
         // ------------------------------------------------------------
-        private void UnregisterHandle(VisualElement handle)
+        private void UnregisterHandle
+        (
+            VisualElement handle,
+            List<Exception> errors
+        )
         {
-            handle.UnregisterCallback<PointerEnterEvent>(OnPointerEnter);
-            handle.UnregisterCallback<PointerLeaveEvent>(OnPointerLeave);
-            handle.UnregisterCallback<PointerDownEvent>(OnPointerDown);
-            handle.UnregisterCallback<PointerMoveEvent>(OnPointerMove);
-            handle.UnregisterCallback<PointerUpEvent>(OnPointerUp);
-            handle.UnregisterCallback<PointerCancelEvent>(OnPointerCancel);
+            TryCleanup
+            (
+                () => handle.UnregisterCallback<PointerEnterEvent>(OnPointerEnter),
+                errors
+            );
+            TryCleanup
+            (
+                () => handle.UnregisterCallback<PointerLeaveEvent>(OnPointerLeave),
+                errors
+            );
+            TryCleanup
+            (
+                () => handle.UnregisterCallback<PointerDownEvent>(OnPointerDown),
+                errors
+            );
+            TryCleanup
+            (
+                () => handle.UnregisterCallback<PointerMoveEvent>(OnPointerMove),
+                errors
+            );
+            TryCleanup
+            (
+                () => handle.UnregisterCallback<PointerUpEvent>(OnPointerUp),
+                errors
+            );
+            TryCleanup
+            (
+                () => handle.UnregisterCallback<PointerCancelEvent>(OnPointerCancel),
+                errors
+            );
+        }
+
+        private static void TryCleanup
+        (
+            Action cleanup,
+            List<Exception> errors
+        )
+        {
+            try
+            {
+                cleanup();
+            }
+            catch (Exception exception)
+            {
+                errors.Add(exception);
+            }
+        }
+
+        private static void ThrowErrors
+        (
+            string message,
+            List<Exception> errors
+        )
+        {
+            if (errors.Count == 0) return;
+
+            if (errors.Count == 1)
+            {
+                throw errors[0];
+            }
+
+            throw new AggregateException(message, errors);
         }
 
         // ------------------------------------------------------------
@@ -200,14 +298,32 @@ namespace inonego.Xeri.UI.Window
         // ------------------------------------------------------------
         private void ClearResizeState(VisualElement handle)
         {
-            if (handle != null && activeID >= 0 && handle.HasPointerCapture(activeID))
+            var currentHandle = handle ?? activeHandle;
+            var currentID = activeID;
+            var errors = new List<Exception>();
+
+            // 외부 cleanup 전에 logical pointer ownership을 먼저 terminalize한다.
+            activeID = -1;
+            activeHandle = null;
+            resizeMode = XeriWindowResizeMode.None;
+
+            if (currentHandle != null && currentID >= 0)
             {
-                handle.ReleasePointer(activeID);
+                TryCleanup
+                (
+                    () =>
+                    {
+                        if (currentHandle.HasPointerCapture(currentID))
+                        {
+                            currentHandle.ReleasePointer(currentID);
+                        }
+                    },
+                    errors
+                );
             }
 
-            activeID = -1;
-            resizeMode = XeriWindowResizeMode.None;
-            cursorProvider.Reset();
+            TryCleanup(cursorProvider.Reset, errors);
+            ThrowErrors("Window resize pointer 정리", errors);
         }
 
         // ------------------------------------------------------------
@@ -314,13 +430,36 @@ namespace inonego.Xeri.UI.Window
             if (handle.userData is not XeriWindowResizeMode mode) return;
 
             activeID = evt.pointerId;
+            activeHandle = handle;
             resizeMode = mode;
             beginInputPos = evt.position;
             beginPos = controller.Driver.Pos;
             beginSize = controller.Driver.Size;
 
-            cursorProvider.Apply(mode);
-            handle.CapturePointer(activeID);
+            try
+            {
+                cursorProvider.Apply(mode);
+                handle.CapturePointer(activeID);
+            }
+            catch (Exception exception)
+            {
+                var errors = new List<Exception>
+                {
+                    exception,
+                };
+
+                try
+                {
+                    ClearResizeState(handle);
+                }
+                catch (Exception cleanupException)
+                {
+                    errors.Add(cleanupException);
+                }
+
+                ThrowErrors("Window resize 시작과 rollback", errors);
+            }
+
             evt.StopPropagation();
         }
 
@@ -342,8 +481,7 @@ namespace inonego.Xeri.UI.Window
             if (resizeMode == XeriWindowResizeMode.None) return;
 
             CalculateBounds(evt.position, out var pos, out var size);
-            controller.Move(pos);
-            controller.Resize(size);
+            controller.ResizeBounds(pos, size);
             evt.StopPropagation();
         }
 

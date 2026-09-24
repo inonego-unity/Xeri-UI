@@ -1,11 +1,13 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : UGUIDragVisualBinding.cs
-수정일 : 2026-09-17
+수정일 : 2026-10-03
 # 설명
 기존 DraggableUI의 Begin·End·Cancel 수명에 UGUI Drag Visual Handle을 연결한다.
 ========================================================================= BLOCK_HEADER_END */
 
 using System;
+using System.Collections;
+using System.Collections.Generic;
 
 using inonego;
 using inonego.Xeri;
@@ -66,7 +68,18 @@ namespace inonego.Xeri.UI
             this.parameters = parameters;
 
             draggable.OnDragBegin += HandleDragBegin;
-            dragEndCleanupLease = draggable.RegisterDragEndCleanup(ReleaseDragVisual);
+
+            try
+            {
+                dragEndCleanupLease = draggable.RegisterDragEndCleanup(ReleaseDragVisual);
+            }
+            catch
+            {
+                draggable.OnDragBegin -= HandleDragBegin;
+                this.draggable = null;
+                this.owner = null;
+                throw;
+            }
         }
 
     #endregion
@@ -111,7 +124,7 @@ namespace inonego.Xeri.UI
 
     #endregion
 
-    #region IDisposable
+    #region 수명 해제
 
         // ------------------------------------------------------------
         /// <summary>
@@ -140,9 +153,18 @@ namespace inonego.Xeri.UI
             draggable = null;
             dragEndCleanupLease = null;
 
+            var errors = new List<Exception>();
+
             if (removeFromBindings)
             {
-                currentOwner.Release(this);
+                try
+                {
+                    currentOwner.Release(this);
+                }
+                catch (Exception exception)
+                {
+                    errors.Add(exception);
+                }
             }
 
             try
@@ -150,12 +172,53 @@ namespace inonego.Xeri.UI
                 // Screen이나 Runtime이 연결을 먼저 닫아도 Drag 의미와 Raycast 상태를 함께 종료한다.
                 currentDraggable.ForceDragEnd();
             }
-            finally
+            catch (Exception exception)
+            {
+                errors.Add(exception);
+            }
+
+            try
             {
                 currentDraggable.OnDragBegin -= HandleDragBegin;
-                currentDragEndCleanupLease?.Dispose();
+            }
+            catch (Exception exception)
+            {
+                errors.Add(exception);
+            }
+
+            if (currentDragEndCleanupLease != null)
+            {
+                try
+                {
+                    currentDragEndCleanupLease.Dispose();
+                }
+                catch (Exception exception)
+                {
+                    errors.Add(exception);
+                }
+            }
+
+            try
+            {
                 ReleaseDragVisual();
             }
+            catch (Exception exception)
+            {
+                errors.Add(exception);
+            }
+
+            if (errors.Count == 0) return;
+
+            if (errors.Count == 1)
+            {
+                throw errors[0];
+            }
+
+            throw new AggregateException
+            (
+                "Drag Visual Binding 종료 중 하나 이상의 정리가 실패했습니다.",
+                errors
+            );
         }
 
     #endregion

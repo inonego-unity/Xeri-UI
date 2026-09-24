@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : IPresentationSource.cs
-수정일 : 2026-09-15
+수정일 : 2026-10-05
 
 # 설명
 Presentation Layer에 View를 획득하고 반환하는 일반 Presentation Source 계약을 정의한다.
@@ -19,7 +19,8 @@ namespace inonego.Xeri.UI
     {
         // ------------------------------------------------------------
         /// <summary>
-        /// 지정 Layer Driver에서 Presentation View를 획득한다.
+        /// <br/> 지정 Layer Driver에서 Presentation View를 획득한다.
+        /// <br/> 실패 시 반환하지 못한 자원은 Source가 직접 정리한다.
         /// </summary>
         // ------------------------------------------------------------
         TView Acquire(IPresentationLayerDriver layer);

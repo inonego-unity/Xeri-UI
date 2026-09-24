@@ -134,13 +134,13 @@ namespace inonego.Xeri.UI
             ScreenOptions options,
             ScreenOpenParams openParams,
             IScreenSource source,
-            Lease layerUsage
+            PresentationLayerLease layerLease
         ) : base()
         {
             this.controller = controller ?? throw new ArgumentNullException(nameof(controller));
             Options = options ?? throw new ArgumentNullException(nameof(options));
             OpenParams = openParams;
-            Resources = new ScreenSessionResources(source, layerUsage);
+            Resources = new ScreenSessionResources(source, layerLease);
             State = ScreenState.Opening;
         }
 

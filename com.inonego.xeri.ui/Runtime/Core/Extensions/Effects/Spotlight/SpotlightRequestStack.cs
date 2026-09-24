@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : SpotlightRequestStack.cs
-수정일 : 2026-09-17
+수정일 : 2026-10-03
 # 설명
 backend별 중첩 Spotlight 요청을 최신 표시 우선으로 합성하고 해제 시 이전 요청을 복원한다.
 ========================================================================= BLOCK_HEADER_END */
@@ -169,7 +169,29 @@ namespace inonego.Xeri.UI
 
             if (!wasTop) return;
 
-            driver.Show(nextParams);
+            try
+            {
+                driver.Show(nextParams);
+            }
+            catch (Exception exception)
+            {
+                // 해제된 top 요청을 Driver 자체 rollback이 다시 표시했을 수 있으므로 ghost 상태를 남기지 않는다.
+                try
+                {
+                    driver.Hide();
+                }
+                catch (Exception cleanupException)
+                {
+                    throw new AggregateException
+                    (
+                        "Spotlight 이전 요청 복원과 ghost 표시 정리가 모두 실패했습니다.",
+                        exception,
+                        cleanupException
+                    );
+                }
+
+                throw;
+            }
         }
 
         // --------------------------------------------------------------------------------
@@ -194,7 +216,7 @@ namespace inonego.Xeri.UI
 
     #endregion
 
-    #region IDisposable
+    #region 수명 해제
 
         // ------------------------------------------------------------
         /// <summary>

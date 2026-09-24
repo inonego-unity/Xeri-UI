@@ -1,0 +1,29 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b3c27979b9939f3c5a4561ef9747140a, type: 3}
+  m_Name: XeriUIValidationAssets
+  m_EditorClassIdentifier: inonego.Xeri.UI.Validation::inonego.Xeri.UI.Validation.XeriValidationAssets
+  panelSettings: {fileID: 11400000, guid: b04eb6c13eb14bc49d40f9216e5a91cb, type: 2}
+  desktopTemplate: {fileID: 9197481963319205126, guid: 50a2d8564bc85f79bd794ef6ce837224, type: 3}
+  checklistTemplate: {fileID: 9197481963319205126, guid: e7548b9acd35034db65efc8440958442, type: 3}
+  coreLabTemplate: {fileID: 9197481963319205126, guid: 47db10d26405eed0910abdc32f3d7a37, type: 3}
+  coreScreenTemplate: {fileID: 9197481963319205126, guid: b016827dda2fe33d3cebdcaf00944d86, type: 3}
+  windowLabTemplate: {fileID: 9197481963319205126, guid: 4cc688d74c163f48d14db22bdb31198d, type: 3}
+  modalLabTemplate: {fileID: 9197481963319205126, guid: d873047b911766509bec82e0142b1707, type: 3}
+  taskBoardTemplate: {fileID: 9197481963319205126, guid: 5a518e3f63cc29e570d8085bc022e0c8, type: 3}
+  preferencesTemplate: {fileID: 9197481963319205126, guid: a518cf8c186dfa6d11cc148aa49e7ce9, type: 3}
+  applicationTemplate: {fileID: 9197481963319205126, guid: 0e71c97ea2b212da05157234deb7cd3e, type: 3}
+  tokensStyle: {fileID: 7433441132597879392, guid: 95e00a5991a468616e26e89977594535, type: 3}
+  componentsStyle: {fileID: 7433441132597879392, guid: ea805767c08bea3309bd0f0538b01558, type: 3}
+  appsStyle: {fileID: 7433441132597879392, guid: c0cc0afb9f0ce80956317c230df5e98e, type: 3}
+  labsStyle: {fileID: 7433441132597879392, guid: 29249ca2f850d72acd0d0456970df2be, type: 3}
+  applicationLayout: {fileID: 11400000, guid: ad699a1c74ef4c6546e95bde847c7d9f, type: 2}

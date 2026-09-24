@@ -28,7 +28,7 @@ namespace inonego.Xeri.UI
 
     #endregion
 
-    #region IModalInteractionDriver
+    #region 모달 상호작용 드라이버 구현
 
         // ------------------------------------------------------------
         /// <summary>

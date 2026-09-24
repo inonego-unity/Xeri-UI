@@ -1,15 +1,17 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : ModalController.cs
-수정일 : 2026-09-17
+수정일 : 2026-10-07
 # 설명
 Modality Policy Stack을 소유하고 상단 Session만 상호작용 가능하도록 backend 상태를 갱신한다.
-각 Session은 Presentation과 상호작용 backend를 분리하며, 선택적 부가 lifetime은 Session이 함께 소유한다.
+각 Session은 Presentation과 상호작용 backend를 분리하며, 선택적 Focus Override와 부가 lifetime은 Session이 함께 소유한다.
 실패한 정리를 같은 Session으로 다시 시도하지 않는다.
 ========================================================================= BLOCK_HEADER_END */
 
 using System;
 using System.Collections;
 using System.Collections.Generic;
+
+using UnityEngine;
 
 namespace inonego.Xeri.UI
 {
@@ -31,12 +33,77 @@ namespace inonego.Xeri.UI
         public int Count => stack.Count;
 
         private readonly List<ModalSession> stack = new List<ModalSession>();
+        private readonly UIContext context = null;
+        private readonly bool ownerControlsLifetime = false;
         private bool isDisposed = false;
         private bool isOpening = false;
+        private int stackRevision = 0;
 
     #endregion
 
-    #region 메서드
+    #region 상태 관찰
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// 스택과 Focus 처리가 끝난 뒤 현재 상태를 관찰한다.
+        /// </summary>
+        // ------------------------------------------------------------
+        public event Action OnStackChanged = null;
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// 관찰자 실패가 Modal 소유권을 바꾸지 않도록 분리한다.
+        /// </summary>
+        // ------------------------------------------------------------
+        private void NotifyStackChanged()
+        {
+            var revision = ++stackRevision;
+            var handlers = OnStackChanged;
+            if (handlers == null) return;
+
+            foreach (Action handler in handlers.GetInvocationList())
+            {
+                if (revision != stackRevision) break;
+
+                try
+                {
+                    handler();
+                }
+                catch (Exception exception)
+                {
+                    Debug.LogException(exception);
+                }
+            }
+        }
+
+    #endregion
+
+    #region 생성자
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// 독립된 Modal Stack을 만든다.
+        /// </summary>
+        // ------------------------------------------------------------
+        internal ModalController() : base()
+        {
+            // NONE
+        }
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// Context의 Focus 정책과 연결된 Modal Stack을 만든다.
+        /// </summary>
+        // ------------------------------------------------------------
+        internal ModalController(UIContext context)
+        {
+            this.context = context ?? throw new ArgumentNullException(nameof(context));
+            ownerControlsLifetime = true;
+        }
+
+    #endregion
+
+    #region 모달 열기와 반환
 
         // --------------------------------------------------------------------------------
         /// <summary>
@@ -44,6 +111,28 @@ namespace inonego.Xeri.UI
         /// </summary>
         // --------------------------------------------------------------------------------
         public ModalSession Open
+        (
+            IPresentation presentation,
+            IModalInteractionDriver interaction,
+            params IDisposable[] ownedLifetimes
+        )
+        {
+            var session = OpenWithoutNotification(presentation, interaction, ownedLifetimes);
+            NotifyStackChanged();
+            if (session.IsDisposed)
+            {
+                throw new InvalidOperationException("Modal 알림 중 Session 소유권이 종료됐습니다.");
+            }
+
+            return session;
+        }
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// 공개 진입점의 검증과 스택 등록을 함께 처리한다.
+        /// </summary>
+        // ------------------------------------------------------------
+        private ModalSession OpenWithoutNotification
         (
             IPresentation presentation,
             IModalInteractionDriver interaction,
@@ -88,6 +177,87 @@ namespace inonego.Xeri.UI
             {
                 isOpening = false;
             }
+        }
+
+        // ----------------------------------------------------------------------
+        /// <summary>
+        /// <br/> Modal interaction과 별도 Focus Scope를 함께 활성화한다.
+        /// <br/> Focus registration과 Override activation lifetime은
+        /// <br/> Modal Session이 역순으로 소유한다.
+        /// </summary>
+        // ----------------------------------------------------------------------
+        public ModalSession Open
+        (
+            IPresentation presentation,
+            IModalInteractionDriver interaction,
+            IFocusScope focusScope,
+            params IDisposable[] ownedLifetimes
+        )
+        {
+            if (context == null)
+            {
+                throw new InvalidOperationException
+                (
+                    "Focus Scope Modal은 UIContext가 소유하는 ModalController에서만 열 수 있습니다."
+                );
+            }
+
+            if (focusScope == null)
+            {
+                throw new ArgumentNullException(nameof(focusScope));
+            }
+
+            var focusHandle = context.RegisterFocusScope(focusScope);
+
+            ModalSession session = null;
+
+            try
+            {
+                session = OpenWithoutNotification(presentation, interaction, ownedLifetimes);
+                // Focus 복원은 이전 Modal의 상호작용이 복원된 뒤 실행한다.
+                session.AddFocusLifetime(focusHandle);
+                session.AddFocusLifetime(context.PushFocusOverride(focusHandle));
+            }
+            catch (Exception exception)
+            {
+                Exception cleanupException = null;
+
+                try
+                {
+                    if (session != null)
+                    {
+                        session.Dispose();
+                    }
+                    else
+                    {
+                        focusHandle.Dispose();
+                    }
+                }
+                catch (Exception failure)
+                {
+                    cleanupException = failure;
+                }
+
+                if (cleanupException == null)
+                {
+                    throw;
+                }
+
+                throw new AggregateException
+                (
+                    "Modal Focus 적용과 롤백이 실패했습니다.",
+                    exception,
+                    cleanupException
+                );
+            }
+
+            NotifyStackChanged();
+            if (session.IsDisposed)
+            {
+                throw new InvalidOperationException("Modal 알림 중 Session 소유권이 종료됐습니다.");
+            }
+
+            return session;
         }
 
         // ------------------------------------------------------------
@@ -206,6 +376,7 @@ namespace inonego.Xeri.UI
         )
         {
             if (isDisposed && removeFromStack) return;
+            if (!handle.TryReleaseStack()) return;
 
             var index = stack.IndexOf(handle);
 
@@ -213,8 +384,6 @@ namespace inonego.Xeri.UI
             var previous = wasTop && index > 0
                 ? stack[index - 1]
                 : null;
-
-            handle.MarkStackReleased();
 
             var errors = new List<Exception>();
 
@@ -261,6 +430,21 @@ namespace inonego.Xeri.UI
                 }
             }
 
+            // 비활성화된 이전 Modal을 Focus 후보로 검사하지 않도록 마지막에 반환한다.
+            try
+            {
+                handle.ReleaseFocusLifetimes();
+            }
+            catch (Exception exception)
+            {
+                errors.Add(exception);
+            }
+
+            if (removeFromStack)
+            {
+                NotifyStackChanged();
+            }
+
             if (errors.Count > 0)
             {
                 throw new AggregateException("Modal 해제가 실패했습니다.", errors);
@@ -269,15 +453,41 @@ namespace inonego.Xeri.UI
 
     #endregion
 
-    #region IDisposable
+    #region 수명 해제
 
         // --------------------------------------------------------------------------------
         /// <summary>
         /// <br/> 모든 Modal을 top부터 각각 한 번 해제한다.
         /// <br/> Stack과 Handle을 먼저 Terminal화하고 실패 항목을 재시도 대상으로 보관하지 않는다.
+        /// <br/> owner-controlled Controller는 직접 해제할 수 없다.
         /// </summary>
         // --------------------------------------------------------------------------------
         public void Dispose()
+        {
+            if (isDisposed) return;
+
+            if (ownerControlsLifetime)
+            {
+                throw new InvalidOperationException
+                (
+                    "이 Modal Controller의 수명은 소유자가 관리합니다."
+                );
+            }
+
+            DisposeCore();
+        }
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// owner-controlled Controller를 소유자 종료 경로에서 해제한다.
+        /// </summary>
+        // ------------------------------------------------------------
+        internal void DisposeFromOwner()
+        {
+            DisposeCore();
+        }
+
+        private void DisposeCore()
         {
             if (isDisposed) return;
 
@@ -306,6 +516,8 @@ namespace inonego.Xeri.UI
             finally
             {
                 stack.Clear();
+                NotifyStackChanged();
+                OnStackChanged = null;
             }
 
             if (errors.Count > 0)

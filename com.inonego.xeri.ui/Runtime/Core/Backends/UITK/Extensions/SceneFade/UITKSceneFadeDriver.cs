@@ -76,7 +76,7 @@ namespace inonego.Xeri.UI
 
     #endregion
 
-    #region ISceneFadeDriver
+    #region 씬 페이드 드라이버 구현
 
         // ------------------------------------------------------------
         /// <summary>
@@ -90,7 +90,7 @@ namespace inonego.Xeri.UI
 
     #endregion
 
-    #region IPresentationAlphaTarget
+    #region 프레젠테이션 알파 대상 구현
 
         // ------------------------------------------------------------
         /// <summary>
@@ -119,7 +119,7 @@ namespace inonego.Xeri.UI
 
     #endregion
 
-    #region IPresentationVisibilityTarget
+    #region 프레젠테이션 가시성 대상 구현
 
         // ----------------------------------------------------------------------
         /// <summary>

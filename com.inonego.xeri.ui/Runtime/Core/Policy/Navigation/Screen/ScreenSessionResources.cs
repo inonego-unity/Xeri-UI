@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : ScreenSessionResources.cs
-수정일 : 2026-09-17
+수정일 : 2026-09-23
 # 설명
 한 Screen Session이 획득한 Source, Layer, 입력과 하위 표시 자원의 소유권을 묶는다.
 ========================================================================= BLOCK_HEADER_END */
@@ -42,31 +42,31 @@ namespace inonego.Xeri.UI
         private readonly IScreenSource source = null;
         private readonly List<IDisposable> childHandles = new List<IDisposable>();
 
-        private Lease layerUsage = null;
+        private PresentationLayerLease layerLease = null;
         private bool isReleasing = false;
 
     #endregion
 
     #region 생성자
 
-        // ----------------------------------------------------------------------
+        // ------------------------------------------------------------
         /// <summary>
-        /// 준비 Session이 이미 획득한 Source와 Layer Usage 소유권을 받는다.
+        /// 획득된 Source와 Layer Lease 소유권을 받는다.
         /// </summary>
-        // ----------------------------------------------------------------------
+        // ------------------------------------------------------------
         public ScreenSessionResources
         (
             IScreenSource source,
-            Lease layerUsage
+            PresentationLayerLease layerLease
         ) : base()
         {
             this.source = source ?? throw new ArgumentNullException(nameof(source));
-            this.layerUsage = layerUsage;
+            this.layerLease = layerLease ?? throw new ArgumentNullException(nameof(layerLease));
         }
 
     #endregion
 
-    #region 메서드
+    #region 자원 획득
 
         // --------------------------------------------------------------------------------
         /// <summary>
@@ -102,10 +102,11 @@ namespace inonego.Xeri.UI
         public bool TryAcquireInput
         (
             IScreenInputDriver driver,
-            ScreenOptions options
+            ScreenOptions options,
+            bool contributionEnabled
         )
         {
-            var acquired = driver.Acquire(options);
+            var acquired = driver.Acquire(options, contributionEnabled);
 
             // 획득 중 종료된 Session이 입력 정책을 다시 점유하지 않게 즉시 반환한다.
             if (isReleasing)
@@ -118,6 +119,10 @@ namespace inonego.Xeri.UI
             return true;
         }
 
+    #endregion
+
+    #region 하위 수명
+
         // ------------------------------------------------------------
         /// <summary>
         /// 부모 Screen과 함께 종료할 하위 표시 Handle을 등록한다.
@@ -127,6 +132,10 @@ namespace inonego.Xeri.UI
         {
             childHandles.Add(handle);
         }
+
+    #endregion
+
+    #region 자원 해제
 
         // ------------------------------------------------------------
         /// <summary>
@@ -187,14 +196,14 @@ namespace inonego.Xeri.UI
 
         // ------------------------------------------------------------
         /// <summary>
-        /// <br/> Layer Usage 소유권을 먼저 비운 뒤 한 번 반환한다.
-        /// <br/> 반환 실패 뒤에도 같은 Usage를 다시 반환하지 않는다.
+        /// <br/> Layer Lease 소유권을 비운 뒤 한 번 반환한다.
+        /// <br/> 반환 실패 뒤에도 같은 Lease를 재시도하지 않는다.
         /// </summary>
         // ------------------------------------------------------------
-        public void ReleaseLayer(List<Exception> errors)
+        public void ReleaseLayerLease(List<Exception> errors)
         {
-            var current = layerUsage;
-            layerUsage = null;
+            var current = layerLease;
+            layerLease = null;
 
             if (current == null) return;
 

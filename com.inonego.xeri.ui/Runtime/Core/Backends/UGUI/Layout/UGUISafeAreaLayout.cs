@@ -1,11 +1,13 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : UGUISafeAreaLayout.cs
-수정일 : 2026-09-17
+수정일 : 2026-10-03
 # 설명
 화면 크기와 Safe Area 변경을 감지해 명시적으로 연결된 RectTransform 경계를 갱신한다.
 ========================================================================= BLOCK_HEADER_END */
 
 using System;
+using System.Collections;
+using System.Collections.Generic;
 
 using UnityEngine;
 
@@ -81,7 +83,45 @@ namespace inonego.Xeri.UI
             lastSafeArea = area;
             lastScreenSize = new Vector2Int(width, height);
 
-            OnLayoutChanged?.Invoke();
+            NotifyLayoutChanged();
+        }
+
+        // --------------------------------------------------------------------------------
+        /// <summary>
+        /// Layout observer를 독립적으로 호출해 한 observer 실패가 뒤 알림을 차단하지 않게 한다.
+        /// </summary>
+        // --------------------------------------------------------------------------------
+        private void NotifyLayoutChanged()
+        {
+            var handlers = OnLayoutChanged;
+            if (handlers == null) return;
+
+            var errors = new List<Exception>();
+
+            foreach (Action handler in handlers.GetInvocationList())
+            {
+                try
+                {
+                    handler.Invoke();
+                }
+                catch (Exception exception)
+                {
+                    errors.Add(exception);
+                }
+            }
+
+            if (errors.Count == 0) return;
+
+            if (errors.Count == 1)
+            {
+                throw errors[0];
+            }
+
+            throw new AggregateException
+            (
+                "Safe Area Layout 변경 observer 처리 중 오류가 발생했습니다.",
+                errors
+            );
         }
 
     #endregion
@@ -122,7 +162,7 @@ namespace inonego.Xeri.UI
 
     #endregion
 
-    #region IDisposable
+    #region 수명 해제
 
         // ------------------------------------------------------------
         /// <summary>

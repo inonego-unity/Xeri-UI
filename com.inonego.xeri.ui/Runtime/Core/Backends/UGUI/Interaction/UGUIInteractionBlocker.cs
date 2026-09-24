@@ -31,7 +31,7 @@ namespace inonego.Xeri.UI
 
     #endregion
 
-    #region IInteractionBlocker
+    #region 상호작용 차단 구현
 
         // ------------------------------------------------------------
         /// <summary>
