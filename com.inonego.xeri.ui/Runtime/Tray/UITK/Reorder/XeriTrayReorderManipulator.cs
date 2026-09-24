@@ -20,7 +20,7 @@ namespace inonego.Xeri.UI.Tray
     /// Tray entry reorder pointer manipulator.
     /// </summary>
     // ============================================================
-    public sealed class XeriTrayReorderManipulator : Manipulator
+    internal sealed class XeriTrayReorderManipulator : Manipulator
     {
 
     #region 필드
@@ -32,6 +32,7 @@ namespace inonego.Xeri.UI.Tray
         private readonly XeriTrayReorderVisual visual = new();
 
         private XeriTrayReorderSession session = null;
+        private XeriTrayButton activeButton = null;
         private bool isDragging = false;
         private int pointerID = -1;
 
@@ -46,7 +47,8 @@ namespace inonego.Xeri.UI.Tray
         // ------------------------------------------------------------
         public XeriTrayReorderManipulator(IXeriTrayReorderTarget reorderTarget) : base()
         {
-            this.reorderTarget = reorderTarget;
+            this.reorderTarget = reorderTarget ??
+                throw new ArgumentNullException(nameof(reorderTarget));
         }
 
     #endregion
@@ -73,10 +75,39 @@ namespace inonego.Xeri.UI.Tray
         // ------------------------------------------------------------
         protected override void UnregisterCallbacksFromTarget()
         {
+            CancelActive();
+
             target.UnregisterCallback<PointerDownEvent>(OnPointerDown, TrickleDown.TrickleDown);
             target.UnregisterCallback<PointerMoveEvent>(OnPointerMove, TrickleDown.TrickleDown);
             target.UnregisterCallback<PointerUpEvent>(OnPointerUp, TrickleDown.TrickleDown);
             target.UnregisterCallback<PointerCancelEvent>(OnPointerCancel, TrickleDown.TrickleDown);
+        }
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// 진행 중 reorder session과 preview를 즉시 취소한다.
+        /// </summary>
+        // ------------------------------------------------------------
+        internal void CancelActive()
+        {
+            if (session == null) return;
+
+            if
+            (
+                pointerID >= 0 &&
+                target != null &&
+                target.HasPointerCapture(pointerID)
+            )
+            {
+                target.ReleasePointer(pointerID);
+            }
+
+            reorderTarget.ReorderAnimator?.Cancel(reorderTarget, session);
+            visual.Clear(activeButton, session);
+            activeButton = null;
+            session = null;
+            isDragging = false;
+            pointerID = -1;
         }
 
     #endregion
@@ -90,9 +121,9 @@ namespace inonego.Xeri.UI.Tray
         // ------------------------------------------------------------
         private bool CanStartDrag()
         {
-            return reorderTarget != null &&
-                   reorderTarget.Reorderable &&
-                   reorderTarget.GetEntryButtons().Count >= 2;
+            return
+                reorderTarget.Reorderable &&
+                reorderTarget.GetEntryButtons().Count >= 2;
         }
 
         // ------------------------------------------------------------
@@ -156,6 +187,7 @@ namespace inonego.Xeri.UI.Tray
         // ------------------------------------------------------------
         private void OnPointerDown(PointerDownEvent evt)
         {
+            if (session != null) return;
             if (evt.button != 0) return;
             if (!CanStartDrag()) return;
 
@@ -166,9 +198,10 @@ namespace inonego.Xeri.UI.Tray
             var sourceIndex = IndexOf(buttons, button);
             if (sourceIndex < 0) return;
 
+            activeButton = button;
             session = new XeriTrayReorderSession
             (
-                button,
+                button.Entry,
                 sourceIndex,
                 ToEntryContainerPos(evt.position)
             );
@@ -176,11 +209,11 @@ namespace inonego.Xeri.UI.Tray
             pointerID = evt.pointerId;
         }
 
-        // ------------------------------------------------------------
+        // ----------------------------------------------------------------------
         /// <summary>
         /// Pointer 이동량이 threshold를 넘으면 reorder preview를 갱신한다.
         /// </summary>
-        // ------------------------------------------------------------
+        // ----------------------------------------------------------------------
         private void OnPointerMove(PointerMoveEvent evt)
         {
             if (session == null) return;
@@ -197,7 +230,7 @@ namespace inonego.Xeri.UI.Tray
             }
 
             isDragging = true;
-            visual.Move(session, currentPos, reorderTarget);
+            visual.Move(activeButton, session, currentPos, reorderTarget);
 
             var bounds = reorderTarget.GetEntryBounds();
             var targetIndex = calculator.CalculateTargetIndex
@@ -217,11 +250,11 @@ namespace inonego.Xeri.UI.Tray
             evt.StopPropagation();
         }
 
-        // ------------------------------------------------------------
+        // ----------------------------------------------------------------------
         /// <summary>
         /// Pointer release 시 reorder 요청을 확정하거나 preview를 취소한다.
         /// </summary>
-        // ------------------------------------------------------------
+        // ----------------------------------------------------------------------
         private void OnPointerUp(PointerUpEvent evt)
         {
             if (session == null) return;
@@ -253,7 +286,8 @@ namespace inonego.Xeri.UI.Tray
                 reorderTarget.ReorderAnimator?.Cancel(reorderTarget, session);
             }
 
-            visual.Clear(session);
+            visual.Clear(activeButton, session);
+            activeButton = null;
             session = null;
             isDragging = false;
             pointerID = -1;
@@ -280,7 +314,8 @@ namespace inonego.Xeri.UI.Tray
             }
 
             reorderTarget.ReorderAnimator?.Cancel(reorderTarget, session);
-            visual.Clear(session);
+            visual.Clear(activeButton, session);
+            activeButton = null;
             session = null;
             isDragging = false;
             pointerID = -1;

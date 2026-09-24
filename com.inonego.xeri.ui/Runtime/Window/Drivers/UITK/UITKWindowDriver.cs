@@ -3,7 +3,7 @@
 수정일 : 2026-09-20
 
 # 설명
-Xeri 커스텀 윈도우 상태를 UITK VisualElement style에 반영하는 driver.
+Xeri 커스텀 윈도우 상태와 Core Presentation을 UITK VisualElement에 반영하는 driver.
 ========================================================================= BLOCK_HEADER_END */
 
 using UnityEngine;
@@ -16,21 +16,40 @@ namespace inonego.Xeri.UI.Window
     /// UITK VisualElement 기반 Xeri 윈도우 driver.
     /// </summary>
     // ============================================================
-    public sealed class UITKWindowDriver : IXeriWindowDriver
+    public sealed class UITKWindowDriver : IXeriWindowDriver, IFocusScope
     {
 
     #region 필드
 
         private readonly VisualElement target = null;
+        private readonly UITKPresentation presentation = null;
 
-        private Vector2 pos = Vector2.zero;
-        private Vector2 size = new Vector2(200f, 120f);
-        private XeriWindowState state = XeriWindowState.Normal;
         private XeriWindowState visualState = XeriWindowState.Normal;
 
     #endregion
 
     #region 프로퍼티
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// Window Root의 합성 Alpha State.
+        /// </summary>
+        // ------------------------------------------------------------
+        public PresentationAlpha Alpha => presentation.Alpha;
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// Window Root의 합성 Visibility State.
+        /// </summary>
+        // ------------------------------------------------------------
+        public PresentationVisibility Visibility => presentation.Visibility;
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// Window가 처음 활성화될 때 사용할 기본 Focus 대상.
+        /// </summary>
+        // ------------------------------------------------------------
+        public object DefaultFocus => GetDefaultFocus();
 
         // ------------------------------------------------------------
         /// <summary>
@@ -47,6 +66,8 @@ namespace inonego.Xeri.UI.Window
             }
         }
 
+        private Vector2 pos = Vector2.zero;
+
         // ------------------------------------------------------------
         /// <summary>
         /// 윈도우 크기.
@@ -62,16 +83,16 @@ namespace inonego.Xeri.UI.Window
             }
         }
 
+        private Vector2 size = new Vector2(200f, 120f);
+
         // ------------------------------------------------------------
         /// <summary>
         /// 윈도우 표시 상태.
         /// </summary>
         // ------------------------------------------------------------
-        public XeriWindowState State
-        {
-            get => state;
-            set => CommitState(value);
-        }
+        public XeriWindowState State => state;
+
+        private XeriWindowState state = XeriWindowState.Normal;
 
         // ------------------------------------------------------------
         /// <summary>
@@ -95,11 +116,13 @@ namespace inonego.Xeri.UI.Window
         // ------------------------------------------------------------
         public UITKWindowDriver(VisualElement target) : base()
         {
-            this.target = target;
+            this.target = target ?? throw new System.ArgumentNullException(nameof(target));
+            this.target.focusable = true;
+            presentation = new UITKPresentation(this.target);
 
             ApplyBounds(Bounds);
             CommitState(state);
-            SetVisible(true);
+            Visibility.Set(true);
         }
 
     #endregion
@@ -108,14 +131,19 @@ namespace inonego.Xeri.UI.Window
 
         // ------------------------------------------------------------
         /// <summary>
-        /// 표시 여부만 대상에 반영한다.
+        /// 지정 VisualElement가 Window Root subtree에 속하는지 확인한다.
         /// </summary>
         // ------------------------------------------------------------
-        public void SetVisible(bool visible)
+        public bool ContainsFocus(object target)
         {
-            if (target == null) return;
+            if (target is not VisualElement element) return false;
 
-            target.style.display = visible ? DisplayStyle.Flex : DisplayStyle.None;
+            for (var current = element; current != null; current = current.parent)
+            {
+                if (ReferenceEquals(current, this.target)) return true;
+            }
+
+            return false;
         }
 
         // ------------------------------------------------------------
@@ -142,6 +170,13 @@ namespace inonego.Xeri.UI.Window
                 return;
             }
 
+            if (target is XeriWindowPanel panel)
+            {
+                visualState = next;
+                panel.ApplyState(next);
+                return;
+            }
+
             if (visualState == next)
             {
                 target.AddToClassList(GetStateClass(visualState));
@@ -151,11 +186,6 @@ namespace inonego.Xeri.UI.Window
             target.RemoveFromClassList(GetStateClass(visualState));
             visualState = next;
             target.AddToClassList(GetStateClass(visualState));
-
-            if (target is XeriWindowPanel panel)
-            {
-                panel.ApplyState(visualState);
-            }
         }
 
         // ------------------------------------------------------------
@@ -198,6 +228,16 @@ namespace inonego.Xeri.UI.Window
     #endregion
 
     #region 내부 메서드
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// Window Root를 기본 Focus 대상으로 반환한다.
+        /// </summary>
+        // ------------------------------------------------------------
+        private object GetDefaultFocus()
+        {
+            return target;
+        }
 
         // ------------------------------------------------------------
         /// <summary>

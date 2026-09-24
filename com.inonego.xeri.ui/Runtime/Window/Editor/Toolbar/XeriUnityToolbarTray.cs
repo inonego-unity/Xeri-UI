@@ -14,6 +14,9 @@ using UnityEditor;
 using UnityEngine;
 using UnityEngine.UIElements;
 
+using inonego;
+using inonego.Xeri;
+using inonego.Xeri.UI;
 using inonego.Xeri.UI.Tray;
 
 namespace inonego.Xeri.UI.Window.Editor
@@ -23,14 +26,14 @@ namespace inonego.Xeri.UI.Window.Editor
     /// Unity Editor toolbar에 Xeri window tray를 붙이는 host.
     /// </summary>
     // ============================================================
-    public sealed class XeriUnityToolbarTray
+    public sealed class XeriUnityToolbarTray : IDisposable
     {
 
     #region 필드
 
-        private const string TrayRootName = "xeri-unity-toolbar-tray";
-        private const string TrayUssClass = "xeri-tray--unity-toolbar";
-        private const string TrayUssPath  = "XeriUI/Tray/XeriTrayUnityToolbar";
+        private const string TRAY_ROOT_NAME = "xeri-unity-toolbar-tray";
+        private const string TRAY_USS_CLASS = "xeri-tray--unity-toolbar";
+        private const string TRAY_USS_PATH = "XeriUI/Tray/XeriTrayUnityToolbar";
 
         // ------------------------------------------------------------
         /// <summary>
@@ -43,6 +46,8 @@ namespace inonego.Xeri.UI.Window.Editor
 
         private XeriWindowTraySource source = null;
         private XeriTrayController controller = null;
+        private bool ownsTrayPanel = false;
+        private bool isDisposed = false;
 
     #endregion
 
@@ -77,26 +82,52 @@ namespace inonego.Xeri.UI.Window.Editor
             XeriTrayOptions options = null
         )
         {
+            if (isDisposed)
+            {
+                throw new ObjectDisposedException(nameof(XeriUnityToolbarTray));
+            }
+
             if (toolbarRoot == null) return false;
             if (registry == null) return false;
 
-            var exists = toolbarRoot.Q<XeriTrayPanel>(TrayRootName);
-            if (exists != null)
+            if
+            (
+                controller != null &&
+                trayPanel != null &&
+                ReferenceEquals(trayPanel.parent, toolbarRoot)
+            )
             {
-                trayPanel = exists;
-                AddToolbarStyleSheet(trayPanel);
-                BindTray(registry, options);
                 return true;
             }
 
-            trayPanel = new XeriTrayPanel { name = TrayRootName };
-            trayPanel.AddToClassList(TrayUssClass);
+            var exists = toolbarRoot.Q<XeriTrayPanel>(TRAY_ROOT_NAME);
+            if (exists != null)
+            {
+                return false;
+            }
+
+            trayPanel = new XeriTrayPanel
+            {
+                name = TRAY_ROOT_NAME,
+            };
+            trayPanel.AddToClassList(TRAY_USS_CLASS);
             AddToolbarStyleSheet(trayPanel);
             toolbarRoot.Add(trayPanel);
+            ownsTrayPanel = true;
 
-            BindTray(registry, options);
-
-            return true;
+            try
+            {
+                BindTray(registry, options);
+                return true;
+            }
+            catch
+            {
+                ReleaseBinding();
+                trayPanel.RemoveFromHierarchy();
+                ownsTrayPanel = false;
+                trayPanel = null;
+                throw;
+            }
         }
 
         // ------------------------------------------------------------
@@ -125,10 +156,29 @@ namespace inonego.Xeri.UI.Window.Editor
             source = new XeriWindowTraySource(registry);
             controller = new XeriTrayController(source, trayPanel, CreateOptions(options));
 
-            trayPanel.OnEntrySelect += OnTrayEntrySelect;
-            trayPanel.OnEntryClose  += OnTrayEntryClose;
+            controller.OnEntrySelect += OnTrayEntrySelect;
+            controller.OnEntryClose += OnTrayEntryClose;
 
             controller.Reload();
+        }
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// Tray Controller와 Source binding을 한 번 해제한다.
+        /// </summary>
+        // ------------------------------------------------------------
+        private void ReleaseBinding()
+        {
+            if (controller != null)
+            {
+                controller.OnEntrySelect -= OnTrayEntrySelect;
+                controller.OnEntryClose -= OnTrayEntryClose;
+            }
+
+            controller?.Dispose();
+            source?.Dispose();
+            controller = null;
+            source = null;
         }
 
         // ------------------------------------------------------------
@@ -164,9 +214,10 @@ namespace inonego.Xeri.UI.Window.Editor
             return new XeriTrayOptions
             {
                 VisibleContent = source.VisibleContent,
-                UssClass = string.IsNullOrEmpty(source.UssClass)
-                ? TrayUssClass
-                : $"{source.UssClass} {TrayUssClass}",
+                UssClass = source.UssClass,
+                Reorderable = source.Reorderable,
+                ReorderAxis = source.ReorderAxis,
+                AnimateReorder = source.AnimateReorder,
             };
         }
 
@@ -177,11 +228,11 @@ namespace inonego.Xeri.UI.Window.Editor
         // ------------------------------------------------------------
         private static void AddToolbarStyleSheet(VisualElement element)
         {
-            var styleSheet = Resources.Load<StyleSheet>(TrayUssPath);
+            var styleSheet = Resources.Load<StyleSheet>(TRAY_USS_PATH);
 
             if (styleSheet == null)
             {
-                throw new InvalidOperationException($"XeriUnityToolbarTray USS를 로드할 수 없습니다. Path: {TrayUssPath}");
+                throw new InvalidOperationException($"XeriUnityToolbarTray USS를 로드할 수 없습니다. Path: {TRAY_USS_PATH}");
             }
 
             element.styleSheets.Add(styleSheet);
@@ -209,6 +260,32 @@ namespace inonego.Xeri.UI.Window.Editor
         private void OnTrayEntryClose(object sender, XeriTrayEventArgs e)
         {
             source.Close(e.Entry);
+        }
+
+    #endregion
+
+    #region IDisposable
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// Tray 입력과 Source·Controller 구독을 한 번 해제한다.
+        /// </summary>
+        // ------------------------------------------------------------
+        public void Dispose()
+        {
+            if (isDisposed) return;
+
+            isDisposed = true;
+
+            ReleaseBinding();
+
+            if (ownsTrayPanel)
+            {
+                trayPanel?.RemoveFromHierarchy();
+            }
+
+            ownsTrayPanel = false;
+            trayPanel = null;
         }
 
     #endregion

@@ -16,6 +16,9 @@ using UnityEngine;
 using NUnit;
 using NUnit.Framework;
 
+using inonego;
+using inonego.Xeri;
+using inonego.Xeri.UI;
 using inonego.Xeri.UI.Tray;
 
 namespace inonego.Xeri.UI.TEST.Tray
@@ -28,11 +31,52 @@ namespace inonego.Xeri.UI.TEST.Tray
     public class TEST_XeriTrayReorder
     {
 
+    #region 헬퍼
+
+        private sealed class TestReorderAnimator : IXeriTrayReorderAnimator
+        {
+            public int ClearCount { get; private set; } = 0;
+
+            public void Preview
+            (
+                IXeriTrayReorderTarget target,
+                XeriTrayReorderSession session
+            )
+            {
+                // NONE
+            }
+
+            public void Commit
+            (
+                IXeriTrayReorderTarget target,
+                XeriTrayReorderSession session
+            )
+            {
+                // NONE
+            }
+
+            public void Cancel
+            (
+                IXeriTrayReorderTarget target,
+                XeriTrayReorderSession session
+            )
+            {
+                // NONE
+            }
+
+            public void Clear(IXeriTrayReorderTarget target)
+            {
+                ClearCount++;
+            }
+        }
+
+    #endregion
+
     #region R-1: Target Index
 
         // ------------------------------------------------------------
         /// <summary>
-        /// Horizontal reorder는 pointer가 지난 insertion boundary로 target index를 계산한다.
+        /// Horizontal reorder의 target index를 계산한다.
         /// </summary>
         // ------------------------------------------------------------
         [Test]
@@ -60,11 +104,11 @@ namespace inonego.Xeri.UI.TEST.Tray
             Assert.AreEqual(2, lastTarget);
         }
 
-        // ------------------------------------------------------------
+        // --------------------------------------------------------------------------------
         /// <summary>
         /// Horizontal reorder는 pointer가 boundary 앞에 있으면 기존 index를 유지한다.
         /// </summary>
-        // ------------------------------------------------------------
+        // --------------------------------------------------------------------------------
         [Test]
         public void TEST_XeriTrayReorderCalculator_Horizontal_Boundary_전_유지()
         {
@@ -80,11 +124,11 @@ namespace inonego.Xeri.UI.TEST.Tray
             Assert.AreEqual(0, target);
         }
 
-        // ------------------------------------------------------------
+        // --------------------------------------------------------------------------------
         /// <summary>
         /// Horizontal reorder는 이전 boundary를 지나면 앞쪽 target index를 계산한다.
         /// </summary>
-        // ------------------------------------------------------------
+        // --------------------------------------------------------------------------------
         [Test]
         public void TEST_XeriTrayReorderCalculator_Horizontal_Backward_TargetIndex_계산()
         {
@@ -110,7 +154,7 @@ namespace inonego.Xeri.UI.TEST.Tray
 
         // ------------------------------------------------------------
         /// <summary>
-        /// Vertical reorder는 pointer가 지난 vertical insertion boundary로 target index를 계산한다.
+        /// Vertical reorder의 target index를 계산한다.
         /// </summary>
         // ------------------------------------------------------------
         [Test]
@@ -163,13 +207,66 @@ namespace inonego.Xeri.UI.TEST.Tray
 
     #endregion
 
+    #region P-2: Reorder Animator Override
+
+        // ----------------------------------------------------------------------
+        /// <summary>
+        /// Custom reorder animator는 Panel Reload 뒤에도 override를 유지한다.
+        /// </summary>
+        // ----------------------------------------------------------------------
+        [Test]
+        public void TEST_XeriTrayPanel_CustomReorderAnimator_Reload후_유지()
+        {
+            var panel = new XeriTrayPanel();
+            var animator = new TestReorderAnimator();
+            var options = XeriTrayOptions.Default();
+            options.AnimateReorder = false;
+
+            panel.SetReorderAnimator(animator);
+            panel.Reload
+            (
+                new[]
+                {
+                    new XeriTrayEntry("a", "A"),
+                    new XeriTrayEntry("b", "B"),
+                },
+                options
+            );
+
+            Assert.AreSame(animator, panel.ReorderAnimator);
+        }
+
+        // --------------------------------------------------------------------------------
+        /// <summary>
+        /// null override는 custom animator를 해제하고 options 기반 기본 animator로 복귀한다.
+        /// </summary>
+        // --------------------------------------------------------------------------------
+        [Test]
+        public void TEST_XeriTrayPanel_SetReorderAnimator_Null_Default복귀()
+        {
+            var panel = new XeriTrayPanel();
+            var animator = new TestReorderAnimator();
+            var options = XeriTrayOptions.Default();
+            options.AnimateReorder = false;
+            panel.Reload(null, options);
+            panel.SetReorderAnimator(animator);
+
+            panel.SetReorderAnimator(null);
+
+            Assert.AreNotSame(animator, panel.ReorderAnimator);
+            Assert.IsInstanceOf<XeriTrayNoReorderAnimator>(panel.ReorderAnimator);
+            Assert.Greater(animator.ClearCount, 0);
+        }
+
+    #endregion
+
     #region V-1: Reorder Visual
 
-        // ------------------------------------------------------------
+        // --------------------------------------------------------------------------------
         /// <summary>
         /// Reorder visual은 drag 중 원본 button을 숨기고 Clear 시 원래 표시 상태로 되돌린다.
         /// </summary>
-        // ------------------------------------------------------------
+        // --------------------------------------------------------------------------------
         [Test]
         public void TEST_XeriTrayReorderVisual_Move_Clear_Button_Visible_복구()
         {
@@ -184,14 +281,14 @@ namespace inonego.Xeri.UI.TEST.Tray
             panel.Reload(entries, options);
 
             var button = panel.GetEntryButtons()[0];
-            var session = new XeriTrayReorderSession(button, 0, Vector2.zero);
+            var session = new XeriTrayReorderSession(button.Entry, 0, Vector2.zero);
             var visual = new XeriTrayReorderVisual();
 
-            visual.Move(session, new Vector2(8f, 0f), panel);
+            visual.Move(button, session, new Vector2(8f, 0f), panel);
 
             Assert.IsFalse(button.visible);
 
-            visual.Clear(session);
+            visual.Clear(button, session);
 
             Assert.IsTrue(button.visible);
         }

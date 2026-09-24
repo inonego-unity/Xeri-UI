@@ -10,6 +10,9 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 
+using inonego;
+using inonego.Xeri;
+using inonego.Xeri.UI;
 using inonego.Xeri.UI.Tray;
 
 namespace inonego.Xeri.UI.Window
@@ -27,6 +30,8 @@ namespace inonego.Xeri.UI.Window
         private readonly IXeriWindowRegistry registry = null;
         private readonly XeriWindowTrayMapper mapper = null;
         private readonly List<string> order = new();
+        private bool isRegistryBound = false;
+        private bool isDisposed = false;
 
     #endregion
 
@@ -54,10 +59,32 @@ namespace inonego.Xeri.UI.Window
             XeriWindowTrayMapper mapper = null
         ) : base()
         {
-            this.registry = registry;
-            this.mapper   = mapper ?? new XeriWindowTrayMapper();
+            this.registry = registry ?? throw new ArgumentNullException(nameof(registry));
+            this.mapper = mapper ?? new XeriWindowTrayMapper();
 
-            BindRegistry();
+            try
+            {
+                BindRegistry();
+            }
+            catch (Exception exception)
+            {
+                var errors = new List<Exception>
+                {
+                    exception,
+                };
+                UnbindRegistry(errors);
+
+                if (errors.Count == 1)
+                {
+                    throw;
+                }
+
+                throw new AggregateException
+                (
+                    "Window Tray Source Registry 연결과 롤백이 실패했습니다.",
+                    errors
+                );
+            }
         }
 
     #endregion
@@ -71,9 +98,9 @@ namespace inonego.Xeri.UI.Window
         // ------------------------------------------------------------
         public IReadOnlyList<XeriTrayEntry> GetEntries()
         {
-            var entries = new List<XeriTrayEntry>();
+            ThrowIfDisposed();
 
-            if (registry == null) return entries;
+            var entries = new List<XeriTrayEntry>();
 
             SynchronizeOrder();
 
@@ -83,22 +110,35 @@ namespace inonego.Xeri.UI.Window
                 if (!registry.TryGetRecord(handle, out var record)) continue;
                 if (record.State != XeriWindowState.Minimized) continue;
 
-                entries.Add(mapper.Map(record, handle));
+                var entry = mapper.Map(record, handle);
+
+                if (entry == null) continue;
+
+                entry.IsActive = ReferenceEquals(registry.ActiveHandle, handle);
+
+                if (registry.TryGetController(handle, out var controller))
+                {
+                    entry.CanClose = controller.Options.CanClose;
+                }
+
+                entries.Add(entry);
             }
 
             return entries;
         }
 
-        // ------------------------------------------------------------
+        // ----------------------------------------------------------------------
         /// <summary>
         /// Tray entry payload의 handle로 윈도우를 최소화 이전 표시 상태로 복구한다.
         /// </summary>
-        // ------------------------------------------------------------
+        // ----------------------------------------------------------------------
         public void Restore(XeriTrayEntry entry)
         {
+            ThrowIfDisposed();
+
             if (entry?.Payload is not XeriWindowHandle handle) return;
 
-            registry?.Restore(handle);
+            registry.Restore(handle);
         }
 
         // ------------------------------------------------------------
@@ -108,9 +148,11 @@ namespace inonego.Xeri.UI.Window
         // ------------------------------------------------------------
         public void Close(XeriTrayEntry entry)
         {
+            ThrowIfDisposed();
+
             if (entry?.Payload is not XeriWindowHandle handle) return;
 
-            registry?.Close(handle);
+            registry.Close(handle);
         }
 
         // ------------------------------------------------------------
@@ -120,7 +162,7 @@ namespace inonego.Xeri.UI.Window
         // ------------------------------------------------------------
         public void MoveEntry(XeriWindowHandle handle, int targetIndex)
         {
-            if (registry == null) return;
+            ThrowIfDisposed();
             if (!registry.TryGetRecord(handle, out var record)) return;
             if (record.State != XeriWindowState.Minimized) return;
 
@@ -136,7 +178,7 @@ namespace inonego.Xeri.UI.Window
             order.RemoveAt(sourceIndex);
             order.Insert(targetIndex, record.ID);
 
-            OnReloadRequired?.Invoke(this, EventArgs.Empty);
+            NotifyReloadRequired();
         }
 
         // ------------------------------------------------------------
@@ -146,7 +188,20 @@ namespace inonego.Xeri.UI.Window
         // ------------------------------------------------------------
         public void Dispose()
         {
-            UnbindRegistry();
+            if (isDisposed) return;
+
+            isDisposed = true;
+            var errors = new List<Exception>();
+            UnbindRegistry(errors);
+
+            if (errors.Count > 0)
+            {
+                throw new AggregateException
+                (
+                    "Window Tray Source Registry 해제가 실패했습니다.",
+                    errors
+                );
+            }
         }
 
     #endregion
@@ -160,28 +215,36 @@ namespace inonego.Xeri.UI.Window
         // ------------------------------------------------------------
         private void BindRegistry()
         {
-            if (registry == null) return;
-
+            isRegistryBound = true;
             registry.OnCollectionChange += OnRegistryChange;
         }
 
         // ------------------------------------------------------------
         /// <summary>
-        /// Registry 변경 이벤트 연결을 해제한다.
+        /// Registry 변경 이벤트 연결을 한 번 해제한다.
         /// </summary>
         // ------------------------------------------------------------
-        private void UnbindRegistry()
+        private void UnbindRegistry(List<Exception> errors)
         {
-            if (registry == null) return;
+            if (!isRegistryBound) return;
 
-            registry.OnCollectionChange -= OnRegistryChange;
+            isRegistryBound = false;
+
+            try
+            {
+                registry.OnCollectionChange -= OnRegistryChange;
+            }
+            catch (Exception exception)
+            {
+                errors.Add(exception);
+            }
         }
 
-        // ------------------------------------------------------------
+        // ----------------------------------------------------------------------
         /// <summary>
         /// Registry의 minimized window 목록과 Tray 표시 순서를 동기화한다.
         /// </summary>
-        // ------------------------------------------------------------
+        // ----------------------------------------------------------------------
         private void SynchronizeOrder()
         {
             var minimizedIDs = CreateMinimizedIDList();
@@ -201,16 +264,14 @@ namespace inonego.Xeri.UI.Window
             }
         }
 
-        // ------------------------------------------------------------
+        // ----------------------------------------------------------------------
         /// <summary>
         /// Registry record 순서 기준으로 minimized window ID 목록을 생성한다.
         /// </summary>
-        // ------------------------------------------------------------
+        // ----------------------------------------------------------------------
         private List<string> CreateMinimizedIDList()
         {
             var ids = new List<string>();
-
-            if (registry == null) return ids;
 
             foreach (var record in registry.Records)
             {
@@ -236,6 +297,57 @@ namespace inonego.Xeri.UI.Window
             return index;
         }
 
+        // ----------------------------------------------------------------------
+        /// <summary>
+        /// Reload observer를 독립적으로 호출하고 수집된 오류를 한 번 전달한다.
+        /// </summary>
+        // ----------------------------------------------------------------------
+        private void NotifyReloadRequired()
+        {
+            var handlers = OnReloadRequired;
+            if (handlers == null) return;
+
+            var errors = new List<Exception>();
+
+            foreach (EventHandler handler in handlers.GetInvocationList())
+            {
+                try
+                {
+                    handler.Invoke(this, EventArgs.Empty);
+                }
+                catch (Exception exception)
+                {
+                    errors.Add(exception);
+                }
+            }
+
+            if (errors.Count == 0) return;
+
+            if (errors.Count == 1)
+            {
+                throw errors[0];
+            }
+
+            throw new AggregateException
+            (
+                "Window Tray reload 이벤트 처리 중 오류가 발생했습니다.",
+                errors
+            );
+        }
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// 종료된 Source 사용을 거부한다.
+        /// </summary>
+        // ------------------------------------------------------------
+        private void ThrowIfDisposed()
+        {
+            if (isDisposed)
+            {
+                throw new ObjectDisposedException(nameof(XeriWindowTraySource));
+            }
+        }
+
     #endregion
 
     #region 이벤트 핸들러
@@ -247,7 +359,9 @@ namespace inonego.Xeri.UI.Window
         // ------------------------------------------------------------
         private void OnRegistryChange(object sender, EventArgs e)
         {
-            OnReloadRequired?.Invoke(this, EventArgs.Empty);
+            if (isDisposed) return;
+
+            NotifyReloadRequired();
         }
 
     #endregion

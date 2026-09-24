@@ -18,11 +18,11 @@ namespace inonego.Xeri.UI.Window
 
     #region 메서드
 
-        // ------------------------------------------------------------
+        // --------------------------------------------------------------------------------
         /// <summary>
-        /// Window titlebar drag binding을 생성한다.
+        /// Session이 Attach/Detach할 미부착 Window titlebar drag binding을 생성한다.
         /// </summary>
-        // ------------------------------------------------------------
+        // --------------------------------------------------------------------------------
         XeriWindowTitleBarManipulator CreateTitleBarDrag
         (
             XeriWindowPanel panel,

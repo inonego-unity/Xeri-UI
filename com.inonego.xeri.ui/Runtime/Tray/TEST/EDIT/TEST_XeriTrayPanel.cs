@@ -6,7 +6,7 @@
 공통 UITK Tray panel/button 표시 테스트.
 
 # 테스트 구성
- P: Panel entry 생성
+ P: Panel entry 생성과 Core Presentation
  V: VisibleContent 표시 조합
 ========================================================================= BLOCK_HEADER_END */
 
@@ -16,6 +16,9 @@ using UnityEngine.UIElements;
 using NUnit;
 using NUnit.Framework;
 
+using inonego;
+using inonego.Xeri;
+using inonego.Xeri.UI;
 using inonego.Xeri.UI.Tray;
 
 namespace inonego.Xeri.UI.TEST.Tray
@@ -84,6 +87,67 @@ namespace inonego.Xeri.UI.TEST.Tray
 
     #endregion
 
+    #region P-3: Core Presentation
+
+        // ----------------------------------------------------------------------
+        /// <summary>
+        /// Core Presentation Visibility는 Tray Root 표시 여부를 직접 반영한다.
+        /// </summary>
+        // ----------------------------------------------------------------------
+        [Test]
+        public void TEST_XeriTrayPanel_PresentationVisibility_Display_반영()
+        {
+            var panel = new XeriTrayPanel();
+
+            panel.Visibility.Set(false);
+            Assert.AreEqual(DisplayStyle.None, panel.style.display.value);
+
+            panel.Visibility.Set(true);
+            Assert.AreEqual(DisplayStyle.Flex, panel.style.display.value);
+        }
+
+    #endregion
+
+    #region P-4: Option Validation
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// 정의되지 않은 ReorderAxis 값은 Panel Reload에서 거부한다.
+        /// </summary>
+        // ------------------------------------------------------------
+        [Test]
+        public void TEST_XeriTrayPanel_Reload_InvalidReorderAxis_거부()
+        {
+            var panel = new XeriTrayPanel();
+            var options = XeriTrayOptions.Default();
+            options.ReorderAxis = (XeriTrayReorderAxis)999;
+
+            Assert.Throws<System.ArgumentOutOfRangeException>
+            (
+                () => panel.Reload(null, options)
+            );
+        }
+
+        // ----------------------------------------------------------------------
+        /// <summary>
+        /// 정의되지 않은 VisibleContent flag bit는 Panel Reload에서 거부한다.
+        /// </summary>
+        // ----------------------------------------------------------------------
+        [Test]
+        public void TEST_XeriTrayPanel_Reload_UnknownVisibleContentFlag_거부()
+        {
+            var panel = new XeriTrayPanel();
+            var options = XeriTrayOptions.Default();
+            options.VisibleContent = (XeriTrayContent)(1 << 12);
+
+            Assert.Throws<System.ArgumentOutOfRangeException>
+            (
+                () => panel.Reload(null, options)
+            );
+        }
+
+    #endregion
+
     #region V-1: Icon Only
 
         // ------------------------------------------------------------
@@ -142,11 +206,11 @@ namespace inonego.Xeri.UI.TEST.Tray
 
     #region V-3: State Marker
 
-        // ------------------------------------------------------------
+        // ----------------------------------------------------------------------
         /// <summary>
         /// StateMarker 표시 옵션과 active 상태가 있으면 state marker가 표시된다.
         /// </summary>
-        // ------------------------------------------------------------
+        // ----------------------------------------------------------------------
         [Test]
         public void TEST_XeriTrayButton_VisibleContent_StateMarker_Active_표시()
         {

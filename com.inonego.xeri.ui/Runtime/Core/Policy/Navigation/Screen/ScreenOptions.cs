@@ -1,8 +1,8 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : ScreenOptions.cs
-수정일 : 2026-09-17
+수정일 : 2026-09-30
 # 설명
-Screen 등록 시 재사용할 Layer, 중복, Focus, 입력과 Transition 정책을 정의한다.
+Screen 등록 시 재사용할 중복, Gameplay Input, Cursor와 Transition 정책을 정의한다.
 ========================================================================= BLOCK_HEADER_END */
 
 using System;
@@ -34,24 +34,10 @@ namespace inonego.Xeri.UI
 
         // ------------------------------------------------------------
         /// <summary>
-        /// Screen을 표시할 Presentation Layer ID.
-        /// </summary>
-        // ------------------------------------------------------------
-        public string LayerID { get; }
-
-        // ------------------------------------------------------------
-        /// <summary>
         /// 동일 ID Screen의 중복 Open 정책.
         /// </summary>
         // ------------------------------------------------------------
         public ScreenDuplicatePolicy DuplicatePolicy { get; }
-
-        // ------------------------------------------------------------
-        /// <summary>
-        /// Screen의 기본 Focus 대상.
-        /// </summary>
-        // ------------------------------------------------------------
-        public object DefaultFocus { get; }
 
         // ------------------------------------------------------------
         /// <summary>
@@ -76,13 +62,6 @@ namespace inonego.Xeri.UI
 
         // ------------------------------------------------------------
         /// <summary>
-        /// Screen 입력 정책 합성 우선순위.
-        /// </summary>
-        // ------------------------------------------------------------
-        public int InputPriority { get; }
-
-        // ------------------------------------------------------------
-        /// <summary>
         /// 열기 Transition 시간.
         /// </summary>
         // ------------------------------------------------------------
@@ -94,13 +73,6 @@ namespace inonego.Xeri.UI
         /// </summary>
         // ------------------------------------------------------------
         public float CloseDuration { get; }
-
-        // ------------------------------------------------------------
-        /// <summary>
-        /// Transition이 unscaled 시간을 사용할지 여부.
-        /// </summary>
-        // ------------------------------------------------------------
-        public bool UsesUnscaledTime { get; }
 
     #endregion
 
@@ -114,26 +86,17 @@ namespace inonego.Xeri.UI
         public ScreenOptions
         (
             string id,
-            string layerID,
             ScreenDuplicatePolicy duplicatePolicy = ScreenDuplicatePolicy.Reject,
-            object defaultFocus = null,
             bool blocksGameplayInput = true,
             bool showsCursor = true,
             CursorLockMode cursorLockMode = CursorLockMode.None,
-            int inputPriority = 0,
             float openDuration = 0.2f,
-            float closeDuration = 0.2f,
-            bool usesUnscaledTime = true
+            float closeDuration = 0.2f
         ) : base()
         {
             if (string.IsNullOrWhiteSpace(id))
             {
                 throw new ArgumentException("Screen ID가 비어 있습니다.", nameof(id));
-            }
-
-            if (string.IsNullOrWhiteSpace(layerID))
-            {
-                throw new ArgumentException("Screen Layer ID가 비어 있습니다.", nameof(layerID));
             }
 
             if
@@ -155,16 +118,12 @@ namespace inonego.Xeri.UI
             }
 
             ID = id;
-            LayerID = layerID;
             DuplicatePolicy = duplicatePolicy;
-            DefaultFocus = defaultFocus;
             BlocksGameplayInput = blocksGameplayInput;
             ShowsCursor = showsCursor;
             CursorLockMode = cursorLockMode;
-            InputPriority = inputPriority;
             OpenDuration = openDuration;
             CloseDuration = closeDuration;
-            UsesUnscaledTime = usesUnscaledTime;
         }
 
     #endregion

@@ -9,17 +9,20 @@ Bind한 뒤 Release에서 이벤트, 예약 작업과 VisualElement를 대칭으
 
 using System;
 
+using UnityEngine;
 using UnityEngine.UIElements;
 
+using inonego;
+using inonego.Xeri;
 using inonego.Xeri.UI;
 
 namespace inonego.Xeri.Samples.GameUIValidation
 {
-    // ============================================================
+    // ======================================================================
     /// <summary>
     /// 하나의 UXML Template으로 Dashboard와 Detail Screen 인스턴스를 공급한다.
     /// </summary>
-    // ============================================================
+    // ======================================================================
     internal sealed class GameUIValidationScreenSource : IScreenSource, IDisposable
     {
 
@@ -143,11 +146,11 @@ namespace inonego.Xeri.Samples.GameUIValidation
 
     #region IDisposable
 
-        // ------------------------------------------------------------
+        // ----------------------------------------------------------------------
         /// <summary>
         /// 새 Screen 획득을 중지한다. 열린 View는 Screen Session이 먼저 반환한다.
         /// </summary>
-        // ------------------------------------------------------------
+        // ----------------------------------------------------------------------
         public void Dispose()
         {
             isDisposed = true;
@@ -176,7 +179,6 @@ namespace inonego.Xeri.Samples.GameUIValidation
 
         private readonly GameUIValidationLab owner = null;
         private readonly VisualElement root = null;
-        private readonly VisualElement layerRoot = null;
         private readonly ScreenSession session = null;
         private readonly bool isDashboard = false;
         private readonly GameUIValidationScreenPayload payload = default;
@@ -240,7 +242,7 @@ namespace inonego.Xeri.Samples.GameUIValidation
 
             session = scope.Session;
 
-            if (!(scope.Layer is IPresentationLayerDriver<VisualElement> typedLayer))
+            if (!(scope.Layer is IPresentationLayerDriver<VisualElement>))
             {
                 throw new InvalidOperationException
                 (
@@ -248,7 +250,6 @@ namespace inonego.Xeri.Samples.GameUIValidation
                 );
             }
 
-            layerRoot = typedLayer.Root;
             isDashboard = scope.ScreenID == GameUIValidationLab.DASHBOARD_SCREEN_ID;
             payload = scope.OpenParams.Payload is GameUIValidationScreenPayload value ? value : new GameUIValidationScreenPayload(1, false);
 
@@ -378,7 +379,7 @@ namespace inonego.Xeri.Samples.GameUIValidation
         // ------------------------------------------------------------
         private void OnModalClicked()
         {
-            owner.OpenModal(session, layerRoot);
+            owner.OpenModal(session);
         }
 
         // ------------------------------------------------------------
@@ -553,11 +554,11 @@ namespace inonego.Xeri.Samples.GameUIValidation
 
     #region IDisposable
 
-        // ------------------------------------------------------------
+        // ----------------------------------------------------------------------
         /// <summary>
         /// UI 이벤트와 예약 갱신을 분리하고 Screen Root를 Visual Tree에서 제거한다.
         /// </summary>
-        // ------------------------------------------------------------
+        // ----------------------------------------------------------------------
         public void Dispose()
         {
             if (isDisposed) return;

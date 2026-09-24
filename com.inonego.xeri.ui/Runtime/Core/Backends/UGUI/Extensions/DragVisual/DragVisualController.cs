@@ -1,8 +1,8 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : DragVisualController.cs
-수정일 : 2026-09-17
+수정일 : 2026-09-23
 # 설명
-UGUI Drag Visual의 Layer Usage, 일시적 계층 재배치와 기존 Draggable 연결을 소유한다.
+UGUI Drag Visual의 Presentation placement usage, 일시적 계층 재배치와 기존 Draggable 연결을 소유한다.
 ========================================================================= BLOCK_HEADER_END */
 
 using System;
@@ -30,7 +30,7 @@ namespace inonego.Xeri.UI
 
         private readonly List<DragVisualHandle> handles = new List<DragVisualHandle>();
         private readonly List<UGUIDragVisualBinding> bindings = new List<UGUIDragVisualBinding>();
-        private readonly PresentationLayerRegistry layerRegistry = null;
+        private readonly PresentationSession presentationSession = null;
         private bool isDisposed = false;
 
     #endregion
@@ -47,15 +47,15 @@ namespace inonego.Xeri.UI
             // NONE
         }
 
-        // ------------------------------------------------------------
+        // ----------------------------------------------------------------------
         /// <summary>
-        /// 등록된 Presentation Layer를 사용하는 Controller를 생성한다.
+        /// 활성 PresentationSession placement를 사용하는 Controller를 생성한다.
         /// </summary>
-        // ------------------------------------------------------------
-        public DragVisualController(PresentationLayerRegistry layerRegistry) : this()
+        // ----------------------------------------------------------------------
+        public DragVisualController(PresentationSession presentationSession) : this()
         {
-            this.layerRegistry = layerRegistry ??
-                throw new ArgumentNullException(nameof(layerRegistry));
+            this.presentationSession = presentationSession ??
+                throw new ArgumentNullException(nameof(presentationSession));
         }
 
     #endregion
@@ -79,7 +79,7 @@ namespace inonego.Xeri.UI
 
         // ----------------------------------------------------------------------
         /// <summary>
-        /// <br/> 등록된 Presentation Layer Usage를 획득하고,
+        /// <br/> 활성 Presentation placement usage를 획득하고,
         /// <br/> Drag Visual을 해당 UGUI Root의 마지막 sibling으로 옮긴다.
         /// </summary>
         // ----------------------------------------------------------------------
@@ -87,13 +87,13 @@ namespace inonego.Xeri.UI
         {
             ThrowIfDisposed();
             ValidateParameters(parameters);
-            ThrowIfLayerRegistryMissing();
+            ThrowIfPresentationSessionMissing();
 
-            if (!layerRegistry.TryAcquireUsage(parameters.LayerID, out var driver, out var usage))
+            if (!presentationSession.TryAcquirePlacement(parameters.PresentationID, out var driver, out var usage))
             {
                 throw new InvalidOperationException
                 (
-                    $"Drag Visual Layer '{parameters.LayerID}'가 등록되어 있지 않습니다."
+                    $"Drag Visual Presentation '{parameters.PresentationID}'이 active Session Plan에 없습니다."
                 );
             }
 
@@ -102,7 +102,7 @@ namespace inonego.Xeri.UI
                 usage.Dispose();
                 throw new InvalidOperationException
                 (
-                    $"Drag Visual Layer '{parameters.LayerID}'가 UGUI Layer가 아닙니다."
+                    $"Drag Visual Presentation '{parameters.PresentationID}'이 UGUI placement가 아닙니다."
                 );
             }
 
@@ -123,7 +123,7 @@ namespace inonego.Xeri.UI
         {
             ThrowIfDisposed();
             ValidateParameters(parameters);
-            ThrowIfLayerRegistryMissing();
+            ThrowIfPresentationSessionMissing();
 
             if (draggable == null)
             {
@@ -261,11 +261,11 @@ namespace inonego.Xeri.UI
                 );
             }
 
-            if (string.IsNullOrWhiteSpace(parameters.LayerID))
+            if (string.IsNullOrWhiteSpace(parameters.PresentationID))
             {
                 throw new ArgumentException
                 (
-                    "Drag Visual Layer ID가 비어 있습니다.",
+                    "Drag Visual Presentation ID가 비어 있습니다.",
                     nameof(parameters)
                 );
             }
@@ -273,17 +273,17 @@ namespace inonego.Xeri.UI
 
         // ------------------------------------------------------------
         /// <summary>
-        /// Presentation Layer 기반 요청에 필요한 Registry 구성을 확인한다.
+        /// Presentation 기반 요청에 필요한 Session 구성을 확인한다.
         /// </summary>
         // ------------------------------------------------------------
-        private void ThrowIfLayerRegistryMissing()
+        private void ThrowIfPresentationSessionMissing()
         {
-            if (layerRegistry == null)
+            if (presentationSession == null)
             {
                 throw new InvalidOperationException
                 (
-                    "Presentation Layer 기반 Drag Visual을 사용하려면 " +
-                    "Layer Registry로 Controller를 생성해야 합니다."
+                    "Presentation 기반 Drag Visual을 사용하려면 " +
+                    "PresentationSession으로 Controller를 생성해야 합니다."
                 );
             }
         }

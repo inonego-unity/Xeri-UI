@@ -18,7 +18,7 @@ namespace inonego.Xeri.UI
     /// </summary>
     // ============================================================
     [DisallowMultipleComponent]
-    [RequireComponent(typeof(UITKLayerPanel))]
+    [RequireComponent(typeof(UITKPresentationOutput))]
     public sealed class UITKSafeAreaLayout : MonoBehaviour, IDisposable
     {
 
@@ -34,7 +34,7 @@ namespace inonego.Xeri.UI
         [SerializeField]
         private string rootName = "";
 
-        private UITKLayerPanel layer = null;
+        private UITKPresentationOutput output = null;
         private VisualElement observedRoot = null;
         private Rect lastSafeArea = default;
         private Vector2Int lastScreenSize = default;
@@ -122,31 +122,31 @@ namespace inonego.Xeri.UI
 
         // ------------------------------------------------------------
         /// <summary>
-        /// UITK Layer Root에서 명시적으로 지정한 Safe Area Root를 찾는다.
+        /// UITK Native Output Root에서 명시적으로 지정한 Safe Area Root를 찾는다.
         /// </summary>
         // ------------------------------------------------------------
         private VisualElement FindRoot()
         {
-            CacheLayer();
+            CacheOutput();
 
-            if (layer == null || string.IsNullOrWhiteSpace(rootName))
+            if (output == null || string.IsNullOrWhiteSpace(rootName))
             {
                 return null;
             }
 
-            return layer.Root?.Q<VisualElement>(rootName);
+            return output.Root?.Q<VisualElement>(rootName);
         }
 
         // ----------------------------------------------------------------------
         /// <summary>
-        /// 같은 GameObject의 UITK Layer backend를 현재 Layout에 연결한다.
+        /// 같은 GameObject의 UITK Native Output을 현재 Layout에 연결한다.
         /// </summary>
         // ----------------------------------------------------------------------
-        private void CacheLayer()
+        private void CacheOutput()
         {
-            if (layer == null)
+            if (output == null)
             {
-                layer = GetComponent<UITKLayerPanel>();
+                output = GetComponent<UITKPresentationOutput>();
             }
         }
 

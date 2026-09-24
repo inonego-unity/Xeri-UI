@@ -6,6 +6,9 @@
 Xeri 윈도우 record와 handle을 공통 Tray entry로 변환한다.
 ========================================================================= BLOCK_HEADER_END */
 
+using inonego;
+using inonego.Xeri;
+using inonego.Xeri.UI;
 using inonego.Xeri.UI.Tray;
 
 namespace inonego.Xeri.UI.Window
@@ -29,14 +32,14 @@ namespace inonego.Xeri.UI.Window
         {
             if (record == null) return null;
 
-            return new XeriTrayEntry(record.ID, record.Title)
+            var id = handle?.ID ?? record.ID;
+
+            return new XeriTrayEntry(id, record.Title)
             {
                 Tooltip = record.Tooltip,
                 Icon = record.Icon,
                 Badge = record.Badge,
-                IsActive = record.State != XeriWindowState.Minimized,
-                CanClose = true,
-                PayloadID = record.ID,
+                PayloadID = id,
                 Payload = handle,
             };
         }

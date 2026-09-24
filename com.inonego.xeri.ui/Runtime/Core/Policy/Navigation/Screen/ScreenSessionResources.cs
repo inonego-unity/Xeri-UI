@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : ScreenSessionResources.cs
-수정일 : 2026-09-17
+수정일 : 2026-09-23
 # 설명
 한 Screen Session이 획득한 Source, Layer, 입력과 하위 표시 자원의 소유권을 묶는다.
 ========================================================================= BLOCK_HEADER_END */
@@ -102,10 +102,11 @@ namespace inonego.Xeri.UI
         public bool TryAcquireInput
         (
             IScreenInputDriver driver,
-            ScreenOptions options
+            ScreenOptions options,
+            bool contributionEnabled
         )
         {
-            var acquired = driver.Acquire(options);
+            var acquired = driver.Acquire(options, contributionEnabled);
 
             // 획득 중 종료된 Session이 입력 정책을 다시 점유하지 않게 즉시 반환한다.
             if (isReleasing)

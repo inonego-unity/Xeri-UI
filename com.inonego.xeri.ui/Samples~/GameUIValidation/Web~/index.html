@@ -1,6 +1,6 @@
 <!-- BLOCK_HEADER_BEGIN =====================================================================
 파일명 : index.html
-수정일 : 2026-09-16
+수정일 : 2026-09-30
 
 # 설명
 Xeri UI Core Validation의 1920x1080 HTML 시각 기준본을 제공한다.
@@ -47,7 +47,7 @@ Unity UXML과 동일한 정보 구조를 사용하며 Dashboard/Detail/Modal/Pre
                             <div class="composition-path">
                                 <article class="core-node"><span>01 / APP</span><strong>UIRuntime</strong><small>App composition root</small></article>
                                 <div class="path-link"><i></i><span>→</span></div>
-                                <article class="core-node"><span>02 / SCOPE</span><strong>UIContext</strong><small>Layer + Focus boundary</small></article>
+                                <article class="core-node"><span>02 / SCOPE</span><strong>UIContext</strong><small>Navigation + authority boundary</small></article>
                                 <div class="path-link"><i></i><span>→</span></div>
                                 <article class="core-node core-node--accent"><span>03 / TOP</span><strong>Dashboard</strong><small>ScreenSession owner</small></article>
                             </div>
@@ -112,11 +112,11 @@ Unity UXML과 동일한 정보 구조를 사용하며 Dashboard/Detail/Modal/Pre
                 <footer class="detail-footnote">REAL XERI UI CORE PATH · NO PARALLEL MOCK CONTROLLER</footer>
             </section>
             <section class="modal-surface preview-overlay is-hidden" data-overlay="modal">
-                <div class="modal-card"><span>MODAL CONTROLLER / OWNED HANDLE</span><h2>Nothing leaks past this card.</h2><p>The modal owns its visual removal and Presentation Layer usage. Closing the parent Screen also releases this card.</p><i></i><button class="button button--primary" data-preview="dashboard">CLOSE MODAL</button></div>
+                <div class="modal-card"><span>MODAL CONTROLLER / OWNED HANDLE</span><h2>Nothing leaks past this card.</h2><p>The modal owns its visual removal and Presentation placement usage. Closing the parent Screen also releases this card.</p><i></i><button class="button button--primary" data-preview="dashboard">CLOSE MODAL</button></div>
             </section>
 
             <aside class="overlay-toast preview-overlay is-hidden" data-overlay="overlay">
-                <i class="overlay-toast__signal"></i><div><strong>Overlay ownership acquired</strong><span>View + Layer Usage are held by one handle.</span></div><button data-preview="dashboard">×</button>
+                <i class="overlay-toast__signal"></i><div><strong>Overlay ownership acquired</strong><span>View + placement usage are held by one handle.</span></div><button data-preview="dashboard">×</button>
             </aside>
         </section>
     </main>

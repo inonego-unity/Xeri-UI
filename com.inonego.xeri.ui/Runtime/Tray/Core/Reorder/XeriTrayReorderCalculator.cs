@@ -19,22 +19,25 @@ namespace inonego.Xeri.UI.Tray
     /// Tray entry reorder index 계산기.
     /// </summary>
     // ============================================================
-    public sealed class XeriTrayReorderCalculator
+    internal sealed class XeriTrayReorderCalculator
     {
 
     #region 생성자
 
-        public XeriTrayReorderCalculator() : base() {}
+        public XeriTrayReorderCalculator() : base()
+        {
+            // NONE
+        }
 
     #endregion
 
     #region 메서드
 
-        // ------------------------------------------------------------
+        // ----------------------------------------------------------------------
         /// <summary>
         /// Pointer가 지나간 insertion boundary를 기준으로 target index를 계산한다.
         /// </summary>
-        // ------------------------------------------------------------
+        // ----------------------------------------------------------------------
         public int CalculateTargetIndex
         (
             IReadOnlyList<Rect> entryBounds,
@@ -76,11 +79,11 @@ namespace inonego.Xeri.UI.Tray
 
     #region 내부 메서드
 
-        // ------------------------------------------------------------
+        // ----------------------------------------------------------------------
         /// <summary>
         /// Source 뒤쪽 insertion boundary를 기준으로 target index를 계산한다.
         /// </summary>
-        // ------------------------------------------------------------
+        // ----------------------------------------------------------------------
         private static int CalculateForwardIndex
         (
             IReadOnlyList<Rect> entryBounds,
@@ -102,11 +105,11 @@ namespace inonego.Xeri.UI.Tray
             return Mathf.Clamp(targetIndex, 0, entryBounds.Count - 1);
         }
 
-        // ------------------------------------------------------------
+        // ----------------------------------------------------------------------
         /// <summary>
         /// Source 앞쪽 insertion boundary를 기준으로 target index를 계산한다.
         /// </summary>
-        // ------------------------------------------------------------
+        // ----------------------------------------------------------------------
         private static int CalculateBackwardIndex
         (
             IReadOnlyList<Rect> entryBounds,

@@ -1,12 +1,15 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : UIFocusDriver.cs
-수정일 : 2026-09-17
+수정일 : 2026-09-23
 # 설명
 같은 Host의 Focus Driver Component를 하나의 Runtime Focus 계약으로 조립한다.
 backend의 native Focus 변경을 모아 실제 Focus 유실만 Runtime에 전달한다.
+Presentation Layer binding은 disposable registration lifetime으로 대칭 관리한다.
 ========================================================================= BLOCK_HEADER_END */
 
 using System;
+using System.Collections;
+using System.Collections.Generic;
 
 using UnityEngine;
 
@@ -19,6 +22,44 @@ namespace inonego.Xeri.UI
     // ============================================================
     public sealed class UIFocusDriver : MonoBehaviour, IFocusDriver
     {
+
+    #region 내부 데이터
+
+        private sealed class LayerBinding : IDisposable
+        {
+            private readonly List<IDisposable> handles = null;
+
+            public LayerBinding(List<IDisposable> handles)
+            {
+                this.handles = handles ?? throw new ArgumentNullException(nameof(handles));
+            }
+
+            public void Dispose()
+            {
+                var errors = new List<Exception>();
+
+                for (var index = handles.Count - 1; index >= 0; index--)
+                {
+                    try
+                    {
+                        handles[index]?.Dispose();
+                    }
+                    catch (Exception exception)
+                    {
+                        errors.Add(exception);
+                    }
+                }
+
+                handles.Clear();
+
+                if (errors.Count > 0)
+                {
+                    throw new AggregateException("Focus Layer binding 해제가 실패했습니다.", errors);
+                }
+            }
+        }
+
+    #endregion
 
     #region 필드
 
@@ -114,21 +155,42 @@ namespace inonego.Xeri.UI
 
     #region Layer 연결
 
-        // ------------------------------------------------------------
+        // --------------------------------------------------------------------------------
         /// <summary>
-        /// Presentation Layer를 관련 Focus Driver에 전달한다.
+        /// Presentation Layer를 관련 Focus backend에 등록하고 대칭 해제 binding을 반환한다.
         /// </summary>
-        // ------------------------------------------------------------
-        internal void RegisterLayer(IPresentationLayerDriver driver)
+        // --------------------------------------------------------------------------------
+        internal IDisposable BindLayer(IPresentationLayerDriver driver)
         {
+            if (driver == null)
+            {
+                throw new ArgumentNullException(nameof(driver));
+            }
+
             if (drivers.Length == 0)
             {
                 CollectDrivers();
             }
 
-            for (var i = 0; i < drivers.Length; i++)
+            var handles = new List<IDisposable>(drivers.Length);
+
+            try
             {
-                drivers[i].RegisterLayer(driver);
+                for (var index = 0; index < drivers.Length; index++)
+                {
+                    handles.Add(drivers[index].RegisterLayer(driver));
+                }
+
+                return new LayerBinding(handles);
+            }
+            catch
+            {
+                for (var index = handles.Count - 1; index >= 0; index--)
+                {
+                    handles[index]?.Dispose();
+                }
+
+                throw;
             }
         }
 

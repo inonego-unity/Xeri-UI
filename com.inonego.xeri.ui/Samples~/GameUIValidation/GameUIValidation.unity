@@ -163,13 +163,10 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 0d8af2918d8b438fb1bfbd070900aa11, type: 3}
   m_Name:
   m_EditorClassIdentifier: inonego.Xeri.Samples.GameUIValidation::inonego.Xeri.Samples.GameUIValidation.GameUIValidationLab
-  profile: {fileID: 11400000, guid: 91abc66ec2dc413da3ff72738380d37d, type: 2}
   screenTemplate: {fileID: 9197481963319205126, guid: 4b8ad6c8b3cb4f4b8eed03122a48c224, type: 3}
   screenStyle: {fileID: 7433441132597879392, guid: 941e89ecf18f4c0eae41caa7830ce56e, type: 3}
   runtimeHostPrefab: {fileID: 6988059875564967763, guid: b81945a93f27a1642b4b31676367c110, type: 3}
   settings: {fileID: 11400000, guid: 6062a928794d40cf88c941477b133ced, type: 2}
-  validationLayerAsset: {fileID: 11400000, guid: a2d0fd799efb4e2c8a3c60e7f6238c77, type: 2}
-  validationLayerPrefab: {fileID: 2832404244611069264, guid: dcc5c4cbce824091a90bd0ce9d576c68, type: 3}
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0

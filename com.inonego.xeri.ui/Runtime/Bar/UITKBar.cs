@@ -189,6 +189,7 @@ namespace inonego.Xeri.UI
             hierarchy.Add(change);
             hierarchy.Add(foreground);
             Refresh(true);
+            RegisterCallback<AttachToPanelEvent>(OnAttachToPanel);
             RegisterCallback<DetachFromPanelEvent>(OnDetachFromPanel);
         }
 
@@ -401,6 +402,16 @@ namespace inonego.Xeri.UI
     #endregion
 
     #region 이벤트 핸들러
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// Panel에 연결되면 직렬화/목표값과 표시 비율을 즉시 동기화한다.
+        /// </summary>
+        // ------------------------------------------------------------
+        private void OnAttachToPanel(AttachToPanelEvent evt)
+        {
+            Refresh(true);
+        }
 
         // ------------------------------------------------------------
         /// <summary>

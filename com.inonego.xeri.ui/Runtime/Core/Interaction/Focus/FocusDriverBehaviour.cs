@@ -1,13 +1,16 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : FocusDriverBehaviour.cs
-수정일 : 2026-09-17
+수정일 : 2026-09-23
 # 설명
-Unity Focus backend이 공통 Driver에 참여하기 위한 Component 계약을 정의한다.
+Unity Focus backend이 공통 Driver에 참여하고 Layer registration을 대칭 해제하기 위한 Component 계약을 정의한다.
 ========================================================================= BLOCK_HEADER_END */
 
 using System;
 
 using UnityEngine;
+
+using inonego;
+using inonego.Xeri;
 
 namespace inonego.Xeri.UI
 {
@@ -62,9 +65,15 @@ namespace inonego.Xeri.UI
         /// Presentation Layer가 등록되었음을 backend에 알린다.
         /// </summary>
         // ------------------------------------------------------------
-        internal void RegisterLayer(IPresentationLayerDriver driver)
+        internal IDisposable RegisterLayer(IPresentationLayerDriver driver)
         {
+            if (driver == null)
+            {
+                throw new ArgumentNullException(nameof(driver));
+            }
+
             HandleLayerRegistered(driver);
+            return new Lease(() => HandleLayerUnregistered(driver));
         }
 
         // ------------------------------------------------------------
@@ -83,6 +92,16 @@ namespace inonego.Xeri.UI
         /// </summary>
         // ------------------------------------------------------------
         protected virtual void HandleLayerRegistered(IPresentationLayerDriver driver)
+        {
+            // NONE
+        }
+
+        // ----------------------------------------------------------------------
+        /// <summary>
+        /// Presentation Layer registration lifetime이 끝났음을 backend에 알린다.
+        /// </summary>
+        // ----------------------------------------------------------------------
+        protected virtual void HandleLayerUnregistered(IPresentationLayerDriver driver)
         {
             // NONE
         }

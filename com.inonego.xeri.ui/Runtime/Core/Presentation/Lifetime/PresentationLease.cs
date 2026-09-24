@@ -1,9 +1,9 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : PresentationLease.cs
-수정일 : 2026-09-17
+수정일 : 2026-09-23
 # 설명
-Presentation Layer 사용 수명과 Source View 소유권을 하나의 값 Lease로 획득한다.
-특정 Overlay 개념 없이 Layer 기반 Presentation View의 기본 Acquire·Release를 제공한다.
+활성 PresentationSession의 Presentation identity를 placement root와 Layer usage로 resolve해 View 수명을 획득한다.
+기능 코드가 raw LayerID를 선택하지 않도록 Session placement 계약을 단일 진입점으로 사용한다.
 ========================================================================= BLOCK_HEADER_END */
 
 using System;
@@ -15,7 +15,7 @@ namespace inonego.Xeri.UI
 {
     // ======================================================================
     /// <summary>
-    /// Presentation View와 Layer Usage를 값 Lease로 결합하는 획득 진입점.
+    /// Presentation placement와 Source View 소유권을 값 Lease로 결합한다.
     /// </summary>
     // ======================================================================
     public static class PresentationLease
@@ -25,26 +25,26 @@ namespace inonego.Xeri.UI
 
         // --------------------------------------------------------------------------------
         /// <summary>
-        /// <br/> Layer 사용 수명을 획득한 뒤 Source에서 Presentation View를 생성한다.
-        /// <br/> View 획득 실패 시 Layer Usage를 즉시 반환한다.
+        /// <br/> Session의 Presentation placement와 Layer usage를 획득한 뒤 View를 생성한다.
+        /// <br/> View 획득 실패 시 Layer usage를 즉시 반환한다.
         /// </summary>
         // --------------------------------------------------------------------------------
         public static Lease<TView> Acquire<TView>
         (
-            PresentationLayerRegistry layerRegistry,
-            string layerID,
+            PresentationSession session,
+            string presentationID,
             IPresentationSource<TView> source
         )
         where TView : class
         {
-            if (layerRegistry == null)
+            if (session == null)
             {
-                throw new ArgumentNullException(nameof(layerRegistry));
+                throw new ArgumentNullException(nameof(session));
             }
 
-            if (string.IsNullOrWhiteSpace(layerID))
+            if (string.IsNullOrWhiteSpace(presentationID))
             {
-                throw new ArgumentException("Presentation Layer ID가 비어 있습니다.", nameof(layerID));
+                throw new ArgumentException("Presentation ID가 비어 있습니다.", nameof(presentationID));
             }
 
             if (source == null)
@@ -52,11 +52,11 @@ namespace inonego.Xeri.UI
                 throw new ArgumentNullException(nameof(source));
             }
 
-            if (!layerRegistry.TryAcquireUsage(layerID, out var driver, out var usage))
+            if (!session.TryAcquirePlacement(presentationID, out var driver, out var usage))
             {
                 throw new InvalidOperationException
                 (
-                    $"Presentation Layer '{layerID}'가 등록되어 있지 않습니다."
+                    $"Presentation '{presentationID}'가 활성 Session Plan에 없습니다."
                 );
             }
 

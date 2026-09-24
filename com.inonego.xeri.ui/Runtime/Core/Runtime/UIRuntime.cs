@@ -1,10 +1,9 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : UIRuntime.cs
-수정일 : 2026-09-17
+수정일 : 2026-09-29
 # 설명
-App 단위 Singleton 등록, Main UI Context, 공용 Transition, 혼합 Layer Profile과 Scene Fade의 조립·역순 해제를 소유한다.
-Render Pipeline별 UI 우회 경로 없이 Unity native UI output을 전제로 동작한다.
-Shutdown은 일반 소유 객체를 한 번씩 정리하고, 사전 조건에서 거부된 Profile과 Layer Registry 소유권만 유지한다.
+App 단위 Singleton, Root PresentationSession, Main UIContext와 Context Authority 조립·역순 해제를 소유한다.
+Top-level Layer는 Unity native output으로 materialize하며 Context lifetime과 Focus/Input authority를 분리한다.
 ========================================================================= BLOCK_HEADER_END */
 
 using System;
@@ -16,6 +15,9 @@ using UnityEngine.EventSystems;
 using UnityEngine.InputSystem;
 using UnityEngine.InputSystem.UI;
 using UnityEngine.SceneManagement;
+
+using inonego;
+using inonego.Xeri;
 
 namespace inonego.Xeri.UI
 {
@@ -57,12 +59,12 @@ namespace inonego.Xeri.UI
         // ------------------------------------------------------------
         public UISettingsAsset Settings { get; private set; }
 
-        // ------------------------------------------------------------
+        // ----------------------------------------------------------------------
         /// <summary>
-        /// Presentation Layer 등록과 소비자 수명 Registry.
+        /// 현재 Root Layout을 materialize한 top-level PresentationSession.
         /// </summary>
-        // ------------------------------------------------------------
-        public PresentationLayerRegistry LayerRegistry { get; private set; }
+        // ----------------------------------------------------------------------
+        public PresentationSession RootPresentation { get; private set; }
 
         // ------------------------------------------------------------
         /// <summary>
@@ -71,11 +73,11 @@ namespace inonego.Xeri.UI
         // ------------------------------------------------------------
         public UIContext Main { get; private set; }
 
-        // ------------------------------------------------------------
+        // --------------------------------------------------------------------------------
         /// <summary>
-        /// App 기본 Profile Layer를 사용하는 Scene Fade 서비스.
+        /// Root PresentationSession의 Fade placement를 사용하는 Scene Fade 서비스.
         /// </summary>
-        // ------------------------------------------------------------
+        // --------------------------------------------------------------------------------
         public SceneFader SceneFader { get; private set; }
 
         // ------------------------------------------------------------
@@ -136,10 +138,14 @@ namespace inonego.Xeri.UI
         }
 
         [SerializeField]
-        private Transform layerRoot = null;
+        private Transform presentationRoot = null;
 
         [SerializeField]
         private UISceneFadeSource sceneFadeSource = null;
+
+        [SerializeField]
+        private PresentationLayerHost[] presentationLayerHosts =
+            Array.Empty<PresentationLayerHost>();
 
         [SerializeField]
         private EventSystem eventSystem = null;
@@ -147,12 +153,10 @@ namespace inonego.Xeri.UI
         [SerializeField]
         private InputSystemUIInputModule inputModule = null;
 
-        private readonly List<UIProfileHandle> profileHandles =
-            new List<UIProfileHandle>();
+        private readonly List<UIContext> contextOverrides = new();
+        private readonly List<UIContext> activeContextPath = new();
 
-        private PresentationLayerRegistry pendingLayerRegistry = null;
-        private UIProfileHandle defaultProfile = null;
-        private UIContext focusedContext = null;
+        private UIContext baseContext = null;
         private bool sceneLoadedSubscribed = false;
 
     #endregion
@@ -161,7 +165,7 @@ namespace inonego.Xeri.UI
 
         // ------------------------------------------------------------
         /// <summary>
-        /// Core와 기본 Profile 조립이 완료된 뒤 발생한다.
+        /// Core와 Root Presentation 조립이 완료된 뒤 발생한다.
         /// </summary>
         // ------------------------------------------------------------
         public event Action<UIRuntime> OnInitialized = null;
@@ -262,7 +266,7 @@ namespace inonego.Xeri.UI
 
         // --------------------------------------------------------------------------------
         /// <summary>
-        /// <br/> Host 참조와 Settings를 검증하고 Core 서비스와 기본 Profile을 조립한다.
+        /// <br/> Host 참조와 Settings를 검증하고 Core 서비스와 Root Presentation을 조립한다.
         /// <br/> 구독자 실패를 포함한 초기화 실패는 생성된 소유 리소스를 역순 롤백한다.
         /// </summary>
         // --------------------------------------------------------------------------------
@@ -299,37 +303,42 @@ namespace inonego.Xeri.UI
                 ValidateHost(settings);
                 Settings = settings;
 
-                LayerRegistry = new PresentationLayerRegistry();
                 transitioner = new DOTweenPresentationTransitioner();
                 inputDriver.Initialize(inputModule, settings);
                 focusDriver.Initialize();
                 focusDriver.OnFocusChanged += HandleFocusChanged;
                 sceneFadeSource.Initialize();
 
-                defaultProfile = AcquireProfileInternal(settings.DefaultProfile);
+                var plan = PresentationLayoutResolver.Resolve(settings.DefaultLayout);
+                RootPresentation = PresentationSession.CreateTopLevel
+                (
+                    plan,
+                    presentationRoot,
+                    settings.UITKPanelSettingsTemplate,
+                    settings.UGUIOutputTemplate,
+                    focusDriver.BindLayer,
+                    presentationLayerHosts
+                );
 
-                if (!LayerRegistry.Contains(settings.SceneFadeLayerID))
+                if (!RootPresentation.ContainsPresentation(settings.SceneFadePresentationID))
                 {
                     throw new InvalidOperationException
                     (
-                        $"기본 Profile에 Scene Fade Layer '{settings.SceneFadeLayerID}'가 없습니다."
+                        $"기본 Layout에 Scene Fade Presentation '{settings.SceneFadePresentationID}'가 없습니다."
                     );
                 }
 
-                if (!LayerRegistry.TryGet(settings.SceneFadeLayerID, out var fadeLayer))
-                {
-                    throw new InvalidOperationException
-                    (
-                        $"Scene Fade Layer '{settings.SceneFadeLayerID}' Driver를 조회할 수 없습니다."
-                    );
-                }
-
-                ValidateSceneFadeSource(sceneFadeSource, fadeLayer);
+                ValidateSceneFadeSource
+                (
+                    sceneFadeSource,
+                    RootPresentation,
+                    settings.SceneFadePresentationID
+                );
 
                 SceneFader = new SceneFader
                 (
-                    LayerRegistry,
-                    settings.SceneFadeLayerID,
+                    RootPresentation,
+                    settings.SceneFadePresentationID,
                     sceneFadeSource,
                     transitioner
                 );
@@ -338,13 +347,14 @@ namespace inonego.Xeri.UI
                 (
                     this,
                     null,
-                    LayerRegistry,
+                    RootPresentation,
                     transitioner,
                     focusDriver,
                     inputDriver
                 );
-                focusedContext = Main;
+                baseContext = Main;
                 IsInitialized = true;
+                RefreshContextAuthority();
                 coreReady = true;
                 SubscribeSceneValidation();
 
@@ -389,217 +399,41 @@ namespace inonego.Xeri.UI
             }
         }
 
-        // ------------------------------------------------------------
+        // --------------------------------------------------------------------------------
         /// <summary>
-        /// App·Scene·게임 모드 Layer Profile을 명시적으로 획득한다.
+        /// <br/> Scene Fade Source가 Root placement에서 Driver를 획득하는지 검증한다.
+        /// <br/> 획득한 Fade Alpha의 유효성도 함께 확인한다.
         /// </summary>
-        // ------------------------------------------------------------
-        public UIProfileHandle AcquireProfile(UIProfileAsset profile)
-        {
-            ThrowIfUnavailable();
-            return AcquireProfileInternal(profile);
-        }
-
-        // ------------------------------------------------------------
-        /// <summary>
-        /// Provider Layer Root를 모두 준비한 뒤 Registry에 등록한다.
-        /// </summary>
-        // ------------------------------------------------------------
-        private UIProfileHandle AcquireProfileInternal(UIProfileAsset profile)
-        {
-            if (profile == null)
-            {
-                throw new ArgumentNullException(nameof(profile));
-            }
-
-            profile.Validate();
-
-            var handle = new UIProfileHandle
-            (
-                profile,
-                HandleProfileReleaseCompleted
-            );
-            profileHandles.Add(handle);
-            var prepared =
-                new List<(UIProfileHandle.OwnedLayer Layer, PresentationLayerAsset Asset, IPresentationLayerDriver Driver)>();
-
-            try
-            {
-                for (var i = 0; i < profile.Count; i++)
-                {
-                    var asset = profile.GetLayerAsset(i);
-                    var provider = profile.GetProvider(i);
-                    var previousParent = provider.Parent;
-                    GameObject instance = null;
-                    UIProfileHandle.OwnedLayer ownedLayer = null;
-
-                    try
-                    {
-                        provider.Parent = layerRoot;
-                        instance = provider.Acquire(false);
-
-                        if (instance != null)
-                        {
-                            try
-                            {
-                                // Handle에 기록된 시점부터 후속 Layer 준비 실패를 Profile 정리가 담당한다.
-                                ownedLayer = handle.AddLayer(provider, instance);
-                            }
-                            catch (Exception exception)
-                            {
-                                try
-                                {
-                                    // 종료된 Handle이 받지 못한 미확정 인스턴스는 현재 획득 경로가 한 번 반환한다.
-                                    provider.Release(instance, false);
-                                }
-                                catch (Exception cleanupException)
-                                {
-                                    throw new AggregateException(exception, cleanupException);
-                                }
-
-                                throw;
-                            }
-                        }
-                    }
-                    finally
-                    {
-                        provider.Parent = previousParent;
-                    }
-
-                    if (instance == null)
-                    {
-                        throw new InvalidOperationException
-                        (
-                            $"Profile Layer '{asset.ID}' Provider가 null 인스턴스를 반환했습니다."
-                        );
-                    }
-
-                    instance.SetActive(false);
-
-                    var driver = GetLayerDriver(instance);
-
-                    prepared.Add((ownedLayer, asset, driver));
-                }
-
-                for (var i = 0; i < prepared.Count; i++)
-                {
-                    var item = prepared[i];
-
-                    if (!item.Driver.Validate(item.Asset, out var error))
-                    {
-                        throw new InvalidOperationException
-                        (
-                            $"Profile Layer '{item.Asset.ID}' 구성이 유효하지 않습니다. {error}"
-                        );
-                    }
-                }
-
-                for (var i = 0; i < prepared.Count; i++)
-                {
-                    var item = prepared[i];
-                    var layerHandle = LayerRegistry.Register(item.Asset, item.Driver);
-                    handle.AttachLayerHandle(item.Layer, layerHandle);
-                    focusDriver.RegisterLayer(item.Driver);
-                }
-
-                return handle;
-            }
-            catch (Exception exception)
-            {
-                try
-                {
-                    handle.Dispose();
-                }
-                catch (Exception cleanupException)
-                {
-                    throw new AggregateException
-                    (
-                        $"UI Profile '{profile.name}' 획득과 롤백이 실패했습니다.",
-                        exception,
-                        cleanupException
-                    );
-                }
-
-                throw;
-            }
-        }
-
-        // ------------------------------------------------------------
-        /// <summary>
-        /// Terminal Profile Handle을 Runtime 추적에서 제거한다.
-        /// </summary>
-        // ------------------------------------------------------------
-        private void HandleProfileReleaseCompleted(UIProfileHandle handle)
-        {
-            profileHandles.Remove(handle);
-
-            if (ReferenceEquals(defaultProfile, handle))
-            {
-                defaultProfile = null;
-            }
-        }
-
-        // ----------------------------------------------------------------------
-        /// <summary>
-        /// <br/> Layer Prefab Root에서 기술과 무관하게
-        /// <br/> Presentation Layer Driver 하나를 찾는다.
-        /// <br/> Root 소유권이 모호한 0개 또는 복수 구성은 Registry 공개 전에 거부한다.
-        /// </summary>
-        // ----------------------------------------------------------------------
-        private static IPresentationLayerDriver GetLayerDriver(GameObject instance)
-        {
-            if (instance == null)
-            {
-                throw new ArgumentNullException(nameof(instance));
-            }
-
-            var components = instance.GetComponents<MonoBehaviour>();
-            IPresentationLayerDriver driver = null;
-
-            for (var i = 0; i < components.Length; i++)
-            {
-                if (!(components[i] is IPresentationLayerDriver candidate)) continue;
-
-                if (driver != null)
-                {
-                    throw new InvalidOperationException
-                    (
-                        $"Profile Layer '{instance.name}' Root에는 " +
-                        "IPresentationLayerDriver가 정확히 하나 필요합니다."
-                    );
-                }
-
-                driver = candidate;
-            }
-
-            if (driver == null)
-            {
-                throw new InvalidOperationException
-                (
-                    $"Profile Layer '{instance.name}' Root에 IPresentationLayerDriver가 없습니다."
-                );
-            }
-
-            return driver;
-        }
-
-        // ----------------------------------------------------------------------
-        /// <summary>
-        /// Fade View Provider와 Driver를 초기화 시점에 한 번 획득·반환해 검증한다.
-        /// </summary>
-        // ----------------------------------------------------------------------
+        // --------------------------------------------------------------------------------
         private static void ValidateSceneFadeSource
         (
             IPresentationSource<ISceneFadeDriver> source,
-            IPresentationLayerDriver layer
+            PresentationSession session,
+            string presentationID
         )
         {
+            if
+            (
+                !session.TryAcquirePlacement
+                (
+                    presentationID,
+                    out var placement,
+                    out var usage
+                )
+            )
+            {
+                throw new InvalidOperationException
+                (
+                    $"Scene Fade Presentation '{presentationID}' placement를 resolve할 수 없습니다."
+                );
+            }
+
             ISceneFadeDriver view = null;
             Exception validationError = null;
 
             try
             {
-                view = source.Acquire(layer);
+                view = source.Acquire(placement);
                 var alpha = view.Alpha;
 
                 if (alpha == null || !alpha.IsValid)
@@ -631,6 +465,17 @@ namespace inonego.Xeri.UI
                         ? releaseException
                         : new AggregateException(validationError, releaseException);
                 }
+            }
+
+            try
+            {
+                usage.Dispose();
+            }
+            catch (Exception releaseException)
+            {
+                validationError = validationError == null
+                    ? releaseException
+                    : new AggregateException(validationError, releaseException);
             }
 
             if (validationError != null)
@@ -672,37 +517,18 @@ namespace inonego.Xeri.UI
                 throw new InvalidOperationException("UI Runtime Component가 비활성 상태입니다.");
             }
 
-            if (layerRoot == null)
+            if (presentationRoot == null)
             {
-                throw new InvalidOperationException("UI Layer 부모 Root가 연결되지 않았습니다.");
+                throw new InvalidOperationException("UI Presentation 부모 Root가 연결되지 않았습니다.");
             }
 
-            if (layerRoot.root != transform)
+            if (presentationRoot.root != transform)
             {
-                throw new InvalidOperationException("UI Layer 부모 Root는 Runtime Host 내부에 있어야 합니다.");
+                throw new InvalidOperationException("UI Presentation 부모 Root는 Runtime Host 내부에 있어야 합니다.");
             }
 
-            if (eventSystem == null || !eventSystem.enabled)
-            {
-                throw new InvalidOperationException("활성 EventSystem이 연결되지 않았습니다.");
-            }
-
-            if (eventSystem.transform.root != transform)
-            {
-                throw new InvalidOperationException("EventSystem은 Runtime Host 내부에 있어야 합니다.");
-            }
-
-            if (inputModule == null || !inputModule.enabled)
-            {
-                throw new InvalidOperationException("활성 InputSystemUIInputModule이 연결되지 않았습니다.");
-            }
-
-            if (inputModule.GetComponent<EventSystem>() != eventSystem)
-            {
-                throw new InvalidOperationException("Input Module과 EventSystem이 같은 Host에 연결되지 않았습니다.");
-            }
-
-            ValidateInputModuleActions(inputModule, settings);
+            var requiresMixedEventSystem = RequiresMixedEventSystem(settings.DefaultLayout);
+            ValidateInputComposition(settings, requiresMixedEventSystem);
 
             if (focusDriver == null || !focusDriver.enabled)
             {
@@ -719,6 +545,8 @@ namespace inonego.Xeri.UI
                     "UIFocusDriver가 정확히 하나 필요합니다."
                 );
             }
+
+            ValidatePresentationLayerHosts();
 
             if (sceneFadeSource == null || !sceneFadeSource.enabled)
             {
@@ -749,7 +577,148 @@ namespace inonego.Xeri.UI
                 );
             }
 
-            ValidateSceneComposition();
+            ValidateSceneComposition(requiresMixedEventSystem);
+        }
+
+        // --------------------------------------------------------------------------------
+        /// <summary>
+        /// <br/> Scene-authored Presentation Layer/Placement Host 참조를 검증한다.
+        /// <br/> Host가 현재 Runtime composition에 속하는지도 확인한다.
+        /// </summary>
+        // --------------------------------------------------------------------------------
+        private void ValidatePresentationLayerHosts()
+        {
+            presentationLayerHosts ??= Array.Empty<PresentationLayerHost>();
+            var layerIDs = new HashSet<string>(StringComparer.Ordinal);
+
+            for (var index = 0; index < presentationLayerHosts.Length; index++)
+            {
+                var host = presentationLayerHosts[index];
+
+                if (host == null)
+                {
+                    throw new InvalidOperationException
+                    (
+                        $"Presentation Layer Host {index} 참조가 비어 있습니다."
+                    );
+                }
+
+                if (host.transform.root != transform)
+                {
+                    throw new InvalidOperationException
+                    (
+                        $"Presentation Layer Host '{host.name}'은 Runtime Host 내부에 있어야 합니다."
+                    );
+                }
+
+                if
+                (
+                    string.IsNullOrWhiteSpace(host.LayerID) ||
+                    !layerIDs.Add(host.LayerID)
+                )
+                {
+                    throw new InvalidOperationException
+                    (
+                        $"Presentation Layer Host Layer ID '{host.LayerID}'가 비어 있거나 중복됐습니다."
+                    );
+                }
+
+                var placementHosts = host.PlacementHosts;
+
+                for (var placementIndex = 0; placementIndex < placementHosts.Count; placementIndex++)
+                {
+                    var placementHost = placementHosts[placementIndex];
+
+                    if (placementHost == null)
+                    {
+                        throw new InvalidOperationException
+                        (
+                            $"Layer Host '{host.LayerID}' Placement Host {placementIndex} 참조가 비어 있습니다."
+                        );
+                    }
+
+                    if (placementHost.transform.root != transform)
+                    {
+                        throw new InvalidOperationException
+                        (
+                            $"Presentation Placement Host '{placementHost.name}'은 " +
+                            "Runtime Host 내부에 있어야 합니다."
+                        );
+                    }
+                }
+            }
+        }
+
+        // --------------------------------------------------------------------------------
+        /// <summary>
+        /// Layout backend 요구에 맞춰 UITK-only 또는 mixed UGUI 입력 구성을 검증한다.
+        /// </summary>
+        // --------------------------------------------------------------------------------
+        private void ValidateInputComposition
+        (
+            UISettingsAsset settings,
+            bool requiresMixedEventSystem
+        )
+        {
+            if (!requiresMixedEventSystem)
+            {
+                if (settings.UIActionsAsset == null)
+                {
+                    throw new InvalidOperationException
+                    (
+                        "UITK-only Runtime은 UISettingsAsset.UIActionsAsset을 명시해야 합니다."
+                    );
+                }
+
+                return;
+            }
+
+            if (eventSystem == null || !eventSystem.enabled)
+            {
+                throw new InvalidOperationException("활성 EventSystem이 연결되지 않았습니다.");
+            }
+
+            if (eventSystem.transform.root != transform)
+            {
+                throw new InvalidOperationException("EventSystem은 Runtime Host 내부에 있어야 합니다.");
+            }
+
+            if (inputModule == null || !inputModule.enabled)
+            {
+                throw new InvalidOperationException("활성 InputSystemUIInputModule이 연결되지 않았습니다.");
+            }
+
+            if (inputModule.GetComponent<EventSystem>() != eventSystem)
+            {
+                throw new InvalidOperationException
+                (
+                    "Input Module과 EventSystem이 같은 Host에 연결되지 않았습니다."
+                );
+            }
+
+            ValidateInputModuleActions(inputModule, settings);
+        }
+
+        // --------------------------------------------------------------------------------
+        /// <summary>
+        /// Layout에 UGUI Layer가 하나라도 있으면 mixed EventSystem 경로가 필요한 것으로 본다.
+        /// </summary>
+        // --------------------------------------------------------------------------------
+        private static bool RequiresMixedEventSystem(PresentationLayout layout)
+        {
+            if (layout == null) return false;
+
+            var layers = layout.Layers;
+
+            for (var index = 0; index < layers.Count; index++)
+            {
+                if (layers[index]?.Backend == PresentationBackend.UGUI)
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         // ----------------------------------------------------------------------
@@ -815,12 +784,25 @@ namespace inonego.Xeri.UI
             }
         }
 
-        // --------------------------------------------------------------------------------
+        // ------------------------------------------------------------
         /// <summary>
-        /// 현재 로드된 Scene 전체에서 Runtime Host와 EventSystem의 단일 구성을 검증한다.
+        /// 현재 Runtime backend 요구에 맞는 Scene 단일 구성을 검증한다.
         /// </summary>
-        // --------------------------------------------------------------------------------
+        // ------------------------------------------------------------
         internal void ValidateSceneComposition()
+        {
+            var validateEventSystem =
+                Settings != null &&
+                RequiresMixedEventSystem(Settings.DefaultLayout);
+            ValidateSceneComposition(validateEventSystem);
+        }
+
+        // ----------------------------------------------------------------------
+        /// <summary>
+        /// Runtime 중복과 필요할 때만 mixed UGUI EventSystem 중복을 검증한다.
+        /// </summary>
+        // ----------------------------------------------------------------------
+        private void ValidateSceneComposition(bool validateEventSystem)
         {
             var runtimes = FindObjectsByType<UIRuntime>
             (
@@ -837,6 +819,8 @@ namespace inonego.Xeri.UI
                     );
                 }
             }
+
+            if (!validateEventSystem) return;
 
             var eventSystems = FindObjectsByType<EventSystem>
             (
@@ -916,16 +900,16 @@ namespace inonego.Xeri.UI
 
     #region 종료
 
-        // ----------------------------------------------------------------------
+        // --------------------------------------------------------------------------------
         /// <summary>
-        /// <br/> Main Context Tree, 프로젝트 Composition, Fade, Profile과
+        /// <br/> Main Context Tree, 프로젝트 Composition, Fade, Root Presentation과
         /// <br/> 공통 서비스를 역순 해제한다.
         /// <br/> 논리 소유권은 한 번만 정리하고 Runtime은 오류와 관계없이
         /// <br/> Terminal 상태로 끝난다.
         /// <br/> 후속 Shutdown은 상태 변경 전에 거부되어 Runtime 소유권이 남은
-        /// <br/> Profile과 Layer Registry만 다시 정리한다.
+        /// <br/> Root PresentationSession만 다시 정리한다.
         /// </summary>
-        // ----------------------------------------------------------------------
+        // --------------------------------------------------------------------------------
         public void Shutdown()
         {
             var errors = Release(invokeReleasingEvent: true);
@@ -967,28 +951,29 @@ namespace inonego.Xeri.UI
 
             if (IsReleased)
             {
-                // 활성 소비자 사전 조건에서 상태 변경 전에 거부된 소유권만 남는다.
-                ReleaseProfileHandles(errors);
+                if (RootPresentation != null && !RootPresentation.IsDisposed)
+                {
+                    DisposeOwned(RootPresentation, errors);
 
-                DisposePendingLayerRegistry(errors);
+                    if (RootPresentation.IsDisposed)
+                    {
+                        RootPresentation = null;
+                    }
+                }
+
                 return errors;
             }
 
             IsInitialized = false;
             IsReleasing = true;
-
-            // 종료가 시작된 Runtime을 새 UI 작업에서 조회하지 않도록 public Singleton 경계를 먼저 닫는다.
             Unregister(this);
             var main = Main;
             var sceneFader = SceneFader;
+            var rootPresentation = RootPresentation;
             var input = inputDriver;
             var currentTransitioner = transitioner;
-            var layerRegistry = LayerRegistry;
             var currentSceneFadeSource = sceneFadeSource;
-            var releasingSubscribers =
-                invokeReleasingEvent
-                    ? OnReleasing
-                    : null;
+            var releasingSubscribers = invokeReleasingEvent ? OnReleasing : null;
 
             UnsubscribeSceneValidation();
 
@@ -1021,76 +1006,33 @@ namespace inonego.Xeri.UI
                 }
             }
 
-            // 종료 구독자가 살아 있는 Runtime 서비스를 확인한 뒤 public 접근 경계를 닫는다.
+            DisposeOwned(sceneFader, errors);
+            DisposeOwned(currentSceneFadeSource, errors);
+            DisposeOwned(input, errors);
+            DisposeOwned(currentTransitioner, errors);
+            DisposeOwned(rootPresentation, errors);
+
             Main = null;
             SceneFader = null;
-            defaultProfile = null;
+            baseContext = null;
+            contextOverrides.Clear();
+            activeContextPath.Clear();
             inputDriver = null;
             transitioner = null;
-            LayerRegistry = null;
-            focusedContext = null;
             Settings = null;
             OnInitialized = null;
             OnReleasing = null;
 
-            // Fader가 보유한 View를 Source에 먼저 반환한 뒤 Source 자체를 종료한다.
-            DisposeOwned(sceneFader, errors);
-            DisposeOwned(currentSceneFadeSource, errors);
-            DisposeOwned(input, errors);
-
-            // 시작된 종료는 결과와 관계없이 Callback이 제거하고 사전 조건에서 거부된 소유권만 보존한다.
-            ReleaseProfileHandles(errors);
-
-            DisposeOwned(currentTransitioner, errors);
-            pendingLayerRegistry = layerRegistry;
-            DisposePendingLayerRegistry(errors);
+            if (rootPresentation == null || rootPresentation.IsDisposed)
+            {
+                RootPresentation = null;
+            }
 
             IsReleasing = false;
             IsReleased = true;
-
             return errors;
         }
 
-        // ------------------------------------------------------------
-        /// <summary>
-        /// <br/> Runtime 추적에서 Profile 소유권을 하나씩 분리해 종료하고,
-        /// <br/> 상태 변경 전 사전 조건에서 거부된 Handle만 다시 보존한다.
-        /// </summary>
-        // ------------------------------------------------------------
-        private void ReleaseProfileHandles(List<Exception> errors)
-        {
-            if (profileHandles.Count == 0) return;
-
-            var retainedProfiles = new List<UIProfileHandle>();
-
-            // 외부 Provider callback이 다른 Profile을 해제해도 현재 종료 대상 인덱스는 변하지 않는다.
-            while (profileHandles.Count > 0)
-            {
-                var index = profileHandles.Count - 1;
-                var handle = profileHandles[index];
-                profileHandles.RemoveAt(index);
-                DisposeOwned(handle, errors);
-
-                if (!handle.IsDisposed)
-                {
-                    retainedProfiles.Add(handle);
-                }
-            }
-
-            // 역순으로 분리한 사전 조건 거부 Handle의 기존 획득 순서를 복원한다.
-            for (var i = retainedProfiles.Count - 1; i >= 0; i--)
-            {
-                if (!retainedProfiles[i].IsDisposed)
-                {
-                    profileHandles.Add(retainedProfiles[i]);
-                }
-            }
-        }
-
-        // ----------------------------------------------------------------------
-        /// <summary>
-        /// Terminal 상태로 분리한 IDisposable 서비스를 한 번 해제하고 오류를 수집한다.
-        /// </summary>
         // ----------------------------------------------------------------------
         private static void DisposeOwned
         (
@@ -1110,25 +1052,6 @@ namespace inonego.Xeri.UI
             }
         }
 
-        // --------------------------------------------------------------------------------
-        /// <summary>
-        /// 활성 소비자 사전 조건에서 거부된 Layer Registry 소유권을 Terminal 전까지만 유지한다.
-        /// </summary>
-        // --------------------------------------------------------------------------------
-        private void DisposePendingLayerRegistry(List<Exception> errors)
-        {
-            var registry = pendingLayerRegistry;
-
-            if (registry == null) return;
-
-            DisposeOwned(registry, errors);
-
-            if (registry.IsDisposed)
-            {
-                pendingLayerRegistry = null;
-            }
-        }
-
         // ------------------------------------------------------------
         /// <summary>
         /// Child Context를 생성할 수 있는 Runtime 상태인지 확인한다.
@@ -1141,101 +1064,161 @@ namespace inonego.Xeri.UI
 
         // ------------------------------------------------------------
         /// <summary>
-        /// 지정 Context에 실제 Focus Driver 적용 권한을 넘긴다.
+        /// 지정 Context를 peer activation의 Base Context로 선택한다.
         /// </summary>
         // ------------------------------------------------------------
-        internal void FocusContext(UIContext context)
+        internal void SetBaseContext(UIContext context)
         {
-            if (context == null)
-            {
-                throw new ArgumentNullException(nameof(context));
-            }
+            ValidateContextAuthorityTarget(context);
 
-            ThrowIfUnavailable();
+            if (ReferenceEquals(baseContext, context)) return;
 
-            if (ReferenceEquals(focusedContext, context)) return;
-
-            SetFocusedContext(context, selectFallbackWhenEmpty: false);
+            baseContext = context;
+            RefreshContextAuthority();
         }
 
-        // ----------------------------------------------------------------------
+        // ------------------------------------------------------------
         /// <summary>
-        /// 지정 Context의 Focus 권한을 가장 가까운 살아 있는 Parent에 반환한다.
+        /// 지정 Context를 Context Override Stack top으로 획득한다.
         /// </summary>
-        // ----------------------------------------------------------------------
-        internal void UnfocusContext(UIContext context)
+        // ------------------------------------------------------------
+        internal Lease PushContextOverride(UIContext context)
         {
-            if (context == null)
+            ValidateContextAuthorityTarget(context);
+
+            if (contextOverrides.Contains(context))
             {
-                throw new ArgumentNullException(nameof(context));
+                throw new InvalidOperationException("같은 UIContext를 Override Stack에 중복 추가할 수 없습니다.");
             }
 
-            ThrowIfUnavailable();
-
-            if (!ReferenceEquals(focusedContext, context)) return;
-
-            var fallback = FindFocusableParent(context.Parent);
-            SetFocusedContext(fallback, selectFallbackWhenEmpty: true);
+            contextOverrides.Add(context);
+            RefreshContextAuthority();
+            return new Lease(() => ReleaseContextOverride(context));
         }
 
-        // --------------------------------------------------------------------------------
+        private void ReleaseContextOverride(UIContext context)
+        {
+            var index = contextOverrides.IndexOf(context);
+            if (index < 0) return;
+
+            contextOverrides.RemoveAt(index);
+            RefreshContextAuthority();
+        }
+
+        // ------------------------------------------------------------
         /// <summary>
-        /// <br/> 종료할 Subtree가 현재 Focus를 포함하면 외부 Parent 또는 빈 상태로 권한을 옮긴다.
-        /// <br/> Runtime Shutdown에서는 새 Context나 fallback 대상을 선택하지 않는다.
+        /// <br/> 종료할 Context subtree를 Base/Override authority에서
+        /// <br/> 제거하고 필요하면 살아 있는 Parent를 Base로 선택한다.
         /// </summary>
-        // --------------------------------------------------------------------------------
-        internal void ReleaseContextFocus
+        // ------------------------------------------------------------
+        internal void ReleaseContextAuthority
         (
             UIContext context,
-            bool restoreFocus
+            bool restoreAuthority
         )
         {
-            if (focusedContext == null || !context.Contains(focusedContext)) return;
-
-            SetFocusedContext
-            (
-                restoreFocus ? FindFocusableParent(context.Parent) : null,
-                selectFallbackWhenEmpty: restoreFocus
-            );
-        }
-
-        // ----------------------------------------------------------------------
-        /// <summary>
-        /// 지정 Context가 현재 실제 Focus Driver 적용 권한을 갖는지 확인한다.
-        /// </summary>
-        // ----------------------------------------------------------------------
-        internal bool IsFocusedContext(UIContext context) => ReferenceEquals(focusedContext, context);
-
-        // ----------------------------------------------------------------------
-        /// <summary>
-        /// <br/> 안정화된 native Focus가 있으면 현재 Context Top Screen의
-        /// <br/> 마지막 선택으로 기록하고,
-        /// <br/> Focus가 실제로 비었을 때만 기존 복원 정책을 적용한다.
-        /// </summary>
-        // ----------------------------------------------------------------------
-        private void HandleFocusChanged(object current)
-        {
-            if (!IsInitialized || IsReleasing || IsReleased) return;
-
-            var context = focusedContext;
-
             if (context == null) return;
 
-            if (focusDriver.IsValid(current))
+            for (var index = contextOverrides.Count - 1; index >= 0; index--)
             {
-                context.RecordFocus(current);
-                return;
+                if (context.Contains(contextOverrides[index]))
+                {
+                    contextOverrides.RemoveAt(index);
+                }
             }
 
-            context.RestoreFocus();
+            if (baseContext != null && context.Contains(baseContext))
+            {
+                baseContext = restoreAuthority
+                    ? FindAuthorityParent(context.Parent)
+                    : null;
+            }
+
+            RefreshContextAuthority();
         }
 
-        // ------------------------------------------------------------
+        internal bool IsEffectiveContext(UIContext context)
+        {
+            return ReferenceEquals(GetEffectiveContext(), context);
+        }
+
+        internal bool IsContextOnActivePath(UIContext context)
+        {
+            return context != null && activeContextPath.Contains(context);
+        }
+
+        internal void RefreshContextAuthority()
+        {
+            for (var index = 0; index < activeContextPath.Count; index++)
+            {
+                activeContextPath[index]?.SetAuthorityState(false, false, false);
+            }
+
+            activeContextPath.Clear();
+            var effective = GetEffectiveContext();
+            effective?.AppendPathTo(activeContextPath);
+            var cursorContext = FindCursorPolicyContext();
+
+            for (var index = 0; index < activeContextPath.Count; index++)
+            {
+                var context = activeContextPath[index];
+                context.SetAuthorityState
+                (
+                    true,
+                    ReferenceEquals(context, effective),
+                    ReferenceEquals(context, cursorContext)
+                );
+            }
+        }
+
+        private UIContext GetEffectiveContext()
+        {
+            return contextOverrides.Count > 0
+                ? contextOverrides[contextOverrides.Count - 1]
+                : baseContext;
+        }
+
+        // ----------------------------------------------------------------------
         /// <summary>
-        /// 종료 중이지 않은 가장 가까운 Parent Context를 찾는다.
+        /// Active Context path에서 가장 깊은 Screen Stack Cursor owner를 반환한다.
         /// </summary>
-        // ------------------------------------------------------------
-        private static UIContext FindFocusableParent(UIContext current)
+        // ----------------------------------------------------------------------
+        private UIContext FindCursorPolicyContext()
+        {
+            for (var index = activeContextPath.Count - 1; index >= 0; index--)
+            {
+                var context = activeContextPath[index];
+
+                if (context != null && context.Screens.HasCursorPolicySource)
+                {
+                    return context;
+                }
+            }
+
+            return null;
+        }
+
+        private void ValidateContextAuthorityTarget(UIContext context)
+        {
+            if (context == null)
+            {
+                throw new ArgumentNullException(nameof(context));
+            }
+
+            ThrowIfUnavailable();
+
+            if (context.IsDisposing || context.IsDisposed)
+            {
+                throw new ObjectDisposedException(nameof(context));
+            }
+
+            if (Main == null || !Main.Contains(context))
+            {
+                throw new InvalidOperationException("현재 UIRuntime Context Tree 밖의 Context에 authority를 줄 수 없습니다.");
+            }
+        }
+
+        private static UIContext FindAuthorityParent(UIContext current)
         {
             while (current != null)
             {
@@ -1252,39 +1235,15 @@ namespace inonego.Xeri.UI
 
         // --------------------------------------------------------------------------------
         /// <summary>
-        /// <br/> 이전 Context의 선택을 기록한 뒤 새 Context를 현재 권한자로 먼저 확정하고,
-        /// <br/> 새 Top Screen 선택 또는 Runtime fallback을 실제 Driver에 적용한다.
+        /// native Focus 변경을 Effective Context의 logical Focus containment에 전달한다.
         /// </summary>
         // --------------------------------------------------------------------------------
-        private void SetFocusedContext
-        (
-            UIContext next,
-            bool selectFallbackWhenEmpty
-        )
+        private void HandleFocusChanged(object current)
         {
-            var previous = focusedContext;
+            if (!IsInitialized || IsReleasing || IsReleased) return;
 
-            if (ReferenceEquals(previous, next)) return;
-
-            previous?.SuspendFocus();
-            focusedContext = next;
-
-            if (next != null)
-            {
-                next.ResumeFocus();
-                return;
-            }
-
-            if (selectFallbackWhenEmpty && focusDriver != null)
-            {
-                focusDriver.Select(focusDriver.FindFallback());
-            }
+            GetEffectiveContext()?.HandleNativeFocusChanged(current);
         }
-
-        // ------------------------------------------------------------
-        /// <summary>
-        /// 초기화 완료 상태에서만 public Runtime 서비스를 사용하게 한다.
-        /// </summary>
         // ------------------------------------------------------------
         private void ThrowIfUnavailable()
         {

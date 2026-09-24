@@ -23,13 +23,6 @@ namespace inonego.Xeri.UI.Window
 
         private readonly XeriWindowPanel panel = null;
         private readonly XeriWindowController controller = null;
-        // ------------------------------------------------------------
-        /// <summary>
-        /// Resize cursor 적용자.
-        /// </summary>
-        // ------------------------------------------------------------
-        public IXeriWindowResizeCursorProvider CursorProvider => cursorProvider;
-
         private readonly IXeriWindowResizeCursorProvider cursorProvider = null;
 
         private Vector2 beginInputPos = Vector2.zero;
@@ -55,8 +48,8 @@ namespace inonego.Xeri.UI.Window
             IXeriWindowResizeCursorProvider cursorProvider = null
         ) : base()
         {
-            this.panel = panel;
-            this.controller = controller;
+            this.panel = panel ?? throw new System.ArgumentNullException(nameof(panel));
+            this.controller = controller ?? throw new System.ArgumentNullException(nameof(controller));
             this.cursorProvider = cursorProvider ?? new XeriWindowResizeCursorProvider();
         }
 
@@ -72,18 +65,18 @@ namespace inonego.Xeri.UI.Window
         public void Attach()
         {
             if (isAttached) return;
-            if (panel == null || controller == null) return;
 
-            RegisterHandle(panel.ResizeLeft, XeriWindowResizeMode.Left);
-            RegisterHandle(panel.ResizeTop, XeriWindowResizeMode.Top);
-            RegisterHandle(panel.ResizeRight, XeriWindowResizeMode.Right);
-            RegisterHandle(panel.ResizeBottom, XeriWindowResizeMode.Bottom);
-            RegisterHandle(panel.ResizeTopLeft, XeriWindowResizeMode.TopLeft);
-            RegisterHandle(panel.ResizeTopRight, XeriWindowResizeMode.TopRight);
-            RegisterHandle(panel.ResizeBottomLeft, XeriWindowResizeMode.BottomLeft);
-            RegisterHandle(panel.ResizeBottomRight, XeriWindowResizeMode.BottomRight);
-
-            isAttached = true;
+            try
+            {
+                RegisterAllHandles();
+                isAttached = true;
+            }
+            catch
+            {
+                UnregisterAllHandles();
+                cursorProvider.Reset();
+                throw;
+            }
         }
 
         // ------------------------------------------------------------
@@ -94,8 +87,40 @@ namespace inonego.Xeri.UI.Window
         public void Detach()
         {
             if (!isAttached) return;
-            if (panel == null) return;
 
+            UnregisterAllHandles();
+            cursorProvider.Reset();
+            isAttached = false;
+        }
+
+    #endregion
+
+    #region 내부 메서드
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// 모든 resize handle callback을 등록한다.
+        /// </summary>
+        // ------------------------------------------------------------
+        private void RegisterAllHandles()
+        {
+            RegisterHandle(panel.ResizeLeft, XeriWindowResizeMode.Left);
+            RegisterHandle(panel.ResizeTop, XeriWindowResizeMode.Top);
+            RegisterHandle(panel.ResizeRight, XeriWindowResizeMode.Right);
+            RegisterHandle(panel.ResizeBottom, XeriWindowResizeMode.Bottom);
+            RegisterHandle(panel.ResizeTopLeft, XeriWindowResizeMode.TopLeft);
+            RegisterHandle(panel.ResizeTopRight, XeriWindowResizeMode.TopRight);
+            RegisterHandle(panel.ResizeBottomLeft, XeriWindowResizeMode.BottomLeft);
+            RegisterHandle(panel.ResizeBottomRight, XeriWindowResizeMode.BottomRight);
+        }
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// 모든 resize handle callback을 해제한다.
+        /// </summary>
+        // ------------------------------------------------------------
+        private void UnregisterAllHandles()
+        {
             UnregisterHandle(panel.ResizeLeft);
             UnregisterHandle(panel.ResizeTop);
             UnregisterHandle(panel.ResizeRight);
@@ -104,14 +129,7 @@ namespace inonego.Xeri.UI.Window
             UnregisterHandle(panel.ResizeTopRight);
             UnregisterHandle(panel.ResizeBottomLeft);
             UnregisterHandle(panel.ResizeBottomRight);
-
-            cursorProvider.Reset();
-            isAttached = false;
         }
-
-    #endregion
-
-    #region 내부 메서드
 
         // ------------------------------------------------------------
         /// <summary>

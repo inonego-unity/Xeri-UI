@@ -1,8 +1,8 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : UISettingsAsset.cs
-수정일 : 2026-09-17
+수정일 : 2026-09-28
 # 설명
-UI Runtime의 기본 Profile, Scene Fade와 Input System 공통 설정을 정의한다.
+UI Runtime의 기본 PresentationLayout, UITK output template, Scene Fade와 Input System 공통 설정을 정의한다.
 ========================================================================= BLOCK_HEADER_END */
 
 using System;
@@ -11,6 +11,7 @@ using System.Collections.Generic;
 
 using UnityEngine;
 using UnityEngine.InputSystem;
+using UnityEngine.UIElements;
 
 using inonego;
 using inonego.Xeri;
@@ -35,23 +36,44 @@ namespace inonego.Xeri.UI
 
         // ------------------------------------------------------------
         /// <summary>
-        /// App 수명 기본 Layer Profile.
+        /// App 수명 기본 Presentation Layout.
         /// </summary>
         // ------------------------------------------------------------
-        public UIProfileAsset DefaultProfile => defaultProfile;
+        public PresentationLayout DefaultLayout => defaultLayout;
 
         [SerializeField]
-        private UIProfileAsset defaultProfile = null;
+        private PresentationLayout defaultLayout = null;
+
+        // ----------------------------------------------------------------------
+        /// <summary>
+        /// Top-level UITK Layer Output마다 복제할 PanelSettings template.
+        /// </summary>
+        // ----------------------------------------------------------------------
+        public PanelSettings UITKPanelSettingsTemplate => uitkPanelSettingsTemplate;
+
+        [SerializeField]
+        private PanelSettings uitkPanelSettingsTemplate = null;
 
         // ------------------------------------------------------------
         /// <summary>
-        /// Scene Fade Overlay를 표시할 기본 Profile Layer ID.
+        /// <br/> Top-level UGUI Layer Output의 authoring template.
+        /// <br/> 비어 있으면 package 기본 template을 사용한다.
         /// </summary>
         // ------------------------------------------------------------
-        public string SceneFadeLayerID => sceneFadeLayerID;
+        public UGUIPresentationOutput UGUIOutputTemplate => uguiOutputTemplate;
 
         [SerializeField]
-        private string sceneFadeLayerID = "";
+        private UGUIPresentationOutput uguiOutputTemplate = null;
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// Scene Fade를 표시할 Presentation identity.
+        /// </summary>
+        // ------------------------------------------------------------
+        public string SceneFadePresentationID => sceneFadePresentationID;
+
+        [SerializeField]
+        private string sceneFadePresentationID = "";
 
         // ------------------------------------------------------------
         /// <summary>
@@ -73,6 +95,16 @@ namespace inonego.Xeri.UI
         [SerializeField]
         [Min(0.0f)]
         private float defaultFadeDuration = 0.25f;
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// UI Toolkit/Input policy가 사용할 UI Action Asset.
+        /// </summary>
+        // ------------------------------------------------------------
+        public InputActionAsset UIActionsAsset => uiActionsAsset;
+
+        [SerializeField]
+        private InputActionAsset uiActionsAsset = null;
 
         // ------------------------------------------------------------
         /// <summary>
@@ -129,14 +161,19 @@ namespace inonego.Xeri.UI
         // ------------------------------------------------------------
         internal void Validate()
         {
-            if (defaultProfile == null)
+            if (defaultLayout == null)
             {
-                throw new InvalidOperationException("UI 기본 Profile이 설정되지 않았습니다.");
+                throw new InvalidOperationException("UI 기본 Presentation Layout이 설정되지 않았습니다.");
             }
 
-            if (string.IsNullOrWhiteSpace(sceneFadeLayerID))
+            if (uitkPanelSettingsTemplate == null)
             {
-                throw new InvalidOperationException("Scene Fade Layer ID가 비어 있습니다.");
+                throw new InvalidOperationException("UITK PanelSettings Template이 설정되지 않았습니다.");
+            }
+
+            if (string.IsNullOrWhiteSpace(sceneFadePresentationID))
+            {
+                throw new InvalidOperationException("Scene Fade Presentation ID가 비어 있습니다.");
             }
 
             if

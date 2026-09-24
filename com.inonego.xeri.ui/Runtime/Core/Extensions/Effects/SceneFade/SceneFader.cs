@@ -1,8 +1,8 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : SceneFader.cs
-수정일 : 2026-09-17
+수정일 : 2026-09-23
 # 설명
-App 기본 Layer의 Scene Fade Presentation을 Cover부터 Reveal 또는 종료까지 소유하는 상태 머신이다.
+App Root PresentationSession의 Scene Fade placement를 Cover부터 Reveal 또는 종료까지 소유하는 상태 머신이다.
 Fade lifecycle은 일반 Presentation acquisition과 PresentationAlpha를 사용해 Presentation 전용 Core 계약 없이 동작한다.
 
 # 시간 정책
@@ -41,8 +41,8 @@ namespace inonego.Xeri.UI
         // ------------------------------------------------------------
         public Exception LastFailure { get; private set; }
 
-        private readonly PresentationLayerRegistry layerRegistry = null;
-        private readonly string layerID = "";
+        private readonly PresentationSession presentationSession = null;
+        private readonly string presentationID = "";
         private readonly IPresentationSource<ISceneFadeDriver> source = null;
         private readonly IPresentationTransitioner transitioner = null;
 
@@ -65,20 +65,25 @@ namespace inonego.Xeri.UI
         // ------------------------------------------------------------
         public SceneFader
         (
-            PresentationLayerRegistry layerRegistry,
-            string layerID,
+            PresentationSession presentationSession,
+            string presentationID,
             IPresentationSource<ISceneFadeDriver> source,
             IPresentationTransitioner transitioner
         ) : base()
         {
-            this.layerRegistry = layerRegistry ?? throw new ArgumentNullException(nameof(layerRegistry));
+            this.presentationSession = presentationSession ??
+                throw new ArgumentNullException(nameof(presentationSession));
 
-            if (string.IsNullOrWhiteSpace(layerID))
+            if (string.IsNullOrWhiteSpace(presentationID))
             {
-                throw new ArgumentException("Scene Fade Layer ID가 비어 있습니다.", nameof(layerID));
+                throw new ArgumentException
+                (
+                    "Scene Fade Presentation ID가 비어 있습니다.",
+                    nameof(presentationID)
+                );
             }
 
-            this.layerID = layerID;
+            this.presentationID = presentationID;
             this.source = source ?? throw new ArgumentNullException(nameof(source));
             this.transitioner = transitioner ?? throw new ArgumentNullException(nameof(transitioner));
         }
@@ -207,8 +212,8 @@ namespace inonego.Xeri.UI
             {
                 presentationLease = PresentationLease.Acquire
                 (
-                    layerRegistry,
-                    layerID,
+                    presentationSession,
+                    presentationID,
                     source
                 );
             }

@@ -3,7 +3,7 @@
 수정일 : 2026-09-20
 
 # 설명
-공통 Tray entry 목록을 표시하는 UITK Tray panel.
+공통 Tray entry 목록을 표시하고 UI Core Presentation 상태를 제공하는 UITK Tray panel.
 ========================================================================= BLOCK_HEADER_END */
 
 using System;
@@ -13,6 +13,10 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UIElements;
 
+using inonego;
+using inonego.Xeri;
+using inonego.Xeri.UI;
+
 namespace inonego.Xeri.UI.Tray
 {
     // ============================================================
@@ -20,13 +24,33 @@ namespace inonego.Xeri.UI.Tray
     /// 공통 Tray entry 목록을 표시하는 UITK panel.
     /// </summary>
     // ============================================================
-    public sealed class XeriTrayPanel : VisualElement, IXeriTrayRenderer, IXeriTrayReorderTarget
+    public sealed class XeriTrayPanel :
+        VisualElement,
+        IXeriTrayRenderer,
+        IXeriTrayReorderTarget,
+        IPresentation
     {
 
     #region 필드
 
         private const string TRAY_PANEL_UXML_PATH = "XeriUI/Tray/XeriTrayPanel";
         private const string TRAY_PANEL_USS_PATH  = "XeriUI/Tray/XeriTrayPanel";
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// Tray Root의 합성 Alpha State.
+        /// </summary>
+        // ------------------------------------------------------------
+        public PresentationAlpha Alpha => presentation.Alpha;
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// Tray Root의 합성 Visibility State.
+        /// </summary>
+        // ------------------------------------------------------------
+        public PresentationVisibility Visibility => presentation.Visibility;
+
+        private readonly UITKPresentation presentation = null;
 
         // ------------------------------------------------------------
         /// <summary>
@@ -63,6 +87,7 @@ namespace inonego.Xeri.UI.Tray
         public IXeriTrayReorderAnimator ReorderAnimator => reorderAnimator;
 
         private IXeriTrayReorderAnimator reorderAnimator = null;
+        private IXeriTrayReorderAnimator customReorderAnimator = null;
 
         // ------------------------------------------------------------
         /// <summary>
@@ -73,6 +98,7 @@ namespace inonego.Xeri.UI.Tray
 
         private XeriTrayOptions reorderOptions = XeriTrayOptions.Default();
 
+        private readonly XeriTrayReorderManipulator reorderManipulator = null;
         private readonly List<XeriTrayButton> entryButtons = new();
         private readonly List<Rect> entryBounds = new();
 
@@ -111,14 +137,16 @@ namespace inonego.Xeri.UI.Tray
         {
             name = "xeri-tray";
             AddToClassList("xeri-tray");
+            presentation = new UITKPresentation(this);
             LoadStyleSheet();
 
             entryContainer = CreateEntryContainer();
-            entryContainer.AddManipulator(new XeriTrayReorderManipulator(this));
+            reorderManipulator = new XeriTrayReorderManipulator(this);
+            entryContainer.AddManipulator(reorderManipulator);
 
             hierarchy.Add(entryContainer);
 
-            SetReorderAnimator(new XeriTrayNoReorderAnimator());
+            ReplaceReorderAnimator(new XeriTrayNoReorderAnimator());
         }
 
     #endregion
@@ -132,9 +160,10 @@ namespace inonego.Xeri.UI.Tray
         // ------------------------------------------------------------
         public void Reload(IReadOnlyList<XeriTrayEntry> entries, XeriTrayOptions options)
         {
+            reorderManipulator.CancelActive();
             ApplyOptions(options);
 
-            reorderAnimator?.Clear(this);
+            UnbindEntryButtons();
             entryContainer.Clear();
             entryButtons.Clear();
 
@@ -158,8 +187,11 @@ namespace inonego.Xeri.UI.Tray
         // ------------------------------------------------------------
         public void SetReorderAnimator(IXeriTrayReorderAnimator animator)
         {
-            reorderAnimator?.Clear(this);
-            reorderAnimator = animator ?? new XeriTrayNoReorderAnimator();
+            customReorderAnimator = animator;
+            ReplaceReorderAnimator
+            (
+                customReorderAnimator ?? CreateDefaultReorderAnimator()
+            );
         }
 
         // ------------------------------------------------------------
@@ -207,6 +239,47 @@ namespace inonego.Xeri.UI.Tray
 
         // ------------------------------------------------------------
         /// <summary>
+        /// 현재 options에 맞는 기본 reorder animator를 생성한다.
+        /// </summary>
+        // ------------------------------------------------------------
+        private IXeriTrayReorderAnimator CreateDefaultReorderAnimator()
+        {
+            return reorderOptions.AnimateReorder
+                ? new XeriTrayReorderAnimator()
+                : new XeriTrayNoReorderAnimator();
+        }
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// Active reorder를 취소한 뒤 실제 animator를 교체한다.
+        /// </summary>
+        // ------------------------------------------------------------
+        private void ReplaceReorderAnimator(IXeriTrayReorderAnimator animator)
+        {
+            reorderManipulator?.CancelActive();
+            reorderAnimator?.Clear(this);
+            reorderAnimator = animator ??
+                throw new ArgumentNullException(nameof(animator));
+        }
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// 기존 Tray button의 Panel 이벤트 연결을 해제한다.
+        /// </summary>
+        // ------------------------------------------------------------
+        private void UnbindEntryButtons()
+        {
+            foreach (var button in entryButtons)
+            {
+                if (button == null) continue;
+
+                button.OnEntrySelect -= OnButtonEntrySelect;
+                button.OnEntryClose -= OnButtonEntryClose;
+            }
+        }
+
+        // ------------------------------------------------------------
+        /// <summary>
         /// Tray panel USS를 Resources에서 로드해 현재 element에 연결한다.
         /// </summary>
         // ------------------------------------------------------------
@@ -249,6 +322,36 @@ namespace inonego.Xeri.UI.Tray
             return container;
         }
 
+        // ----------------------------------------------------------------------
+        /// <summary>
+        /// Tray 표시와 reorder에 사용하는 enum 옵션 값이 정의된 범위인지 검증한다.
+        /// </summary>
+        // ----------------------------------------------------------------------
+        private static void ValidateOptions(XeriTrayOptions options)
+        {
+            if (!Enum.IsDefined(typeof(XeriTrayReorderAxis), options.ReorderAxis))
+            {
+                throw new ArgumentOutOfRangeException
+                (
+                    nameof(options),
+                    options.ReorderAxis,
+                    "정의되지 않은 Tray reorder axis입니다."
+                );
+            }
+
+            var unknownContent = options.VisibleContent & ~XeriTrayContent.All;
+
+            if (unknownContent != XeriTrayContent.None)
+            {
+                throw new ArgumentOutOfRangeException
+                (
+                    nameof(options),
+                    options.VisibleContent,
+                    "정의되지 않은 Tray content flag가 포함되어 있습니다."
+                );
+            }
+        }
+
         // ------------------------------------------------------------
         /// <summary>
         /// Tray 표시 옵션을 root class와 reorder 설정에 반영한다.
@@ -257,6 +360,7 @@ namespace inonego.Xeri.UI.Tray
         private void ApplyOptions(XeriTrayOptions options)
         {
             reorderOptions = options ?? XeriTrayOptions.Default();
+            ValidateOptions(reorderOptions);
 
             if (!string.IsNullOrEmpty(appliedOptionClass))
             {
@@ -264,16 +368,13 @@ namespace inonego.Xeri.UI.Tray
             }
 
             appliedOptionClass = reorderOptions.UssClass;
-            reorderable = reorderOptions.Reorderable &&
-                          reorderOptions.ReorderMode != XeriTrayReorderMode.Disabled;
+            reorderable = reorderOptions.Reorderable;
             reorderAxis = reorderOptions.ReorderAxis;
 
-            SetReorderAnimator
-            (
-                reorderOptions.AnimateReorder
-                    ? new XeriTrayReorderAnimator()
-                    : new XeriTrayNoReorderAnimator()
-            );
+            if (customReorderAnimator == null)
+            {
+                ReplaceReorderAnimator(CreateDefaultReorderAnimator());
+            }
 
             if (!string.IsNullOrEmpty(appliedOptionClass))
             {

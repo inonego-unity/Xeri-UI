@@ -12,8 +12,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: a482fa6b76e5d4344a7953574b10a55f, type: 3}
   m_Name: GameUIValidationSettings
   m_EditorClassIdentifier: inonego.Xeri.UI::inonego.Xeri.UI.UISettingsAsset
-  defaultProfile: {fileID: 11400000, guid: 72036d4b9cd27f34ea1071adc98d9b11, type: 2}
-  sceneFadeLayerID: SystemFade
+  defaultLayout: {fileID: 11400000, guid: f0a1f10f85524a1cb61e9a31b8d3e1e4, type: 2}
+  uitkPanelSettingsTemplate: {fileID: 11400000, guid: 7c5f2e83bdfd4f0aa7a81c507ba9c2d1, type: 2}
+  sceneFadePresentationID: System.Fade
   defaultFadeColor: {r: 0, g: 0, b: 0, a: 1}
   defaultFadeDuration: 0.25
   uiActionMap: UI

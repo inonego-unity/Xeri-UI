@@ -1,13 +1,13 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : GameUIValidationLab.cs
-수정일 : 2026-09-13
+수정일 : 2026-09-23
 
 # 설명
 Xeri Package Sample의 단일 검증 Scene에서 실제 Game UI Runtime과 Context 공개 경로를 조립한다.
 
 # 특이사항, 제약사항
-활성 Runtime이 없으면 Sample Runtime의 Main으로 전체 기능을 검증한다.
-활성 Runtime이 있으면 Sample Layer와 Child Context만 소유하고 App 전역 상태는 변경하지 않는다.
+활성 Runtime이 없으면 Sample Settings로 Runtime을 생성한다.
+활성 Runtime을 재사용할 때는 그 Root PresentationPlan에 Sample Presentation ID가 이미 정의되어 있어야 한다.
 ========================================================================= BLOCK_HEADER_END */
 
 using System;
@@ -17,6 +17,8 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UIElements;
 
+using inonego;
+using inonego.Xeri;
 using inonego.Xeri.UI;
 
 namespace inonego.Xeri.Samples.GameUIValidation
@@ -68,21 +70,21 @@ namespace inonego.Xeri.Samples.GameUIValidation
 
     }
 
-    // ============================================================
+    // ======================================================================
     /// <summary>
     /// Xeri Game UI Core의 실제 공개 경로를 한 Scene에서 조작하는 검증 조립점.
     /// </summary>
-    // ============================================================
+    // ======================================================================
     public sealed class GameUIValidationLab : MonoBehaviour
     {
 
     #region 내부 데이터
 
-        // ============================================================
+        // ================================================================================
         /// <summary>
         /// Validation Layer에 Toast VisualElement를 획득·반환하는 Overlay Source.
         /// </summary>
-        // ============================================================
+        // ================================================================================
         private sealed class ValidationPresentationSource : IPresentationSource<VisualElement>
         {
 
@@ -148,7 +150,7 @@ namespace inonego.Xeri.Samples.GameUIValidation
                 title.AddToClassList("overlay-toast__title");
                 content.Add(title);
 
-                var copy = new Label("View + Layer Usage are held by one handle.");
+                var copy = new Label("View + placement usage are held by one handle.");
                 copy.AddToClassList("overlay-toast__copy");
                 content.Add(copy);
 
@@ -182,68 +184,18 @@ namespace inonego.Xeri.Samples.GameUIValidation
 
         }
 
-        // ============================================================
-        /// <summary>
-        /// Modal VisualElement를 계층에서 제거하는 표시 수명 Handle.
-        /// </summary>
-        // ============================================================
-        private sealed class VisualElementHandle : IDisposable
-        {
-
-        #region 필드
-
-            private VisualElement element = null;
-
-        #endregion
-
-        #region 생성자
-
-            // ------------------------------------------------------------
-            /// <summary>
-            /// 제거할 VisualElement를 소유한다.
-            /// </summary>
-            // ------------------------------------------------------------
-            public VisualElementHandle(VisualElement element) : base()
-            {
-                this.element = element ?? throw new ArgumentNullException(nameof(element));
-            }
-
-        #endregion
-
-        #region IDisposable
-
-            // ------------------------------------------------------------
-            /// <summary>
-            /// 소유 VisualElement를 현재 Visual Tree에서 제거한다.
-            /// </summary>
-            // ------------------------------------------------------------
-            public void Dispose()
-            {
-                if (element == null) return;
-
-                var current = element;
-                element = null;
-                current.RemoveFromHierarchy();
-            }
-
-        #endregion
-
-        }
-
     #endregion
 
     #region 상수
 
-        internal const string LAYER_ID = "ValidationScreen";
         internal const string DASHBOARD_SCREEN_ID = "GameUI.Validation.Dashboard";
         internal const string DETAIL_SCREEN_ID = "GameUI.Validation.Detail";
+        internal const string TOAST_PRESENTATION_ID = "GameUI.Validation.Toast";
+        internal const string MODAL_PRESENTATION_ID = "GameUI.Validation.Modal";
 
     #endregion
 
     #region 필드
-
-        [SerializeField]
-        private UIProfileAsset profile = null;
 
         [SerializeField]
         private VisualTreeAsset screenTemplate = null;
@@ -257,19 +209,9 @@ namespace inonego.Xeri.Samples.GameUIValidation
         [SerializeField]
         private UISettingsAsset settings = null;
 
-        [SerializeField]
-        private PresentationLayerAsset validationLayerAsset = null;
-
-        [SerializeField]
-        private GameObject validationLayerPrefab = null;
-
         private UIRuntime runtime = null;
         private UIContext context = null;
         private GameObject ownedRuntimeHost = null;
-        private GameObject ownedLayerRoot = null;
-        private PresentationLayerRegistry ownedLayerRegistry = null;
-        private PresentationLayerHandle ownedLayerRegistration = null;
-        private UIProfileHandle profileHandle = null;
         private ScreenRegistrationHandle dashboardRegistration = null;
         private ScreenRegistrationHandle detailRegistration = null;
         private GameUIValidationScreenSource screenSource = null;
@@ -282,7 +224,6 @@ namespace inonego.Xeri.Samples.GameUIValidation
         private bool isComposed = false;
         private bool isSharedRuntime = false;
         private bool ownsFadeRequest = false;
-        private string lastActivity = "Waiting for runtime composition…";
 
         // ------------------------------------------------------------
         /// <summary>
@@ -324,7 +265,7 @@ namespace inonego.Xeri.Samples.GameUIValidation
         /// 현재 모드에서 Runtime 전역 Scene Fade를 검증할 수 있는지 여부.
         /// </summary>
         // ------------------------------------------------------------
-        internal bool SupportsSceneFade => !isSharedRuntime;
+        internal bool SupportsSceneFade => true;
 
         // ------------------------------------------------------------
         /// <summary>
@@ -356,6 +297,8 @@ namespace inonego.Xeri.Samples.GameUIValidation
         // ------------------------------------------------------------
         internal string LastActivity => lastActivity;
 
+        private string lastActivity = "Waiting for runtime composition…";
+
         // ------------------------------------------------------------
         /// <summary>
         /// Runtime이 현재 검증 명령을 받을 수 있는지 여부.
@@ -384,7 +327,10 @@ namespace inonego.Xeri.Samples.GameUIValidation
             // BeforeSceneLoad Bootstrapper의 생성까지 기다려 App Runtime과 소유권이 겹치지 않게 한다.
             yield return null;
 
-            if (!isActiveAndEnabled) yield break;
+            if (!isActiveAndEnabled)
+            {
+                yield break;
+            }
 
             try
             {
@@ -408,11 +354,11 @@ namespace inonego.Xeri.Samples.GameUIValidation
             }
         }
 
-        // ------------------------------------------------------------
+        // --------------------------------------------------------------------------------
         /// <summary>
-        /// 검증 Scene이 닫히면 자신이 획득한 Screen, 등록과 Profile을 역순으로 반환한다.
+        /// 검증 Scene이 닫히면 자신이 획득한 Screen, 등록과 선택적 Runtime을 역순으로 반환한다.
         /// </summary>
-        // ------------------------------------------------------------
+        // --------------------------------------------------------------------------------
         private void OnApplicationQuit()
         {
             ReleaseComposition();
@@ -429,24 +375,18 @@ namespace inonego.Xeri.Samples.GameUIValidation
 
     #region 조립과 해제
 
-        // ----------------------------------------------------------------------
+        // --------------------------------------------------------------------------------
         /// <summary>
         /// 현재 실행 모드의 Context, Screen Source와 두 Screen 등록을 준비하고 Dashboard를 연다.
         /// </summary>
-        // ----------------------------------------------------------------------
+        // --------------------------------------------------------------------------------
         private void Compose()
         {
             ValidateConfiguration();
 
-            if (isSharedRuntime)
-            {
-                CreateSharedValidationContext();
-            }
-            else
-            {
-                profileHandle = runtime.AcquireProfile(profile);
-                context = runtime.Main;
-            }
+            context = runtime.Main ?? throw new InvalidOperationException("검증 Runtime Main Context가 없습니다.");
+
+            ValidatePresentationPlacements();
 
             screenSource = new GameUIValidationScreenSource
             (
@@ -456,12 +396,11 @@ namespace inonego.Xeri.Samples.GameUIValidation
             );
             spotlight = new UITKSpotlight();
 
-            dashboardRegistration = context.ScreenRegistry.Register
+            dashboardRegistration = context.RegisterScreen
             (
                 new ScreenOptions
                 (
                     DASHBOARD_SCREEN_ID,
-                    LAYER_ID,
                     ScreenDuplicatePolicy.Reject,
                     openDuration: 0.28f,
                     closeDuration: 0.2f
@@ -469,12 +408,11 @@ namespace inonego.Xeri.Samples.GameUIValidation
                 screenSource
             );
 
-            detailRegistration = context.ScreenRegistry.Register
+            detailRegistration = context.RegisterScreen
             (
                 new ScreenOptions
                 (
                     DETAIL_SCREEN_ID,
-                    LAYER_ID,
                     ScreenDuplicatePolicy.Allow,
                     openDuration: 0.24f,
                     closeDuration: 0.18f
@@ -483,7 +421,7 @@ namespace inonego.Xeri.Samples.GameUIValidation
             );
 
             isComposed = true;
-            RecordActivity(isSharedRuntime ? "Local layer acquired · child screens registered" : "Profile acquired · main screens registered");
+            RecordActivity(isSharedRuntime ? "Shared root plan reused · screens registered" : "Sample root plan active · screens registered");
             RequireAccepted(context.Screens.Open(DASHBOARD_SCREEN_ID), "Dashboard Open");
         }
 
@@ -499,11 +437,6 @@ namespace inonego.Xeri.Samples.GameUIValidation
                 throw new InvalidOperationException("초기화된 UIRuntime을 찾지 못했습니다.");
             }
 
-            if (!isSharedRuntime && profile == null)
-            {
-                throw new InvalidOperationException("검증용 Game UI Profile이 연결되지 않았습니다.");
-            }
-
             if (screenTemplate == null)
             {
                 throw new InvalidOperationException("검증용 Screen UXML이 연결되지 않았습니다.");
@@ -514,73 +447,30 @@ namespace inonego.Xeri.Samples.GameUIValidation
                 throw new InvalidOperationException("검증용 Screen USS가 연결되지 않았습니다.");
             }
 
-            if (isSharedRuntime && validationLayerAsset == null)
-            {
-                throw new InvalidOperationException("검증용 Presentation Layer Asset이 연결되지 않았습니다.");
-            }
-
-            if (isSharedRuntime && validationLayerPrefab == null)
-            {
-                throw new InvalidOperationException("검증용 Presentation Layer Prefab이 연결되지 않았습니다.");
-            }
         }
 
-        // ----------------------------------------------------------------------
+        // --------------------------------------------------------------------------------
         /// <summary>
-        /// <br/> Sample 전용 Layer Root와 Registry를 만들고 App Main 아래 Child Context를 조립한다.
-        /// <br/> App Profile과 Root Layer Registry는 변경하지 않는다.
+        /// Sample Screen과 Overlay가 현재 Root PresentationPlan에 배치되어 있는지 검증한다.
         /// </summary>
-        // ----------------------------------------------------------------------
-        private void CreateSharedValidationContext()
+        // --------------------------------------------------------------------------------
+        private void ValidatePresentationPlacements()
         {
-            ownedLayerRoot = Instantiate(validationLayerPrefab);
-            ownedLayerRoot.name = "GameUIValidationSharedLayer";
-            var driver = ownedLayerRoot.GetComponent<UITKLayerPanel>();
+            var presentation = context?.Presentation ??
+                throw new InvalidOperationException("검증 Context PresentationSession이 없습니다.");
 
-            if (driver == null)
+            if
+            (
+                !presentation.ContainsPresentation(DASHBOARD_SCREEN_ID) ||
+                !presentation.ContainsPresentation(DETAIL_SCREEN_ID) ||
+                !presentation.ContainsPresentation(TOAST_PRESENTATION_ID) ||
+                !presentation.ContainsPresentation(MODAL_PRESENTATION_ID)
+            )
             {
-                Destroy(ownedLayerRoot);
-                ownedLayerRoot = null;
                 throw new InvalidOperationException
                 (
-                    "검증용 Layer Prefab Root에 UITKLayerPanel이 없습니다."
+                    "현재 Root PresentationPlan에 Validation Screen/Toast/Modal placement가 없습니다."
                 );
-            }
-
-            ownedLayerRegistry = new PresentationLayerRegistry();
-
-            try
-            {
-                ownedLayerRegistration = ownedLayerRegistry.Register
-                (
-                    validationLayerAsset,
-                    driver
-                );
-                context = runtime.Main.CreateChild(ownedLayerRegistry);
-                context.Focus();
-            }
-            catch (Exception exception)
-            {
-                var errors = new List<Exception> { exception };
-                DisposeOwned(context, errors);
-                context = null;
-                DisposeOwned(ownedLayerRegistration, errors);
-                ownedLayerRegistration = null;
-                DisposeOwned(ownedLayerRegistry, errors);
-                ownedLayerRegistry = null;
-                Destroy(ownedLayerRoot);
-                ownedLayerRoot = null;
-
-                if (errors.Count > 1)
-                {
-                    throw new AggregateException
-                    (
-                        "공유 Validation Context 조립과 정리가 실패했습니다.",
-                        errors
-                    );
-                }
-
-                throw;
             }
         }
 
@@ -630,7 +520,8 @@ namespace inonego.Xeri.Samples.GameUIValidation
 
         // ----------------------------------------------------------------------
         /// <summary>
-        /// 진행 중 표시 요청을 끝내고 Screen, 등록, Source와 Profile을 역순으로 반환한다.
+        /// <br/> 진행 중 표시 요청을 끝내고 Screen 등록, Source와 선택적 Sample
+        /// <br/> Runtime을 역순으로 반환한다.
         /// </summary>
         // ----------------------------------------------------------------------
         private void ReleaseComposition()
@@ -638,13 +529,11 @@ namespace inonego.Xeri.Samples.GameUIValidation
             if
             (
                 !isComposed &&
-                profileHandle == null &&
                 dashboardRegistration == null &&
                 detailRegistration == null &&
                 screenSource == null &&
                 context == null &&
-                ownedRuntimeHost == null &&
-                ownedLayerRoot == null
+                ownedRuntimeHost == null
             )
             {
                 return;
@@ -676,18 +565,7 @@ namespace inonego.Xeri.Samples.GameUIValidation
             DisposeOwned(modalSession, errors);
             modalSession = null;
 
-            if (isSharedRuntime && context != null)
-            {
-                try
-                {
-                    context.Dispose();
-                }
-                catch (Exception exception)
-                {
-                    errors.Add(exception);
-                }
-            }
-            else if (IsValidationAvailable)
+            if (IsValidationAvailable)
             {
                 try
                 {
@@ -705,19 +583,6 @@ namespace inonego.Xeri.Samples.GameUIValidation
             dashboardRegistration = null;
             DisposeOwned(screenSource, errors);
             screenSource = null;
-            DisposeOwned(profileHandle, errors);
-            profileHandle = null;
-
-            DisposeOwned(ownedLayerRegistration, errors);
-            ownedLayerRegistration = null;
-            DisposeOwned(ownedLayerRegistry, errors);
-            ownedLayerRegistry = null;
-
-            if (ownedLayerRoot != null)
-            {
-                Destroy(ownedLayerRoot);
-                ownedLayerRoot = null;
-            }
 
             if (ownedRuntimeHost != null)
             {
@@ -864,11 +729,11 @@ namespace inonego.Xeri.Samples.GameUIValidation
             RecordActivity(accepted ? "Pop accepted" : "Pop rejected");
         }
 
-        // ------------------------------------------------------------
+        // ----------------------------------------------------------------------
         /// <summary>
         /// Screen Stack을 강제 Clear한 다음 다음 프레임에 Dashboard를 다시 연다.
         /// </summary>
-        // ------------------------------------------------------------
+        // ----------------------------------------------------------------------
         internal void ClearAndRestore()
         {
             if (!IsValidationAvailable || clearRoutine != null) return;
@@ -876,11 +741,11 @@ namespace inonego.Xeri.Samples.GameUIValidation
             clearRoutine = StartCoroutine(ClearAndRestoreRoutine());
         }
 
-        // ------------------------------------------------------------
+        // ----------------------------------------------------------------------
         /// <summary>
         /// Clear 완료 뒤 등록이 유지된 Dashboard를 새 Session으로 다시 연다.
         /// </summary>
-        // ------------------------------------------------------------
+        // ----------------------------------------------------------------------
         private IEnumerator ClearAndRestoreRoutine()
         {
             RecordActivity("Clear requested · releasing all screens");
@@ -889,7 +754,10 @@ namespace inonego.Xeri.Samples.GameUIValidation
 
             clearRoutine = null;
 
-            if (!isComposed || !IsValidationAvailable) yield break;
+            if (!isComposed || !IsValidationAvailable)
+            {
+                yield break;
+            }
 
             var response = context.Screens.Open(DASHBOARD_SCREEN_ID);
             RecordResponse("Dashboard restore", response);
@@ -989,10 +857,9 @@ namespace inonego.Xeri.Samples.GameUIValidation
             }
 
             var source = new ValidationPresentationSource(screenStyle, CloseOverlay);
-            var opened = PresentationLease.Acquire<VisualElement>
+            var opened = context.AcquirePresentation
             (
-                context.LayerRegistry,
-                LAYER_ID,
+                TOAST_PRESENTATION_ID,
                 source
             );
 
@@ -1026,16 +893,12 @@ namespace inonego.Xeri.Samples.GameUIValidation
 
         // ----------------------------------------------------------------------
         /// <summary>
-        /// 현재 Validation Layer Usage와 VisualElement 수명을 Modal Handle에 이전한다.
+        /// 현재 Context의 Modal Presentation placement에 검증용 Modal을 연다.
         /// </summary>
         // ----------------------------------------------------------------------
-        internal void OpenModal
-        (
-            ScreenSession ownerSession,
-            VisualElement layerRoot
-        )
+        internal void OpenModal(ScreenSession ownerSession)
         {
-            if (!IsValidationAvailable || ownerSession == null || layerRoot == null) return;
+            if (!IsValidationAvailable || ownerSession == null) return;
 
             if (modalSession != null && !modalSession.IsDisposed)
             {
@@ -1044,17 +907,15 @@ namespace inonego.Xeri.Samples.GameUIValidation
             }
 
             var modalRoot = CreateModalRoot();
-            layerRoot.Add(modalRoot);
-            var visualHandle = new VisualElementHandle(modalRoot);
             ModalSession opened = null;
 
             try
             {
-                opened = context.Modals.Open
+                opened = UITKModal.Open
                 (
-                    new UITKPresentation(modalRoot),
-                    new UITKModalInteractionDriver(modalRoot),
-                    visualHandle
+                    context,
+                    MODAL_PRESENTATION_ID,
+                    modalRoot
                 );
                 ownerSession.RegisterChild(opened);
                 modalSession = opened;
@@ -1067,15 +928,7 @@ namespace inonego.Xeri.Samples.GameUIValidation
             }
             catch
             {
-                if (opened != null)
-                {
-                    opened.Dispose();
-                }
-                else
-                {
-                    visualHandle.Dispose();
-                }
-
+                opened?.Dispose();
                 throw;
             }
         }
@@ -1123,7 +976,7 @@ namespace inonego.Xeri.Samples.GameUIValidation
 
             var copy = new Label
             (
-                "The modal owns its VisualElement removal and Presentation Layer usage. " +
+                "The modal owns its VisualElement removal and Presentation placement usage. " +
                 "Closing the parent Screen also releases this card."
             );
             copy.AddToClassList("modal-card__copy");
@@ -1161,11 +1014,11 @@ namespace inonego.Xeri.Samples.GameUIValidation
             fadeRoutine = StartCoroutine(FadeRoutine());
         }
 
-        // ----------------------------------------------------------------------
+        // ------------------------------------------------------------
         /// <summary>
         /// Cover와 Reveal 완료를 실제 Fade callback 경계에서 관찰한다.
         /// </summary>
-        // ----------------------------------------------------------------------
+        // ------------------------------------------------------------
         private IEnumerator FadeRoutine()
         {
             ownsFadeRequest = true;

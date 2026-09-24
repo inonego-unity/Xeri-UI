@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : IScreenInputDriver.cs
-수정일 : 2026-09-17
+수정일 : 2026-09-23
 # 설명
 Screen 입력 정책 Session의 획득·배치 해제와 Runtime 종료 처리를 backend 계약으로 정의한다.
 ========================================================================= BLOCK_HEADER_END */
@@ -21,7 +21,11 @@ namespace inonego.Xeri.UI
         /// Screen Options에 맞는 입력 정책 Session을 획득한다.
         /// </summary>
         // ------------------------------------------------------------
-        ScreenInputSession Acquire(ScreenOptions options);
+        ScreenInputSession Acquire
+        (
+            ScreenOptions options,
+            bool contributionEnabled = true
+        );
 
         // ------------------------------------------------------------
         /// <summary>

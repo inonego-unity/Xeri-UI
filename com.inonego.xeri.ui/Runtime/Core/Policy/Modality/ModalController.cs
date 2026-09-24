@@ -1,9 +1,9 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : ModalController.cs
-수정일 : 2026-09-17
+수정일 : 2026-09-28
 # 설명
 Modality Policy Stack을 소유하고 상단 Session만 상호작용 가능하도록 backend 상태를 갱신한다.
-각 Session은 Presentation과 상호작용 backend를 분리하며, 선택적 부가 lifetime은 Session이 함께 소유한다.
+각 Session은 Presentation과 상호작용 backend를 분리하며, 선택적 Focus Override와 부가 lifetime은 Session이 함께 소유한다.
 실패한 정리를 같은 Session으로 다시 시도하지 않는다.
 ========================================================================= BLOCK_HEADER_END */
 
@@ -31,8 +31,23 @@ namespace inonego.Xeri.UI
         public int Count => stack.Count;
 
         private readonly List<ModalSession> stack = new List<ModalSession>();
+        private readonly UIContext context = null;
         private bool isDisposed = false;
         private bool isOpening = false;
+
+    #endregion
+
+    #region 생성자
+
+        internal ModalController()
+        {
+            // NONE
+        }
+
+        internal ModalController(UIContext context)
+        {
+            this.context = context ?? throw new ArgumentNullException(nameof(context));
+        }
 
     #endregion
 
@@ -87,6 +102,85 @@ namespace inonego.Xeri.UI
             finally
             {
                 isOpening = false;
+            }
+        }
+
+        // ----------------------------------------------------------------------
+        /// <summary>
+        /// <br/> Modal interaction과 별도 Focus Scope를 함께 활성화한다.
+        /// <br/> Focus registration과 Override activation lifetime은
+        /// <br/> Modal Session이 역순으로 소유한다.
+        /// </summary>
+        // ----------------------------------------------------------------------
+        public ModalSession Open
+        (
+            IPresentation presentation,
+            IModalInteractionDriver interaction,
+            IFocusScope focusScope,
+            params IDisposable[] ownedLifetimes
+        )
+        {
+            if (context == null)
+            {
+                throw new InvalidOperationException
+                (
+                    "Focus Scope Modal은 UIContext가 소유하는 ModalController에서만 열 수 있습니다."
+                );
+            }
+
+            if (focusScope == null)
+            {
+                throw new ArgumentNullException(nameof(focusScope));
+            }
+
+            var focusHandle = context.RegisterFocusScope(focusScope);
+            var lifetimes = new List<IDisposable>();
+
+            if (ownedLifetimes != null)
+            {
+                lifetimes.AddRange(ownedLifetimes);
+            }
+
+            lifetimes.Add(focusHandle);
+            ModalSession session = null;
+
+            try
+            {
+                session = Open(presentation, interaction, lifetimes.ToArray());
+                session.AddOwnedLifetime(context.PushFocusOverride(focusHandle));
+                return session;
+            }
+            catch (Exception exception)
+            {
+                Exception cleanupException = null;
+
+                try
+                {
+                    if (session != null)
+                    {
+                        session.Dispose();
+                    }
+                    else
+                    {
+                        focusHandle.Dispose();
+                    }
+                }
+                catch (Exception failure)
+                {
+                    cleanupException = failure;
+                }
+
+                if (cleanupException == null)
+                {
+                    throw;
+                }
+
+                throw new AggregateException
+                (
+                    "Modal Focus 적용과 롤백이 실패했습니다.",
+                    exception,
+                    cleanupException
+                );
             }
         }
 

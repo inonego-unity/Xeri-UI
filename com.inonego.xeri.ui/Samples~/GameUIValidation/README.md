@@ -7,14 +7,14 @@ Xeri UI Core의 공개 경로를 한 Scene에서 검증하는 선택형 Package 
 ## 가져오기
 
 1. Unity에서 `Window > Package Manager`를 연다.
-2. `Xeri` Package를 선택한다.
+2. `Xeri UI` Package를 선택합니다.
 3. `Samples`의 `UI Core Validation`에서 `Import`를 누른다.
 4. 가져온 `GameUIValidation.unity`를 연다.
 
-Unity는 샘플을 다음 형식의 프로젝트 경로로 복사한다.
+Unity는 샘플을 다음 형식의 프로젝트 경로로 복사합니다.
 
 ```text
-Assets/Samples/Xeri/<version>/UI Core Validation/
+Assets/Samples/Xeri UI/<version>/UI Core Validation/
 ```
 
 ## 실행
@@ -23,7 +23,7 @@ Assets/Samples/Xeri/<version>/UI Core Validation/
 2. Play Mode로 진입한다.
 3. Mouse 또는 Keyboard/Gamepad Navigation과 Submit으로 버튼을 조작한다.
 
-활성 `UIRuntime`이 없으면 샘플은 `GameUIValidationSettings.asset`과 Xeri의 `UIHost.prefab`으로 독립 Runtime을 만들고 전체 기능을 검증한다. 이미 App Runtime이 있으면 App Profile을 바꾸지 않고 샘플 전용 Layer Registry와 Child `UIContext`만 생성한다.
+활성 `UIRuntime`이 없으면 샘플은 `GameUIValidationSettings.asset`과 Xeri의 `UIHost.prefab`으로 독립 Runtime을 만들고 전체 기능을 검증합니다. 이미 App Runtime이 있으면 그 Runtime의 `Main` Context와 Root `PresentationSession`을 그대로 사용합니다. 이 shared 모드에서는 현재 Root Plan에 Validation Screen/Toast/Modal `PresentationID`가 이미 있어야 합니다.
 
 ## 검증 항목
 
@@ -33,9 +33,9 @@ Assets/Samples/Xeri/<version>/UI Core Validation/
 | `PUSH ANOTHER` | 같은 Screen ID의 별도 Session 수명 |
 | `REPLACE TOP` | 현재 top을 새 Session으로 교체 |
 | `POP SCREEN` | Close Transition과 이전 Focus 복원 |
-| `OPEN MODAL` | `ModalSession`의 Presentation·interaction·owned lifetime 수명 |
+| `OPEN MODAL` | `UITKModal.Open`이 placement usage, hierarchy, interaction lifetime을 `ModalSession`에 묶는 경로 |
 | `SPOTLIGHT` | UITK Spotlight Lease를 현재 Screen의 자식 수명으로 소유 |
-| `Overlay Toast` | `PresentationLease`가 View와 Layer Usage를 함께 소유 |
+| `Overlay Toast` | `context.AcquirePresentation`이 View와 placement Layer usage를 함께 소유 |
 | `Cover → Reveal` | 기본 `SceneFader`의 Cover/Reveal 실행 |
 | `Clear & Restore` | Stack 전체 정리 후 Dashboard 재생성 |
 
@@ -48,7 +48,7 @@ GameUIValidation.unity
 GameUIValidationSettings.asset
 GameUIValidationGameplay.inputactions
 Runtime/   # 샘플 조립 코드와 전용 Assembly
-UI/        # UXML, USS, Layer, PanelSettings, Profile
+UI/        # UXML, USS, PresentationLayout, PanelSettings
 Fonts/     # Unity/HTML 공용 Inter, OFL 1.1
 Web~/      # 1920x1080 HTML/CSS 시각 기준본
 ```
@@ -65,4 +65,4 @@ Inter Font는 SIL Open Font License 1.1을 따른다. 라이선스는 `Fonts/Int
 
 ## 제거
 
-Package Manager의 Sample Import는 Xeri Runtime을 변경하지 않는다. 검증 화면이 필요 없으면 `Assets/Samples/Xeri/<version>/UI Core Validation` 폴더만 제거하면 된다.
+Package Manager의 Sample Import는 Xeri Runtime을 변경하지 않습니다. 검증 화면이 필요 없으면 `Assets/Samples/Xeri UI/<version>/UI Core Validation` 폴더만 제거하면 됩니다.

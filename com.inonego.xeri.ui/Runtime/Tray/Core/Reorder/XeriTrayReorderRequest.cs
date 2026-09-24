@@ -6,6 +6,8 @@
 Tray entry reorder 확정 요청 값을 표현한다.
 ========================================================================= BLOCK_HEADER_END */
 
+using System;
+
 namespace inonego.Xeri.UI.Tray
 {
     // ============================================================
@@ -55,7 +57,18 @@ namespace inonego.Xeri.UI.Tray
             int targetIndex
         )
         {
-            Entry = entry;
+            Entry = entry ?? throw new ArgumentNullException(nameof(entry));
+
+            if (sourceIndex < 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(sourceIndex));
+            }
+
+            if (targetIndex < 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(targetIndex));
+            }
+
             SourceIndex = sourceIndex;
             TargetIndex = targetIndex;
         }

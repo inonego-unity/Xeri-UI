@@ -4,31 +4,37 @@
   items:
   - name: 설치
     href: getting-started/installation.md
-- name: 개념
-  items:
-  - name: 구조
-    href: concepts/architecture.md
-- name: UI Core
-  items:
-  - name: 구조와 수명
-    href: modules/core/architecture.md
   - name: 설정과 시작
-    href: modules/core/setup.md
+    href: getting-started/setup.md
+- name: Architecture
+  items:
+  - name: 전체 구조
+    href: architecture/overview.md
+  - name: Presentation Architecture
+    href: architecture/presentation.md
+- name: Core
+  items:
+  - name: Core 개요
+    href: core/index.md
   - name: Screen과 입력
-    href: modules/core/screens.md
-  - name: 표시와 배치
-    href: modules/core/presentation.md
+    href: core/screens.md
+  - name: Presentation
+    href: core/presentation.md
   - name: 문제 해결
-    href: modules/core/troubleshooting.md
+    href: core/troubleshooting.md
 - name: Window
   items:
   - name: Window
-    href: modules/window.md
+    href: window/index.md
+  - name: View Source
+    href: window/view-source.md
+- name: UI Modules
+  items:
   - name: Tray
-    href: modules/tray.md
-  - name: Window View
-    href: modules/window-view.md
-- name: 가이드
+    href: tray.md
+  - name: Bar
+    href: bar.md
+- name: Guides
   items:
   - name: Window와 View Source 연결하기
     href: guides/create-window-view.md

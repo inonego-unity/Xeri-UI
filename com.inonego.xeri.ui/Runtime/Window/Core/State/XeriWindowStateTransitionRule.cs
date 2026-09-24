@@ -13,7 +13,7 @@ namespace inonego.Xeri.UI.Window
     /// Xeri 커스텀 윈도우 상태 전환 규칙.
     /// </summary>
     // ============================================================
-    public static class XeriWindowStateTransitionRule
+    internal static class XeriWindowStateTransitionRule
     {
 
     #region 메서드
@@ -23,7 +23,7 @@ namespace inonego.Xeri.UI.Window
         /// 현재 상태와 요청으로부터 다음 상태를 계산한다.
         /// </summary>
         // ------------------------------------------------------------
-        public static bool TryResolveNextState
+        internal static bool TryResolveNextState
         (
             XeriWindowState currentState,
             XeriWindowStateCommandRequest request,

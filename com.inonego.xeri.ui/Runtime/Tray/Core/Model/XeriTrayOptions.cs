@@ -81,20 +81,6 @@ namespace inonego.Xeri.UI.Tray
 
         // ------------------------------------------------------------
         /// <summary>
-        /// Entry reorder 동작 모드.
-        /// </summary>
-        // ------------------------------------------------------------
-        public XeriTrayReorderMode ReorderMode
-        {
-            get => reorderMode;
-            set => reorderMode = value;
-        }
-
-        [SerializeField]
-        private XeriTrayReorderMode reorderMode = XeriTrayReorderMode.AxisLocked;
-
-        // ------------------------------------------------------------
-        /// <summary>
         /// Entry reorder preview 애니메이션 사용 여부.
         /// </summary>
         // ------------------------------------------------------------
@@ -107,25 +93,14 @@ namespace inonego.Xeri.UI.Tray
         [SerializeField]
         private bool animateReorder = true;
 
-        // ------------------------------------------------------------
-        /// <summary>
-        /// Entry reorder preview 애니메이션 시간.
-        /// </summary>
-        // ------------------------------------------------------------
-        public float ReorderAnimationDuration
-        {
-            get => reorderAnimationDuration;
-            set => reorderAnimationDuration = Mathf.Max(0f, value);
-        }
-
-        [SerializeField]
-        private float reorderAnimationDuration = 0.08f;
-
     #endregion
 
     #region 생성자
 
-        public XeriTrayOptions() : base() {}
+        public XeriTrayOptions() : base()
+        {
+            // NONE
+        }
 
     #endregion
 
@@ -144,9 +119,7 @@ namespace inonego.Xeri.UI.Tray
                 UssClass = string.Empty,
                 Reorderable = false,
                 ReorderAxis = XeriTrayReorderAxis.Horizontal,
-                ReorderMode = XeriTrayReorderMode.AxisLocked,
                 AnimateReorder = true,
-                ReorderAnimationDuration = 0.08f,
             };
         }
 

@@ -6,6 +6,9 @@
 기존 Drag_Drop UITK manipulator를 사용하는 기본 Window titlebar drag factory.
 ========================================================================= BLOCK_HEADER_END */
 
+using inonego;
+using inonego.Xeri;
+using inonego.Xeri.UI;
 using inonego.Xeri.UI.DragDrop;
 
 namespace inonego.Xeri.UI.Window
@@ -26,7 +29,10 @@ namespace inonego.Xeri.UI.Window
 
     #region 생성자
 
-        public XeriWindowDragFactory() : this(null) {}
+        public XeriWindowDragFactory() : this(null)
+        {
+            // NONE
+        }
 
         // ------------------------------------------------------------
         /// <summary>
@@ -44,7 +50,7 @@ namespace inonego.Xeri.UI.Window
 
         // ------------------------------------------------------------
         /// <summary>
-        /// Window titlebar drag binding을 생성하고 panel에 부착한다.
+        /// Window titlebar drag binding을 생성한다.
         /// </summary>
         // ------------------------------------------------------------
         public XeriWindowTitleBarManipulator CreateTitleBarDrag
@@ -53,10 +59,7 @@ namespace inonego.Xeri.UI.Window
             XeriWindowController controller
         )
         {
-            var manipulator = new XeriWindowTitleBarManipulator(panel, controller, coordinator);
-            manipulator.Attach();
-
-            return manipulator;
+            return new XeriWindowTitleBarManipulator(panel, controller, coordinator);
         }
 
     #endregion

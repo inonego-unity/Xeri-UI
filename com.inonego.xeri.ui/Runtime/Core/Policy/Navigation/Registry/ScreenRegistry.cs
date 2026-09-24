@@ -1,8 +1,9 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : ScreenRegistry.cs
-수정일 : 2026-09-17
+수정일 : 2026-09-23
 # 설명
 Screen Options와 Source를 stable string ID로 등록하고 새 Open 조회를 제공한다.
+Presentation placement 유효성은 active Session에서 Open 시 resolve한다.
 ========================================================================= BLOCK_HEADER_END */
 
 using System;
@@ -79,23 +80,8 @@ namespace inonego.Xeri.UI
 
     #region 필드
 
-        private readonly PresentationLayerRegistry layerRegistry = null;
         private readonly Dictionary<string, Entry> entries = new Dictionary<string, Entry>();
         private bool isDisposed = false;
-
-    #endregion
-
-    #region 생성자
-
-        // ------------------------------------------------------------
-        /// <summary>
-        /// Layer 등록 상태를 검증하는 Screen Registry를 생성한다.
-        /// </summary>
-        // ------------------------------------------------------------
-        public ScreenRegistry(PresentationLayerRegistry layerRegistry) : base()
-        {
-            this.layerRegistry = layerRegistry ?? throw new ArgumentNullException(nameof(layerRegistry));
-        }
 
     #endregion
 
@@ -125,14 +111,6 @@ namespace inonego.Xeri.UI
             if (source == null)
             {
                 throw new ArgumentNullException(nameof(source));
-            }
-
-            if (!layerRegistry.Contains(options.LayerID))
-            {
-                throw new InvalidOperationException
-                (
-                    $"Screen '{options.ID}'의 Layer '{options.LayerID}'가 등록되어 있지 않습니다."
-                );
             }
 
             if (entries.ContainsKey(options.ID))

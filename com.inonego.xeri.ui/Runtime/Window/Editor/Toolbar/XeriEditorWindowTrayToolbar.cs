@@ -6,9 +6,14 @@
 EditorWindow 내부에서 공통 XeriTrayPanel을 배치하는 toolbar view.
 ========================================================================= BLOCK_HEADER_END */
 
+using System;
+
 using UnityEngine;
 using UnityEngine.UIElements;
 
+using inonego;
+using inonego.Xeri;
+using inonego.Xeri.UI;
 using inonego.Xeri.UI.Tray;
 
 namespace inonego.Xeri.UI.Window.Editor
@@ -18,7 +23,7 @@ namespace inonego.Xeri.UI.Window.Editor
     /// EditorWindow 내부용 Tray toolbar.
     /// </summary>
     // ============================================================
-    public sealed class XeriEditorWindowTrayToolbar : VisualElement
+    public sealed class XeriEditorWindowTrayToolbar : VisualElement, IDisposable
     {
 
     #region 필드
@@ -34,10 +39,12 @@ namespace inonego.Xeri.UI.Window.Editor
 
         private readonly XeriWindowTraySource source = null;
         private readonly XeriTrayController controller = null;
+        private bool isDisposed = false;
 
     #endregion
 
     #region 생성자
+
         // ------------------------------------------------------------
         /// <summary>
         /// EditorWindow 내부 Tray toolbar를 생성한다.
@@ -58,14 +65,16 @@ namespace inonego.Xeri.UI.Window.Editor
             source = new XeriWindowTraySource(registry);
             controller = new XeriTrayController(source, trayPanel, options);
 
-            trayPanel.OnEntrySelect += OnTrayEntrySelect;
-            trayPanel.OnEntryClose  += OnTrayEntryClose;
+            controller.OnEntrySelect += OnTrayEntrySelect;
+            controller.OnEntryClose += OnTrayEntryClose;
+            RegisterCallback<DetachFromPanelEvent>(OnDetachedFromPanel);
             controller.Reload();
         }
 
     #endregion
 
     #region 메서드
+
         // ------------------------------------------------------------
         /// <summary>
         /// Tray 표시를 즉시 다시 그린다.
@@ -79,6 +88,7 @@ namespace inonego.Xeri.UI.Window.Editor
     #endregion
 
     #region 이벤트 핸들러
+
         // ------------------------------------------------------------
         /// <summary>
         /// Tray entry 선택을 show normal 명령으로 연결한다.
@@ -97,6 +107,37 @@ namespace inonego.Xeri.UI.Window.Editor
         private void OnTrayEntryClose(object sender, XeriTrayEventArgs e)
         {
             source.Close(e.Entry);
+        }
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// Toolbar가 Panel에서 분리되면 소유 구독을 정리한다.
+        /// </summary>
+        // ------------------------------------------------------------
+        private void OnDetachedFromPanel(DetachFromPanelEvent eventData)
+        {
+            Dispose();
+        }
+
+    #endregion
+
+    #region IDisposable
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// Tray 입력과 Source·Controller 구독을 한 번 해제한다.
+        /// </summary>
+        // ------------------------------------------------------------
+        public void Dispose()
+        {
+            if (isDisposed) return;
+
+            isDisposed = true;
+            UnregisterCallback<DetachFromPanelEvent>(OnDetachedFromPanel);
+            controller.OnEntrySelect -= OnTrayEntrySelect;
+            controller.OnEntryClose -= OnTrayEntryClose;
+            controller.Dispose();
+            source.Dispose();
         }
 
     #endregion

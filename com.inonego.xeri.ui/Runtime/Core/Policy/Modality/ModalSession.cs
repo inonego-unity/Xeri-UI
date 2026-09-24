@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : ModalSession.cs
-수정일 : 2026-09-17
+수정일 : 2026-09-23
 # 설명
 한 Presentation에 적용된 Modality Policy의 Stack 등록과 소유 lifetime을 묶는다.
 Presentation 자체의 표현 상태와 Modal 상호작용 backend는 분리해 보관한다.
@@ -81,6 +81,19 @@ namespace inonego.Xeri.UI
     #endregion
 
     #region 소유 lifetime
+
+        // --------------------------------------------------------------------------------
+        /// <summary>
+        /// Modal Open 이후 확정된 부가 lifetime을 해제 순서의 마지막 소유 항목으로 추가한다.
+        /// </summary>
+        // --------------------------------------------------------------------------------
+        internal void AddOwnedLifetime(IDisposable lifetime)
+        {
+            if (lifetime != null)
+            {
+                ownedLifetimes.Add(lifetime);
+            }
+        }
 
         // ------------------------------------------------------------
         /// <summary>

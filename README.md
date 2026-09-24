@@ -1,6 +1,6 @@
 # Xeri UI
 
-`Xeri-UI`는 Xeri의 UI 전용 시스템을 하나의 Unity Package로 관리하는 저장소입니다.
+`Xeri-UI`는 `com.inonego.xeri.ui` Unity package를 관리하는 저장소입니다.
 
 ## Package
 
@@ -11,18 +11,18 @@
 
 ## 범위
 
-- UI Core: `UIRuntime`, Layer, Screen, Modal, Presentation, Focus, Input, Transition
-- Window: 다중 Window 상태, Registry, UITK Canvas/Panel, drag/resize, theme
-- Tray: Window/작업 entry 표시, 선택, 닫기 요청, reorder
-- Window View: Window content source와 UI session 복원 계약
-- Bar: UGUI/UITK bar 표시
-- UI 전용 backend, effect, layout, validation sample
+- Core: Presentation, Screen, Modal, Focus, Input, Scene Fade
+- Window: Workspace, Window Session, Registry, interaction과 persistence
+- Tray: entry 표시, 선택, 닫기 요청, optional reorder
+- Window View: content source와 UI-local session
+- Bar: UGUI/UITK 값 표시
 
-범용 Drag/Drop과 Picker는 `com.inonego.xeri`가 소유하며 Xeri UI가 필요할 때 소비합니다.
+범용 Drag/Drop과 Picker는 base Xeri가 소유합니다.
 
 ## 문서
 
-- [Manual](com.inonego.xeri.ui/Documentation~/index.md)
+- [Xeri UI Manual](com.inonego.xeri.ui/Documentation~/index.md)
+- [Presentation Architecture](com.inonego.xeri.ui/Documentation~/architecture/presentation.md)
 - [문서 작성 규칙](Docs/documentation-style.md)
 - [문서 사이트 유지보수](Docs/site-maintenance.md)
 

@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : XeriWindowPanel.cs
-수정일 : 2026-09-20
+수정일 : 2026-09-29
 
 # 설명
 Xeri 커스텀 윈도우 하나를 표시하는 UITK VisualElement.
@@ -65,12 +65,12 @@ namespace inonego.Xeri.UI.Window
 
         // ------------------------------------------------------------
         /// <summary>
-        /// Content가 붙을 slot.
+        /// Window application content hierarchy가 시작되는 Root.
         /// </summary>
         // ------------------------------------------------------------
-        public VisualElement ContentSlot => contentSlot;
+        public VisualElement ContentRoot => contentRoot;
 
-        private readonly VisualElement contentSlot = null;
+        private readonly VisualElement contentRoot = null;
 
         // ------------------------------------------------------------
         /// <summary>
@@ -214,8 +214,8 @@ namespace inonego.Xeri.UI.Window
         // ------------------------------------------------------------
         public string ThemeClass => themeClass;
 
-        private XeriWindowState currentState = XeriWindowState.Normal;
         private string themeClass = DEFAULT_THEME_CLASS;
+        private XeriWindowState currentState = XeriWindowState.Normal;
 
     #endregion
 
@@ -232,7 +232,7 @@ namespace inonego.Xeri.UI.Window
                 out var createdTitleBar,
                 out var createdTitleIcon,
                 out var createdTitleLabel,
-                out var createdContentSlot,
+                out var createdContentRoot,
                 out var createdTitleActions,
                 out var createdMinimizeButton,
                 out var createdMaximizeButton,
@@ -250,7 +250,7 @@ namespace inonego.Xeri.UI.Window
             titleBar       = createdTitleBar;
             titleIcon      = createdTitleIcon;
             titleLabel     = createdTitleLabel;
-            contentSlot    = createdContentSlot;
+            contentRoot    = createdContentRoot;
             titleActions   = createdTitleActions;
             minimizeButton = createdMinimizeButton;
             maximizeButton = createdMaximizeButton;
@@ -283,7 +283,7 @@ namespace inonego.Xeri.UI.Window
             );
 
             hierarchy.Add(titleBar);
-            hierarchy.Add(contentSlot);
+            hierarchy.Add(contentRoot);
             hierarchy.Add(resizeLeft);
             hierarchy.Add(resizeTop);
             hierarchy.Add(resizeRight);
@@ -304,16 +304,16 @@ namespace inonego.Xeri.UI.Window
 
         // ------------------------------------------------------------
         /// <summary>
-        /// Content slot에 view를 부착한다.
+        /// Content Root에 view를 부착한다.
         /// </summary>
         // ------------------------------------------------------------
         public void AttachView(VisualElement view)
         {
-            contentSlot.Clear();
+            contentRoot.Clear();
 
             if (view != null)
             {
-                contentSlot.Add(view);
+                contentRoot.Add(view);
             }
         }
 
@@ -447,7 +447,7 @@ namespace inonego.Xeri.UI.Window
             out VisualElement titleBar,
             out VisualElement titleIcon,
             out Label titleLabel,
-            out VisualElement contentSlot,
+            out VisualElement contentRoot,
             out VisualElement titleActions,
             out Button minimizeButton,
             out Button maximizeButton,
@@ -474,7 +474,7 @@ namespace inonego.Xeri.UI.Window
             titleBar       = tree.Q<VisualElement>("title-bar");
             titleIcon      = tree.Q<VisualElement>("title-icon");
             titleLabel     = tree.Q<Label>("title-label");
-            contentSlot    = tree.Q<VisualElement>("content");
+            contentRoot    = tree.Q<VisualElement>("content-root");
             titleActions   = tree.Q<VisualElement>("title-actions");
             minimizeButton = tree.Q<Button>("minimize-button");
             maximizeButton = tree.Q<Button>("maximize-button");
@@ -491,7 +491,7 @@ namespace inonego.Xeri.UI.Window
             if
             (
                 titleBar == null || titleIcon == null || titleLabel == null ||
-                contentSlot == null || titleActions == null ||
+                contentRoot == null || titleActions == null ||
                 minimizeButton == null || maximizeButton == null || closeButton == null ||
                 resizeLeft == null || resizeTop == null || resizeRight == null ||
                 resizeBottom == null || resizeTopLeft == null || resizeTopRight == null ||
@@ -502,7 +502,7 @@ namespace inonego.Xeri.UI.Window
             }
 
             titleBar.RemoveFromHierarchy();
-            contentSlot.RemoveFromHierarchy();
+            contentRoot.RemoveFromHierarchy();
             resizeLeft.RemoveFromHierarchy();
             resizeTop.RemoveFromHierarchy();
             resizeRight.RemoveFromHierarchy();
@@ -513,11 +513,11 @@ namespace inonego.Xeri.UI.Window
             resizeBottomRight.RemoveFromHierarchy();
         }
 
-        // ------------------------------------------------------------
+        // --------------------------------------------------------------------------------
         /// <summary>
         /// UXML clone 이후 window 내부 element가 flex 흐름으로 배치되도록 구조 layout을 확정한다.
         /// </summary>
-        // ------------------------------------------------------------
+        // --------------------------------------------------------------------------------
         private void ApplyStructuralLayout()
         {
             titleBar.style.position       = Position.Relative;
@@ -526,7 +526,7 @@ namespace inonego.Xeri.UI.Window
             minimizeButton.style.position = Position.Relative;
             maximizeButton.style.position = Position.Relative;
             closeButton.style.position    = Position.Relative;
-            contentSlot.style.position    = Position.Relative;
+            contentRoot.style.position    = Position.Relative;
         }
 
         // ------------------------------------------------------------
@@ -580,11 +580,11 @@ namespace inonego.Xeri.UI.Window
             ApplyIconDisplay(closeButtonIcon, iconDisplay);
         }
 
-        // ------------------------------------------------------------
+        // --------------------------------------------------------------------------------
         /// <summary>
         /// Panel 연결 뒤 UXML template style이 다시 계산되어도 window 내부 layout을 유지한다.
         /// </summary>
-        // ------------------------------------------------------------
+        // --------------------------------------------------------------------------------
         private void OnAttachToPanel(AttachToPanelEvent evt)
         {
             ApplyStructuralLayout();

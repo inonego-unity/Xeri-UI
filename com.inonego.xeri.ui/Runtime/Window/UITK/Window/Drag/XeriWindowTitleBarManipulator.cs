@@ -9,6 +9,9 @@ XeriWindowPanel titlebar drag와 double click 상태 전환을 처리하는 wrap
 using UnityEngine;
 using UnityEngine.UIElements;
 
+using inonego;
+using inonego.Xeri;
+using inonego.Xeri.UI;
 using inonego.Xeri.UI.DragDrop;
 
 namespace inonego.Xeri.UI.Window
@@ -23,15 +26,16 @@ namespace inonego.Xeri.UI.Window
 
     #region 필드
 
+        private readonly XeriWindowPanel panel = null;
+        private readonly XeriWindowController controller = null;
+
         // ------------------------------------------------------------
         /// <summary>
         /// 내부 Drag_Drop UITK manipulator.
         /// </summary>
         // ------------------------------------------------------------
-        public UITKDraggableManipulator DragManipulator => dragManipulator;
+        internal UITKDraggableManipulator DragManipulator => dragManipulator;
 
-        private readonly XeriWindowPanel panel = null;
-        private readonly XeriWindowController controller = null;
         private readonly UITKDraggableManipulator dragManipulator = null;
 
         private const float DEFAULT_TITLE_BAR_HEIGHT = 24f;
@@ -61,8 +65,8 @@ namespace inonego.Xeri.UI.Window
             DragDropCoordinator coordinator = null
         ) : base()
         {
-            this.panel = panel;
-            this.controller = controller;
+            this.panel = panel ?? throw new System.ArgumentNullException(nameof(panel));
+            this.controller = controller ?? throw new System.ArgumentNullException(nameof(controller));
             dragManipulator = new UITKDraggableManipulator(coordinator)
             {
                 CanMove = false,
@@ -84,21 +88,18 @@ namespace inonego.Xeri.UI.Window
         public void Attach()
         {
             if (isAttached) return;
-            if (panel == null || controller == null) return;
 
-            panel.TitleBar.RegisterCallback<MouseDownEvent>
-            (
-                OnTitleBarMouseDown
-            );
-            panel.TitleBar.RegisterCallback<MouseUpEvent>
-            (
-                OnTitleBarMouseUp
-            );
-            dragManipulator.OnDragBegin += OnDragBegin;
-            dragManipulator.OnDrag += OnDrag;
-            panel.TitleBar.AddManipulator(dragManipulator);
-
-            isAttached = true;
+            try
+            {
+                RegisterCallbacks();
+                isAttached = true;
+            }
+            catch
+            {
+                UnregisterCallbacks();
+                ResetTitleBarClickState();
+                throw;
+            }
         }
 
         // ------------------------------------------------------------
@@ -109,22 +110,42 @@ namespace inonego.Xeri.UI.Window
         public void Detach()
         {
             if (!isAttached) return;
-            if (panel == null) return;
 
-            panel.TitleBar.UnregisterCallback<MouseDownEvent>
-            (
-                OnTitleBarMouseDown
-            );
-            panel.TitleBar.UnregisterCallback<MouseUpEvent>
-            (
-                OnTitleBarMouseUp
-            );
+            UnregisterCallbacks();
+            ResetTitleBarClickState();
+            isAttached = false;
+        }
+
+    #endregion
+
+    #region 내부 binding
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// Titlebar drag와 click callback 전체를 등록한다.
+        /// </summary>
+        // ------------------------------------------------------------
+        private void RegisterCallbacks()
+        {
+            panel.TitleBar.RegisterCallback<MouseDownEvent>(OnTitleBarMouseDown);
+            panel.TitleBar.RegisterCallback<MouseUpEvent>(OnTitleBarMouseUp);
+            dragManipulator.OnDragBegin += OnDragBegin;
+            dragManipulator.OnDrag += OnDrag;
+            panel.TitleBar.AddManipulator(dragManipulator);
+        }
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// Titlebar drag와 click callback 전체를 해제한다.
+        /// </summary>
+        // ------------------------------------------------------------
+        private void UnregisterCallbacks()
+        {
+            panel.TitleBar.UnregisterCallback<MouseDownEvent>(OnTitleBarMouseDown);
+            panel.TitleBar.UnregisterCallback<MouseUpEvent>(OnTitleBarMouseUp);
             dragManipulator.OnDragBegin -= OnDragBegin;
             dragManipulator.OnDrag -= OnDrag;
             panel.TitleBar.RemoveManipulator(dragManipulator);
-
-            ResetTitleBarClickState();
-            isAttached = false;
         }
 
     #endregion
@@ -169,11 +190,11 @@ namespace inonego.Xeri.UI.Window
             controller.Move(beginWindowPos + delta);
         }
 
-        // ------------------------------------------------------------
+        // ----------------------------------------------------------------------
         /// <summary>
         /// Maximized window를 titlebar drag 기준점에 맞춰 normal 상태로 복귀시킨다.
         /// </summary>
-        // ------------------------------------------------------------
+        // ----------------------------------------------------------------------
         private void RestoreMaximizedWindowForDrag(DragEventArgs e)
         {
             var pointerPos = e.GoalPos - e.Offset;
@@ -229,11 +250,11 @@ namespace inonego.Xeri.UI.Window
             ClearTitleBarClick();
         }
 
-        // ------------------------------------------------------------
+        // --------------------------------------------------------------------------------
         /// <summary>
         /// Drag 없이 끝난 titlebar click 후보를 titlebar 기준 double click으로 확정한다.
         /// </summary>
-        // ------------------------------------------------------------
+        // --------------------------------------------------------------------------------
         private void OnTitleBarMouseUp(MouseUpEvent evt)
         {
             if (!hasPendingTitleBarClick) return;
@@ -330,11 +351,11 @@ namespace inonego.Xeri.UI.Window
             return false;
         }
 
-        // ------------------------------------------------------------
+        // --------------------------------------------------------------------------------
         /// <summary>
         /// Titlebar 기준 click sequence를 갱신하고 double click 성립 여부를 반환한다.
         /// </summary>
-        // ------------------------------------------------------------
+        // --------------------------------------------------------------------------------
         private bool RegisterTitleBarClick(Vector2 clickPos)
         {
             var now = Time.realtimeSinceStartup;
@@ -369,11 +390,11 @@ namespace inonego.Xeri.UI.Window
             lastClickPos = Vector2.zero;
         }
 
-        // ------------------------------------------------------------
+        // ----------------------------------------------------------------------
         /// <summary>
         /// Pending titlebar click과 titlebar click sequence를 함께 초기화한다.
         /// </summary>
-        // ------------------------------------------------------------
+        // ----------------------------------------------------------------------
         private void ResetTitleBarClickState()
         {
             hasPendingTitleBarClick = false;

@@ -1,26 +1,26 @@
 # Xeri UI
 
-`com.inonego.xeri.ui`는 Unity의 application UI lifecycle과 Window/Tray UI를 제공하는 패키지입니다.
+`com.inonego.xeri.ui`는 Unity application UI의 Presentation, Screen, Modal, Focus/Input authority와 Window/Tray 기능을 제공합니다.
 
-## 주요 모듈
+## 주요 영역
 
-- **UI Core** — Layer, Screen, Modal, Presentation, Focus, Input, Transition과 UI 수명
-- **Window** — 이동, resize, minimize/maximize, focus, Registry와 UITK Window
-- **Tray** — entry 표시, 선택, 닫기 요청과 reorder
-- **Window View** — Window content source와 UI session 저장/복원
-- **Bar** — UGUI/UITK bar 표시
+- **Core** — `UIRuntime`, `UIContext`, Presentation, Screen, Modal, Focus, Input
+- **Window** — Workspace, Window Session, Simple/Application Window, persistence
+- **Tray** — entry list, selection, close request, optional UITK reorder
+- **Window View** — View acquire/release와 UI-local session
+- **Bar** — UGUI/UITK 값 범위와 변화 표시
 
-범용 Drag/Drop과 Picker는 base Xeri에서 제공하며 이 패키지가 필요한 기능만 소비합니다.
+범용 Drag/Drop과 Picker는 `com.inonego.xeri`가 제공합니다.
 
 ## Namespace
 
 ```text
 inonego.Xeri.UI
 inonego.Xeri.UI.Window
-inonego.Xeri.UI.Window.Editor
 inonego.Xeri.UI.Tray
+inonego.Xeri.UI.Window.Editor
 ```
 
 ## 문서
 
-자세한 사용법은 [Documentation~/index.md](Documentation~/index.md)에서 시작합니다.
+[Documentation~/index.md](Documentation~/index.md)에서 시작합니다.

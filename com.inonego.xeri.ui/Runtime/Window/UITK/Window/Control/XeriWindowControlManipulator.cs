@@ -16,7 +16,7 @@ namespace inonego.Xeri.UI.Window
     /// Window control button 상호작용 wrapper.
     /// </summary>
     // ============================================================
-    public sealed class XeriWindowControlManipulator
+    internal sealed class XeriWindowControlManipulator
     {
 
     #region 필드
@@ -41,8 +41,8 @@ namespace inonego.Xeri.UI.Window
             XeriWindowController controller
         ) : base()
         {
-            this.panel = panel;
-            this.controller = controller;
+            this.panel = panel ?? throw new System.ArgumentNullException(nameof(panel));
+            this.controller = controller ?? throw new System.ArgumentNullException(nameof(controller));
         }
 
     #endregion
@@ -57,14 +57,17 @@ namespace inonego.Xeri.UI.Window
         public void Attach()
         {
             if (isAttached) return;
-            if (panel == null || controller == null) return;
 
-            panel.MinimizeButton.clicked += OnMinimizeClick;
-            panel.MaximizeButton.clicked += OnMaximizeClick;
-            panel.CloseButton.clicked += OnCloseClick;
-            panel.TitleActions.RegisterCallback<PointerDownEvent>(OnTitleActionsPointerDown);
-
-            isAttached = true;
+            try
+            {
+                RegisterCallbacks();
+                isAttached = true;
+            }
+            catch
+            {
+                UnregisterCallbacks();
+                throw;
+            }
         }
 
         // ------------------------------------------------------------
@@ -75,14 +78,39 @@ namespace inonego.Xeri.UI.Window
         public void Detach()
         {
             if (!isAttached) return;
-            if (panel == null || controller == null) return;
 
+            UnregisterCallbacks();
+            isAttached = false;
+        }
+
+    #endregion
+
+    #region 내부 메서드
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// Control callback 전체를 등록한다.
+        /// </summary>
+        // ------------------------------------------------------------
+        private void RegisterCallbacks()
+        {
+            panel.MinimizeButton.clicked += OnMinimizeClick;
+            panel.MaximizeButton.clicked += OnMaximizeClick;
+            panel.CloseButton.clicked += OnCloseClick;
+            panel.TitleActions.RegisterCallback<PointerDownEvent>(OnTitleActionsPointerDown);
+        }
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// Control callback 전체를 해제한다.
+        /// </summary>
+        // ------------------------------------------------------------
+        private void UnregisterCallbacks()
+        {
             panel.MinimizeButton.clicked -= OnMinimizeClick;
             panel.MaximizeButton.clicked -= OnMaximizeClick;
             panel.CloseButton.clicked -= OnCloseClick;
             panel.TitleActions.UnregisterCallback<PointerDownEvent>(OnTitleActionsPointerDown);
-
-            isAttached = false;
         }
 
     #endregion
@@ -144,11 +172,11 @@ namespace inonego.Xeri.UI.Window
             );
         }
 
-        // ------------------------------------------------------------
+        // ----------------------------------------------------------------------
         /// <summary>
         /// Control button 영역 pointer 입력이 titlebar drag로 전파되지 않게 한다.
         /// </summary>
-        // ------------------------------------------------------------
+        // ----------------------------------------------------------------------
         private void OnTitleActionsPointerDown(PointerDownEvent evt)
         {
             evt.StopPropagation();

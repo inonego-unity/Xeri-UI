@@ -59,7 +59,7 @@ Runtime C#이 조회하는 name 계약을 유지하며 Web 기준본과 동일�
                             <ui:VisualElement class="core-node">
                                 <ui:Label text="02 / SCOPE" class="core-node__index" />
                                 <ui:Label text="UIContext" class="core-node__title" />
-                                <ui:Label text="Layer + Focus boundary" class="core-node__meta" />
+                                <ui:Label text="Navigation + authority boundary" class="core-node__meta" />
                             </ui:VisualElement>
                             <ui:VisualElement class="path-link"><ui:VisualElement class="path-link__line" /><ui:Label text="→" class="path-link__arrow" /></ui:VisualElement>
                             <ui:VisualElement class="core-node core-node--accent">
