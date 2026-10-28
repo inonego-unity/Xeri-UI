@@ -487,6 +487,11 @@ namespace inonego.Xeri.UI
             DisposeCore();
         }
 
+        // ------------------------------------------------------------
+        /// <summary>
+        /// Modal Stack을 top부터 정리하고 종료 알림과 오류를 마무리한다.
+        /// </summary>
+        // ------------------------------------------------------------
         private void DisposeCore()
         {
             if (isDisposed) return;

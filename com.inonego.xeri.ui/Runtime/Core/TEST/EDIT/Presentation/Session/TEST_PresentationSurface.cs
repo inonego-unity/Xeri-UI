@@ -132,6 +132,11 @@ namespace inonego.Xeri.UI.TEST.Core
 
     #region O-1: 해석된 플랜 순서
 
+        // ------------------------------------------------------------
+        /// <summary>
+        /// Surface가 추가된 Layer Driver를 전달 순서대로 유지한다.
+        /// </summary>
+        // ------------------------------------------------------------
         [Test]
         public void TEST_PresentationSurface_전달된Plan순서_그대로반영()
         {
@@ -152,6 +157,11 @@ namespace inonego.Xeri.UI.TEST.Core
 
     #region N-1: UITK 중첩 계층 격리
 
+        // ----------------------------------------------------------------------
+        /// <summary>
+        /// UITK Surface가 Child Layer를 만들 때 부모의 sibling 순서를 바꾸지 않는다.
+        /// </summary>
+        // ----------------------------------------------------------------------
         [Test]
         public void TEST_UITKPresentationSurface_ChildPlanOrder_ParentSibling순서침범안함()
         {
@@ -186,6 +196,11 @@ namespace inonego.Xeri.UI.TEST.Core
             surface.Dispose();
         }
 
+        // ----------------------------------------------------------------------
+        /// <summary>
+        /// Window-local Layer를 부모 Workspace의 전역 Layer 트리와 분리해 배치한다.
+        /// </summary>
+        // ----------------------------------------------------------------------
         [Test]
         public void TEST_UITKPresentationSurface_ParentGlobalLayer_WindowLocalLayer와격리()
         {
@@ -232,6 +247,11 @@ namespace inonego.Xeri.UI.TEST.Core
 
     #region U-1: UGUI 내장 계층
 
+        // ----------------------------------------------------------------------
+        /// <summary>
+        /// UGUI Surface가 하나의 Canvas 아래에 Plan 순서대로 Layer Root를 배치한다.
+        /// </summary>
+        // ----------------------------------------------------------------------
         [Test]
         public void TEST_UGUIPresentationSurface_한Canvas아래Plan순서로Layer배치()
         {
@@ -259,6 +279,11 @@ namespace inonego.Xeri.UI.TEST.Core
 
     #region T-1: UITK 레이어 검증
 
+        // ----------------------------------------------------------------------
+        /// <summary>
+        /// 아직 Panel에 연결되지 않은 UITK Root도 Layer validation을 통과한다.
+        /// </summary>
+        // ----------------------------------------------------------------------
         [Test]
         public void TEST_UITKPresentationLayer_Panel미연결Root_Validation성공()
         {
@@ -311,6 +336,11 @@ namespace inonego.Xeri.UI.TEST.Core
             Assert.DoesNotThrow(surface.Dispose);
         }
 
+        // ------------------------------------------------------------
+        /// <summary>
+        /// Surface 종료 시 Layer 자원을 생성 역순으로 반환한다.
+        /// </summary>
+        // ------------------------------------------------------------
         [Test]
         public void TEST_PresentationSurface_Dispose_Layer생성역순반환()
         {

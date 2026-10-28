@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : TEST_XeriWindowPanel.cs
-수정일 : 2026-09-21
+수정일 : 2026-10-28
 
 # 설명
 XeriWindowPanel UITK view 테스트.
@@ -9,6 +9,7 @@ XeriWindowPanel UITK view 테스트.
  Q: Element query
  O: Option 반영
  S: State class 반영
+ T: Theme 선택과 버튼 순서
 ========================================================================= BLOCK_HEADER_END */
 
 using UnityEngine;

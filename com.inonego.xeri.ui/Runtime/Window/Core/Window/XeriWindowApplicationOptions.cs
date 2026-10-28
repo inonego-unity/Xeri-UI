@@ -1,6 +1,6 @@
 ﻿/* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : XeriWindowApplicationOptions.cs
-수정일 : 2026-09-23
+수정일 : 2026-10-28
 
 # 설명
 Application Window가 runtime에 선택할 Child PresentationLayout을 정의한다.
@@ -22,12 +22,22 @@ namespace inonego.Xeri.UI.Window
 
     #region 필드
 
+        // ------------------------------------------------------------
+        /// <summary>
+        /// Application Window의 Child Presentation Layout이다.
+        /// </summary>
+        // ------------------------------------------------------------
         public PresentationLayout Layout { get; }
 
     #endregion
 
     #region 생성자
 
+        // ------------------------------------------------------------
+        /// <summary>
+        /// Child Presentation Layout으로 Window 옵션을 생성한다.
+        /// </summary>
+        // ------------------------------------------------------------
         public XeriWindowApplicationOptions(PresentationLayout layout)
         {
             Layout = layout ?? throw new ArgumentNullException(nameof(layout));

@@ -549,6 +549,12 @@ namespace inonego.Xeri.UI.TEST.Core
 
     #region P-1: 영속 주 마지막 포커스
 
+        // --------------------------------------------------------------------------------
+        /// <summary>
+        /// <br/> Primary Focus Scope를 A에서 B로 전환한 뒤 다시 선택하면 각 Scope의 마지막
+        /// <br/> 포커스가 복원된다.
+        /// </summary>
+        // --------------------------------------------------------------------------------
         [Test]
         public void TEST_FocusController_Primary_A_B_A_각ScopeLastFocus복원()
         {
@@ -715,6 +721,12 @@ namespace inonego.Xeri.UI.TEST.Core
             firstRegistration.Dispose();
         }
 
+        // --------------------------------------------------------------------------------
+        /// <summary>
+        /// <br/> Override 선택 중 Driver가 실패하면 기존 포커스를 보존하고 같은 Override를 재시도할
+        /// <br/> 수 있다.
+        /// </summary>
+        // --------------------------------------------------------------------------------
         [Test]
         public void TEST_FocusController_PushOverride_Select실패_Override롤백후재시도가능()
         {
@@ -792,6 +804,12 @@ namespace inonego.Xeri.UI.TEST.Core
 
     #region A-1: 권한 일시중단과 재개
 
+        // --------------------------------------------------------------------------------
+        /// <summary>
+        /// <br/> 권한 일시 중단 중 외부 포커스 변경을 무시하고 재개 시 Scope의 마지막 포커스를
+        /// <br/> 복원한다.
+        /// </summary>
+        // --------------------------------------------------------------------------------
         [Test]
         public void TEST_FocusController_SuspendResume_비활성중변경무시하고LastFocus복원()
         {
@@ -884,6 +902,11 @@ namespace inonego.Xeri.UI.TEST.Core
 
     #region A-2: 논리 포커스 포함 관계
 
+        // ----------------------------------------------------------------------
+        /// <summary>
+        /// 유효 Scope 밖으로 이동한 Native Focus를 마지막 유효 포커스로 되돌린다.
+        /// </summary>
+        // ----------------------------------------------------------------------
         [Test]
         public void TEST_FocusController_EffectiveScope밖NativeFocus_LastFocus로복구()
         {
@@ -915,6 +938,11 @@ namespace inonego.Xeri.UI.TEST.Core
 
     #region A-3: 네이티브 포커스 해제
 
+        // ----------------------------------------------------------------------
+        /// <summary>
+        /// Native Focus 해제를 허용하면서 마지막 포커스를 보존하고 권한 재개 시 복원한다.
+        /// </summary>
+        // ----------------------------------------------------------------------
         [Test]
         public void TEST_FocusController_NativeFocusNull_해제허용하고LastFocus보존()
         {

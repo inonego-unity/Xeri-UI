@@ -1,12 +1,12 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : TEST_DragVisual.cs
-수정일 : 2026-10-03
+수정일 : 2026-10-28
 
 # 설명
 기존 DraggableUI와 UGUI Drag Visual의 좌표·Layer Usage·종료 수명 연동을 검증한다.
 
 # 테스트 구성
- L: Presentation Layer Usage와 pose 복원
+ L: 직접 Root·Presentation Layer 사용과 pose 복원
  B: DraggableUI Begin·End·Cancel 연결
  R: Runtime 종료 안전 경계
 ========================================================================= BLOCK_HEADER_END */
@@ -231,7 +231,7 @@ namespace inonego.Xeri.UI.TEST.Core
 
     #endregion
 
-    #region L-1: 레이어 사용 수명와 자세 복원
+    #region L-1: 레이어 사용 수명과 자세 복원
 
         // --------------------------------------------------------------------------------
         /// <summary>
@@ -400,6 +400,40 @@ namespace inonego.Xeri.UI.TEST.Core
             Assert.AreEqual(originalSibling, target.GetSiblingIndex());
             Assert.AreEqual(new Vector3(25.0f, 35.0f, 7.0f), target.anchoredPosition3D);
             Assert.DoesNotThrow(handle.Dispose);
+        }
+
+        // ----------------------------------------------------------------------
+        /// <summary>
+        /// 직접 Root Begin이 종료 시 원래 부모와 sibling을 복원하는지 검증한다.
+        /// </summary>
+        // ----------------------------------------------------------------------
+        [Test]
+        public void TEST_DragVisualHandle_직접Root_원래Hierarchy복원()
+        {
+            var originalParent = new GameObject("Original", typeof(RectTransform));
+            var sibling = new GameObject("Sibling", typeof(RectTransform));
+            var dragRoot = new GameObject("Drag Root", typeof(RectTransform));
+            var target = new GameObject("Target", typeof(RectTransform));
+            ownedObjects.Add(originalParent);
+            ownedObjects.Add(sibling);
+            ownedObjects.Add(dragRoot);
+            ownedObjects.Add(target);
+            sibling.transform.SetParent(originalParent.transform, false);
+            target.transform.SetParent(originalParent.transform, false);
+            var rect = target.GetComponent<RectTransform>();
+            var originalSibling = rect.GetSiblingIndex();
+            var controller = new DragVisualController();
+            var handle = controller.Begin
+            (
+                rect,
+                dragRoot.GetComponent<RectTransform>()
+            );
+
+            handle.Dispose();
+
+            Assert.AreSame(originalParent.transform, rect.parent);
+            Assert.AreEqual(originalSibling, rect.GetSiblingIndex());
+            controller.Dispose();
         }
 
     #endregion

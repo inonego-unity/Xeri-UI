@@ -36,10 +36,11 @@ Explored 목록은 관찰한 동작을 기록한다. 자동 테스트 통과나 
 
 ## Visual contract
 
-Validation의 시각 기준과 runtime 동작 기준은 `Validation/Scenes/XeriUIValidation.unity`와 해당 Unity USS/UXML 자산을 source of truth로 사용한다.
+Scene과 Unity USS/UXML은 Validation의 시각 및 동작 기준이다. Validation 고유 Shell과 앱은 데스크톱 형태로 구성하며, Window와 Tray는 별도 복제 없이 production 경로를 사용한다.
 
-Validation 고유 UI는 일반적인 desktop OS visual language를 사용한다. Production Window/Tray style은 Validation에서 복제하지 않고 실제 production 경로를 그대로 사용한다.
+Validation PanelSettings는 1920×1080을 기준으로 화면 비율에 따라 Panel을 확장한다. Desktop과 UITK 출력은 중앙의 16:9 작업 공간을 공유한다. 상단 시스템 바와 하단 전체 폭 작업 표시줄 사이가 Window 작업 영역이며, 최대화 창은 이 영역을 채운다.
 
+배경은 Unity Native Gradient로 렌더링한다. 웹 목업은 비교용이며 같은 색상 값을 사용해도 보간과 합성 결과가 일치한다고 보장하지 않는다. 현재 제품은 Chrome CSS 색상 일치 보정을 제공하지 않는다.
 
 ## 수명과 공용 스타일
 

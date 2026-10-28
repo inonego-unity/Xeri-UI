@@ -67,6 +67,7 @@
 }
 
 .xeri-tray-button__close-button {
+    position: relative;
     width: 18px;
     min-width: 18px;
     height: 18px;
@@ -81,4 +82,12 @@
     padding-top: 0;
     padding-bottom: 0;
     -unity-text-align: middle-center;
+}
+
+.xeri-tray-button__close-icon {
+    position: absolute;
+    left: 0;
+    top: 0;
+    right: 0;
+    bottom: 0;
 }

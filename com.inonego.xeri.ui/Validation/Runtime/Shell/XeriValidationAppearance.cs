@@ -35,6 +35,7 @@ namespace inonego.Xeri.UI.Validation
         private readonly XeriValidationAssets assets;
         private readonly HashSet<VisualElement> roots = new();
 
+
         // ------------------------------------------------------------
         /// <summary>
         /// 현재 공통 색상 선택.
@@ -113,6 +114,7 @@ namespace inonego.Xeri.UI.Validation
         public void Dispose()
         {
             roots.Clear();
+
         }
 
     #endregion

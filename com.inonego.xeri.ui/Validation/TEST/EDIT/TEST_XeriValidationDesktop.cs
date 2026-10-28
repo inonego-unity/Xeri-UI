@@ -1,12 +1,13 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : TEST_XeriValidationDesktop.cs
-수정일 : 2026-10-05
+수정일 : 2026-10-28
 
 # 설명
 실제 Validation Desktop UXML의 authored Placement topology를 검증한다.
 
 # 테스트 구성
  H: Layer ManagedRoot의 직계 자식이어야 하는 Placement 계약
+ V: 16:9 Validation 출력 설정
 ========================================================================= BLOCK_HEADER_END */
 
 using UnityEditor;
@@ -52,6 +53,29 @@ namespace inonego.Xeri.UI.TEST.Validation
             Assert.That(managed, Is.Not.Null);
             Assert.That(placement, Is.Not.Null);
             Assert.That(placement.parent, Is.SameAs(managed));
+        }
+
+    #endregion
+
+    #region V-1: Validation 화면 비율
+
+        // ----------------------------------------------------------------------
+        /// <summary>
+        /// 비율이 다른 화면에서도 Full HD 영역이 잘리지 않도록 Panel을 확장한다.
+        /// </summary>
+        // ----------------------------------------------------------------------
+        [Test]
+        public void TEST_XeriValidationDesktop_PanelSettings_FullHD영역유지()
+        {
+            var settings = AssetDatabase.LoadAssetAtPath<PanelSettings>
+            (
+                "Packages/com.inonego.xeri.ui/Validation/Data/XeriUIValidationPanelSettings.asset"
+            );
+
+            Assert.That(settings, Is.Not.Null);
+            Assert.That(settings.scaleMode, Is.EqualTo(PanelScaleMode.ScaleWithScreenSize));
+            Assert.That(settings.screenMatchMode, Is.EqualTo(PanelScreenMatchMode.Expand));
+            Assert.That(settings.referenceResolution, Is.EqualTo(new Vector2Int(1920, 1080)));
         }
 
     #endregion

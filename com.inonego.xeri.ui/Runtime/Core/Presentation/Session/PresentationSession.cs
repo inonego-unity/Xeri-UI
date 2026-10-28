@@ -1,6 +1,6 @@
-﻿/* BLOCK_HEADER_BEGIN =======================================================================
+/* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : PresentationSession.cs
-수정일 : 2026-10-07
+수정일 : 2026-10-28
 
 # 설명
 Immutable PresentationPlan을 실제 Layer Output, Layer roots와 placement roots로 materialize한다.
@@ -52,7 +52,18 @@ namespace inonego.Xeri.UI
 
         private PresentationSession parent = null;
 
+        // ------------------------------------------------------------
+        /// <summary>
+        /// Session 수명이 종료됐는지 확인한다.
+        /// </summary>
+        // ------------------------------------------------------------
         public bool IsDisposed { get; private set; }
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// 현재 소유한 Child Session 수이다.
+        /// </summary>
+        // ------------------------------------------------------------
         public int ChildCount => children.Count;
 
         private readonly Dictionary<string, RuntimePlacement> placements =
@@ -437,6 +448,7 @@ namespace inonego.Xeri.UI
             (
                 StringComparer.Ordinal
             );
+            var borrowedPanels = new HashSet<PanelSettings>();
 
             if (layerHosts == null) return hosts;
 
@@ -480,6 +492,19 @@ namespace inonego.Xeri.UI
                     (
                         $"Presentation Layer Host '{host.LayerID}'가 중복됐습니다."
                     );
+                }
+
+                if (host is UITKPresentationLayerHost)
+                {
+                    var output = host.GetComponent<UITKPresentationOutput>();
+                    var settings = output != null ? output.PanelRenderer?.panelSettings : null;
+                    if (settings != null && !borrowedPanels.Add(settings))
+                    {
+                        throw new InvalidOperationException
+                        (
+                            $"독립 UITK Layer Host '{host.LayerID}'가 다른 Output의 PanelSettings를 공유합니다."
+                        );
+                    }
                 }
             }
 
@@ -745,12 +770,12 @@ namespace inonego.Xeri.UI
                     $"xeri-presentation-{plan.PresentationID}"
                 );
                 root.style.zIndex = plan.LocalOrder;
-                uitk.Root.Add(root);
+                var attachment = UITKPresentationLayer.Attach(uitk, root);
                 return new RuntimePlacement
                 {
                     Plan = plan,
                     Driver = new UITKPresentationLayer(root),
-                    ReleaseRoot = root.RemoveFromHierarchy,
+                    ReleaseRoot = attachment.Dispose,
                 };
             }
 
@@ -798,6 +823,11 @@ namespace inonego.Xeri.UI
             return true;
         }
 
+        // ------------------------------------------------------------
+        /// <summary>
+        /// 종료되지 않은 Session의 Placement에 해당 ID가 있는지 확인한다.
+        /// </summary>
+        // ------------------------------------------------------------
         public bool ContainsPresentation(string presentationID)
         {
             return
@@ -810,6 +840,11 @@ namespace inonego.Xeri.UI
 
     #region 해제
 
+        // ----------------------------------------------------------------------
+        /// <summary>
+        /// 생성 실패 뒤 Session 자원을 정리하고 cleanup 오류를 원인과 함께 보존한다.
+        /// </summary>
+        // ----------------------------------------------------------------------
         private Exception RollbackCreation(Exception failure)
         {
             try
@@ -879,6 +914,11 @@ namespace inonego.Xeri.UI
             DisposeCore();
         }
 
+        // ------------------------------------------------------------
+        /// <summary>
+        /// Child와 배치·Layer 자원을 역순 반환하고 독립 실패를 모아 보고한다.
+        /// </summary>
+        // ------------------------------------------------------------
         private void DisposeCore()
         {
             if (IsDisposed) return;
@@ -936,6 +976,11 @@ namespace inonego.Xeri.UI
             }
         }
 
+        // ----------------------------------------------------------------------
+        /// <summary>
+        /// Child를 포함한 Session Tree에 활성 Layer 소비자가 없는지 확인한다.
+        /// </summary>
+        // ----------------------------------------------------------------------
         internal void ValidateCanDispose()
         {
             for (var index = 0; index < children.Count; index++)

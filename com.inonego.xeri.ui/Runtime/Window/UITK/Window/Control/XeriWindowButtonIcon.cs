@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : XeriWindowButtonIcon.cs
-수정일 : 2026-09-20
+수정일 : 2026-10-28
 
 # 설명
 XeriWindow control button에 표시되는 벡터 아이콘.
@@ -83,6 +83,11 @@ namespace inonego.Xeri.UI.Window
 
     #region 생성자
 
+        // ------------------------------------------------------------
+        /// <summary>
+        /// 지정한 종류의 Window 버튼 아이콘을 생성한다.
+        /// </summary>
+        // ------------------------------------------------------------
         public XeriWindowButtonIcon(XeriWindowButtonIconType iconType) : base()
         {
             this.iconType = iconType;
@@ -168,15 +173,7 @@ namespace inonego.Xeri.UI.Window
         // ------------------------------------------------------------
         private void DrawClose(Painter2D painter, Rect rect)
         {
-            var center = rect.center;
-            var halfSize = iconSize * 0.5f;
-            var min = new Vector2(center.x - halfSize, center.y - halfSize);
-            var max = new Vector2(center.x + halfSize, center.y + halfSize);
-            var topRight = new Vector2(max.x, min.y);
-            var bottomLeft = new Vector2(min.x, max.y);
-
-            DrawLine(painter, min, max);
-            DrawLine(painter, topRight, bottomLeft);
+            UICloseIcon.Draw(painter, rect, iconSize);
         }
 
         // ------------------------------------------------------------

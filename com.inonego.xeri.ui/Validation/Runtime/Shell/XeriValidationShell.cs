@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : XeriValidationShell.cs
-수정일 : 2026-10-07
+수정일 : 2026-10-28
 
 # 설명
 통합 Validation Desktop의 Window Workspace, Taskbar, Monitor, Checklist와 launcher를 조립한다.
@@ -31,18 +31,21 @@ namespace inonego.Xeri.UI.Validation
 
     #region 필드와 상태
 
-        private const float COMPACT_DESKTOP_WIDTH = 1180f;
-        private const float NARROW_DESKTOP_WIDTH = 760f;
-        private const float SHORT_DESKTOP_HEIGHT = 640f;
+        private const float DESKTOP_WIDTH = 1920f;
+        private const float DESKTOP_HEIGHT = 1080f;
+        private const float TOP_BAR_HEIGHT = 60f;
+        private const float TASKBAR_HEIGHT = 64f;
 
         private readonly UIRuntime runtime = null;
         private readonly XeriValidationAssets assets = null;
         private readonly XeriValidationDesktopAuthoring desktop = null;
         private readonly Dictionary<string, XeriWindowSession> slots = new();
+        private readonly List<PresentationLayerLease> viewportLayers = new();
 
         private XeriWindowWorkspace workspace = null;
         private XeriWindowRegistry registry = null;
         private XeriValidationAppearance appearance = null;
+
         private XeriValidationChecklist checklist = null;
         private XeriValidationTaskbarBinding taskbar = null;
         private XeriValidationSystemMonitor monitor = null;
@@ -109,6 +112,11 @@ namespace inonego.Xeri.UI.Validation
                 registry = new XeriWindowRegistry();
                 appearance = new XeriValidationAppearance(assets);
                 appearance.Bind(desktopRoot);
+
+                ConfigureViewportLayer(XeriValidationIDs.WindowDestination, TOP_BAR_HEIGHT, TASKBAR_HEIGHT);
+                ConfigureViewportLayer(PresentationDestinationID.Overlay, 0f, 0f);
+                ConfigureViewportLayer(PresentationDestinationID.Modal, 0f, 0f);
+
                 workspace = new XeriWindowWorkspace
                 (
                     runtime.Main,
@@ -131,12 +139,12 @@ namespace inonego.Xeri.UI.Validation
                     registry,
                     checklist
                 );
-    
+
                 BindDesktop();
                 checklist.SetExpanded(checklistExpanded);
                 monitor.SetExpanded(monitorExpanded);
-                checklist.Mark(XeriValidationChecklist.Item.Host, "Scene-authored Desktop");
-                checklist.Mark(XeriValidationChecklist.Item.Taskbar, "All live states");
+                checklist.Mark(XeriValidationChecklist.Item.Host, "씬에 배치됨");
+                checklist.Mark(XeriValidationChecklist.Item.Taskbar, "모든 열린 창");
                 isInitialized = true;
             }
             catch (Exception exception)
@@ -156,7 +164,7 @@ namespace inonego.Xeri.UI.Validation
 
         // ------------------------------------------------------------
         /// <summary>
-        /// Desktop 입력과 크기 변경을 구독한다.
+        /// Desktop 입력을 구독한다.
         /// </summary>
         // ------------------------------------------------------------
         private void BindDesktop()
@@ -171,9 +179,6 @@ namespace inonego.Xeri.UI.Validation
             monitorToggle = XeriValidationUI.Require<Button>(desktopRoot, "ToggleMonitor");
             checklistToggle = XeriValidationUI.Require<Button>(desktopRoot, "ToggleChecklist");
 
-            desktopRoot.RegisterCallback<GeometryChangedEvent>(OnDesktopGeometryChanged);
-            ApplyDesktopLayout(desktopRoot.contentRect.size);
-
             coreLabButton.clicked += OpenCoreLab;
             windowLabButton.clicked += OpenWindowLab;
             modalLabButton.clicked += OpenModalLab;
@@ -187,12 +192,11 @@ namespace inonego.Xeri.UI.Validation
 
         // ------------------------------------------------------------
         /// <summary>
-        /// Desktop 입력과 크기 변경 구독을 해제한다.
+        /// Desktop 입력 구독을 해제한다.
         /// </summary>
         // ------------------------------------------------------------
         private void UnbindDesktop()
         {
-            desktopRoot?.UnregisterCallback<GeometryChangedEvent>(OnDesktopGeometryChanged);
             if (coreLabButton != null)
             {
                 coreLabButton.clicked -= OpenCoreLab;
@@ -245,41 +249,28 @@ namespace inonego.Xeri.UI.Validation
 
         // ------------------------------------------------------------
         /// <summary>
-        /// 화면 크기 변경을 Desktop 배치에 반영한다.
+        /// 공통 16:9 좌표계에서 각 Layer의 사용 영역을 배치한다.
         /// </summary>
         // ------------------------------------------------------------
-        private void OnDesktopGeometryChanged(GeometryChangedEvent evt)
+        private void ConfigureViewportLayer(string destination, float topInset, float bottomInset)
         {
-            ApplyDesktopLayout(evt.newRect.size);
-        }
-
-        // ----------------------------------------------------------------------
-        /// <summary>
-        /// Desktop viewport 크기에 맞는 responsive shell class를 갱신한다.
-        /// </summary>
-        // ----------------------------------------------------------------------
-        private void ApplyDesktopLayout(Vector2 size)
-        {
-            if (desktopRoot == null)
+            var lease = runtime.Main.AcquireLayer(PresentationTarget.Host(destination));
+            viewportLayers.Add(lease);
+            if (lease.Layer is not IPresentationLayerDriver<VisualElement> layer || layer.Root == null)
             {
-                return;
+                throw new InvalidOperationException($"Validation Layer '{destination}'의 UITK Root가 없습니다.");
             }
 
-            desktopRoot.EnableInClassList
-            (
-                "xeri-validation-desktop--compact",
-                size.x > 0f && size.x < COMPACT_DESKTOP_WIDTH
-            );
-            desktopRoot.EnableInClassList
-            (
-                "xeri-validation-desktop--narrow",
-                size.x > 0f && size.x < NARROW_DESKTOP_WIDTH
-            );
-            desktopRoot.EnableInClassList
-            (
-                "xeri-validation-desktop--short",
-                size.y > 0f && size.y < SHORT_DESKTOP_HEIGHT
-            );
+            var root = layer.Root;
+            root.style.left = Length.Percent(50f);
+            root.style.top = Length.Percent(50f);
+            root.style.right = StyleKeyword.Auto;
+            root.style.bottom = StyleKeyword.Auto;
+            root.style.width = DESKTOP_WIDTH;
+            root.style.height = DESKTOP_HEIGHT - topInset - bottomInset;
+            root.style.marginLeft = -DESKTOP_WIDTH / 2f;
+            root.style.marginTop = -DESKTOP_HEIGHT / 2f + topInset;
+            root.style.overflow = Overflow.Hidden;
         }
 
     #endregion
@@ -302,7 +293,7 @@ namespace inonego.Xeri.UI.Validation
                     return OpenDirectWindow
                     (
                         XeriValidationIDs.CoreLabWindow,
-                        "Core Lab",
+                        "기본 기능 실험실",
                         content.Root,
                         content,
                         new Vector2(210f, 140f),
@@ -336,7 +327,7 @@ namespace inonego.Xeri.UI.Validation
                     return OpenDirectWindow
                     (
                         XeriValidationIDs.WindowLabWindow,
-                        "Window Lab",
+                        "창 실험실",
                         content.Root,
                         content,
                         new Vector2(260f, 170f),
@@ -369,7 +360,7 @@ namespace inonego.Xeri.UI.Validation
                     return OpenDirectWindow
                     (
                         XeriValidationIDs.ModalLabWindow,
-                        "Modal Lab",
+                        "대화상자 실험실",
                         content.Root,
                         content,
                         new Vector2(340f, 210f),
@@ -396,7 +387,7 @@ namespace inonego.Xeri.UI.Validation
                     return OpenDirectWindow
                     (
                         XeriValidationIDs.TaskBoardWindow,
-                        "Task Board",
+                        "할 일",
                         content.Root,
                         content,
                         new Vector2(180f, 130f),
@@ -423,7 +414,7 @@ namespace inonego.Xeri.UI.Validation
                     return OpenDirectWindow
                     (
                         XeriValidationIDs.PreferencesWindow,
-                        "Preferences",
+                        "환경 설정",
                         content.Root,
                         content,
                         new Vector2(480f, 190f),
@@ -447,7 +438,7 @@ namespace inonego.Xeri.UI.Validation
                 () => OpenApplication
                 (
                     XeriValidationIDs.ApplicationAWindow,
-                    "Application A",
+                    "앱 A",
                     new Vector2(210f, 145f)
                 )
             );
@@ -467,7 +458,7 @@ namespace inonego.Xeri.UI.Validation
                 () => OpenApplication
                 (
                     XeriValidationIDs.ApplicationBWindow,
-                    "Application B",
+                    "앱 B",
                     new Vector2(520f, 245f)
                 )
             );
@@ -536,7 +527,7 @@ namespace inonego.Xeri.UI.Validation
             {
                 ID = id,
                 Title = title,
-                Tooltip = $"Xeri UI Validation · {title}",
+                Tooltip = $"Xeri UI 검증 · {title}",
                 Pos = pos,
                 Size = size,
                 NormalPos = pos,
@@ -630,7 +621,7 @@ namespace inonego.Xeri.UI.Validation
             // 창 수명에 외관 바인딩과 추적 해제를 연결한다.
             session.RegisterChild(new Lease(() => slots.Remove(id)));
             session.RegisterChild(appearance.Bind(session.Panel));
-            checklist?.Mark(XeriValidationChecklist.Item.WindowOpen, session.Handle.ID);
+            checklist?.Mark(XeriValidationChecklist.Item.WindowOpen, "창 열림");
             return session;
         }
 
@@ -654,7 +645,7 @@ namespace inonego.Xeri.UI.Validation
                 checklist?.Mark
                 (
                     XeriValidationChecklist.Item.DesktopInput,
-                    "Launcher behind window"
+                    "창 뒤의 앱 실행"
                 );
             }
 
@@ -703,7 +694,7 @@ namespace inonego.Xeri.UI.Validation
                 checklist?.Mark
                 (
                     XeriValidationChecklist.Item.ApplicationIsolation,
-                    "A/B child contexts"
+                    "앱 A/B 독립 실행"
                 );
             }
         }
@@ -777,11 +768,25 @@ namespace inonego.Xeri.UI.Validation
                 }
             }
 
+            foreach (var lease in viewportLayers)
+            {
+                try
+                {
+                    lease.Dispose();
+                }
+                catch (Exception exception)
+                {
+                    errors.Add(exception);
+                }
+            }
+
+            viewportLayers.Clear();
             slots.Clear();
             workspace = null;
             monitor = null;
             taskbar = null;
             checklist = null;
+
             appearance = null;
             desktopRoot = null;
             if (errors.Count > 0)

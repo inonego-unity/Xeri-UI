@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : ScreenController.cs
-수정일 : 2026-10-07
+수정일 : 2026-10-28
 # 설명
 Screen Open·Close·Replace·Clear 명령과 Stack, 상태 훅, Transition과 대칭 수명을 중재한다.
 Screen lifecycle Alpha는 PresentationAlpha Base로 전환해 외부 Modifier와 독립적으로 합성한다.
@@ -22,6 +22,16 @@ namespace inonego.Xeri.UI
     // ============================================================
     public sealed class ScreenController
     {
+
+    #region 내부 데이터
+
+        private enum HookKind
+        {
+            Opened = 0,
+            Closed = 1,
+        }
+
+    #endregion
 
     #region 필드
 
@@ -118,7 +128,7 @@ namespace inonego.Xeri.UI
 
     #endregion
 
-    #region 메서드
+    #region 입력과 커서 정책
 
         // ------------------------------------------------------------
         /// <summary>
@@ -311,6 +321,10 @@ namespace inonego.Xeri.UI
             return top;
         }
 
+    #endregion
+
+    #region 스택 변경 알림
+
         // --------------------------------------------------------------------------------
         /// <summary>
         /// Stack topology 변경을 Cursor policy와 상위 Context authority 계산에 알린다.
@@ -375,6 +389,10 @@ namespace inonego.Xeri.UI
                 }
             }
         }
+
+    #endregion
+
+    #region 화면 탐색과 종료
 
         // ------------------------------------------------------------
         /// <summary>
@@ -490,6 +508,10 @@ namespace inonego.Xeri.UI
             isReleased = true;
             return errors;
         }
+
+    #endregion
+
+    #region 화면 열기와 전환
 
         // ----------------------------------------------------------------------
         /// <summary>
@@ -1036,6 +1058,10 @@ namespace inonego.Xeri.UI
             }
         }
 
+    #endregion
+
+    #region 화면 닫기와 복원
+
         // ------------------------------------------------------------
         /// <summary>
         /// Screen 닫기 훅과 Transition을 시작한다.
@@ -1385,6 +1411,10 @@ namespace inonego.Xeri.UI
             ReportErrors(errors, collectedErrors);
             return errors.Count == 0;
         }
+
+    #endregion
+
+    #region 강제 정리와 실패 복구
 
         // ------------------------------------------------------------
         /// <summary>
@@ -1818,6 +1848,10 @@ namespace inonego.Xeri.UI
             }
         }
 
+    #endregion
+
+    #region 전환 훅과 오류 보고
+
         // ------------------------------------------------------------
         /// <summary>
         /// OnOpening 훅을 동기로 호출하고 취소 Context를 반환한다.
@@ -1987,16 +2021,6 @@ namespace inonego.Xeri.UI
             {
                 ReportError(errors[i], collectedErrors);
             }
-        }
-
-    #endregion
-
-    #region 내부 데이터
-
-        private enum HookKind
-        {
-            Opened = 0,
-            Closed = 1,
         }
 
     #endregion

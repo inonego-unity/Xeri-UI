@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : PresentationLayerMaterializer.cs
-수정일 : 2026-10-05
+수정일 : 2026-10-17
 
 # 설명
 Top-level Presentation Layer를 Unity Native Output, LayerRoot와 ManagedRoot로 materialize하는 구현 경계다.
@@ -16,6 +16,11 @@ using UnityEngine.UIElements;
 
 namespace inonego.Xeri.UI
 {
+    // ======================================================================
+    /// <summary>
+    /// Backend별 Top-level Output 생성과 반환을 같은 Lifetime 계약으로 조립한다.
+    /// </summary>
+    // ======================================================================
     internal static class PresentationLayerMaterializer
     {
 
@@ -24,6 +29,12 @@ namespace inonego.Xeri.UI
         private const string DEFAULT_UGUI_TEMPLATE_PATH =
             "Xeri/UI/Core/Presentation/UIUGUIPresentationOutput";
 
+        // ----------------------------------------------------------------------
+        /// <summary>
+        /// <br/> Plan Backend에 따라 Native Output과 ManagedRoot를 생성한다.
+        /// <br/> 생성된 자원의 명시적 해제 callback을 함께 반환한다.
+        /// </summary>
+        // ----------------------------------------------------------------------
         internal static IPresentationLayerDriver CreateTopLevel
         (
             PresentationPlanLayer plan,
@@ -60,6 +71,11 @@ namespace inonego.Xeri.UI
 
     #region UGUI 생성
 
+        // ------------------------------------------------------------
+        /// <summary>
+        /// UGUI Template Canvas를 생성해 Native Output 경계로 구성한다.
+        /// </summary>
+        // ------------------------------------------------------------
         private static IPresentationLayerDriver CreateUGUI
         (
             PresentationPlanLayer plan,
@@ -93,14 +109,34 @@ namespace inonego.Xeri.UI
                 );
                 gameObject.SetActive(true);
                 var driver = new UGUIPresentationLayer(managedRoot);
-                release = () => DestroyObject(gameObject);
+                release = () => ReleaseGeneratedOutput
+                (
+                    gameObject,
+                    () =>
+                    {
+                        if (output != null)
+                        {
+                            output.ReleaseOutputState();
+                        }
+                    }
+                );
                 return driver;
             }
             catch (Exception exception)
             {
                 try
                 {
-                    DestroyObject(gameObject);
+                    ReleaseGeneratedOutput
+                    (
+                        gameObject,
+                        () =>
+                        {
+                            if (output != null)
+                            {
+                                output.ReleaseOutputState();
+                            }
+                        }
+                    );
                 }
                 catch (Exception cleanupException)
                 {
@@ -120,6 +156,11 @@ namespace inonego.Xeri.UI
 
     #region UITK 생성과 해제
 
+        // ----------------------------------------------------------------------
+        /// <summary>
+        /// UITK PanelRenderer와 Runtime PanelSettings clone을 구성한다.
+        /// </summary>
+        // ----------------------------------------------------------------------
         private static IPresentationLayerDriver CreateUITK
         (
             PresentationPlanLayer plan,
@@ -157,14 +198,34 @@ namespace inonego.Xeri.UI
                 output.AttachLayerRoot(layerRoot);
                 gameObject.SetActive(true);
                 var driver = new UITKPresentationLayer(managedRoot);
-                release = () => ReleaseUITKOutput(output, gameObject);
+                release = () => ReleaseGeneratedOutput
+                (
+                    gameObject,
+                    () =>
+                    {
+                        if (output != null)
+                        {
+                            output.ReleaseOutputState();
+                        }
+                    }
+                );
                 return driver;
             }
             catch (Exception exception)
             {
                 try
                 {
-                    ReleaseUITKOutput(output, gameObject);
+                    ReleaseGeneratedOutput
+                    (
+                        gameObject,
+                        () =>
+                        {
+                            if (output != null)
+                            {
+                                output.ReleaseOutputState();
+                            }
+                        }
+                    );
                 }
                 catch (Exception cleanupException)
                 {
@@ -182,20 +243,21 @@ namespace inonego.Xeri.UI
 
         // ----------------------------------------------------------------------
         /// <summary>
-        /// UITK generated output의 runtime state와 GameObject를 모두 반환한다.
+        /// <br/> Generated native state를 복원하고 GameObject를 파괴한다.
+        /// <br/> 일부 반환이 실패해도 나머지 정리를 시도한다.
         /// </summary>
         // ----------------------------------------------------------------------
-        private static void ReleaseUITKOutput
+        private static void ReleaseGeneratedOutput
         (
-            UITKPresentationOutput output,
-            GameObject gameObject
+            GameObject gameObject,
+            Action releaseNativeState
         )
         {
             var errors = new List<Exception>();
 
             try
             {
-                output?.ReleaseOutputState();
+                releaseNativeState?.Invoke();
             }
             catch (Exception exception)
             {
@@ -220,7 +282,7 @@ namespace inonego.Xeri.UI
 
             throw new AggregateException
             (
-                "UITK generated Presentation Output 해제가 실패했습니다.",
+                "Generated Presentation Output 해제가 실패했습니다.",
                 errors
             );
         }
@@ -229,6 +291,11 @@ namespace inonego.Xeri.UI
 
     #region 유틸
 
+        // ------------------------------------------------------------
+        /// <summary>
+        /// PlayMode와 EditMode의 GameObject 파괴 경계를 구분한다.
+        /// </summary>
+        // ------------------------------------------------------------
         internal static void DestroyObject(GameObject gameObject)
         {
             if (gameObject == null) return;

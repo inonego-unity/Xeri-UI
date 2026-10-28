@@ -30,7 +30,8 @@ namespace inonego.Xeri.UI.Window
 
         // ------------------------------------------------------------
         /// <summary>
-        /// Theme asset을 등록한다.
+        /// <br/> Theme ID가 비어 있거나 중복되면 예외를 던진다.
+        /// <br/> 유효한 ID에 대응하는 Theme asset을 등록한다.
         /// </summary>
         // ------------------------------------------------------------
         public void Register(XeriWindowThemeAsset theme)
@@ -55,7 +56,8 @@ namespace inonego.Xeri.UI.Window
 
         // ------------------------------------------------------------
         /// <summary>
-        /// Theme ID에 대응하는 theme asset을 조회한다.
+        /// <br/> 등록된 Theme ID에 대응하는 Theme asset을 조회한다.
+        /// <br/> 비어 있거나 등록되지 않은 ID에는 false를 반환한다.
         /// </summary>
         // ------------------------------------------------------------
         public bool TryGetTheme(string id, out XeriWindowThemeAsset theme)

@@ -111,6 +111,12 @@ namespace inonego.Xeri.UI.TEST.Core
 
     #region R-1: 고정 ID 등록과 해제
 
+        // --------------------------------------------------------------------------------
+        /// <summary>
+        /// <br/> Layer ID 등록이 조회 가능 상태와 Driver 활성화를 만들고 Handle 해제가 둘 다
+        /// <br/> 정리한다.
+        /// </summary>
+        // --------------------------------------------------------------------------------
         [Test]
         public void TEST_PresentationLayerRegistry_ID등록_조회와해제_대칭()
         {
@@ -133,6 +139,11 @@ namespace inonego.Xeri.UI.TEST.Core
 
     #region R-2: 레지스트리 전체 ID 고유성
 
+        // ------------------------------------------------------------
+        /// <summary>
+        /// 이미 등록된 Layer ID의 중복 등록을 예외로 거부한다.
+        /// </summary>
+        // ------------------------------------------------------------
         [Test]
         public void TEST_PresentationLayerRegistry_동일ID중복등록_거부()
         {
@@ -161,6 +172,11 @@ namespace inonego.Xeri.UI.TEST.Core
 
     #region U-1: 등록 핸들 해제 전 사용 수명 선검사
 
+        // --------------------------------------------------------------------------------
+        /// <summary>
+        /// 활성 Usage가 있는 동안 등록 Handle 해제를 거부하고 Usage 반환 뒤 해제를 허용한다.
+        /// </summary>
+        // --------------------------------------------------------------------------------
         [Test]
         public void TEST_PresentationLayerRegistry_활성Usage_RegistrationHandle해제거부후재시도()
         {
@@ -183,6 +199,11 @@ namespace inonego.Xeri.UI.TEST.Core
 
     #region U-2: 레지스트리 종료 전 사용 수명 선검사
 
+        // ------------------------------------------------------------
+        /// <summary>
+        /// 활성 Usage가 있으면 Registry 종료를 거부하고 등록 상태를 유지한다.
+        /// </summary>
+        // ------------------------------------------------------------
         [Test]
         public void TEST_PresentationLayerRegistry_활성Usage_Registry종료상태변경전거부()
         {
@@ -206,6 +227,12 @@ namespace inonego.Xeri.UI.TEST.Core
 
     #region L-1: 레지스트리 선종료
 
+        // --------------------------------------------------------------------------------
+        /// <summary>
+        /// <br/> Registry 선종료가 Backend를 한 번 비활성화하고 이후 Handle 해제가 중복 정리하지
+        /// <br/> 않는다.
+        /// </summary>
+        // --------------------------------------------------------------------------------
         [Test]
         public void TEST_PresentationLayerRegistry_Registry선종료_backend한번만비활성화()
         {
@@ -227,6 +254,12 @@ namespace inonego.Xeri.UI.TEST.Core
 
     #region X-1: 활성화 콜백 재진입
 
+        // --------------------------------------------------------------------------------
+        /// <summary>
+        /// <br/> Driver 활성화 콜백에서 Registry가 종료되면 등록을 공개하지 않고 활성화 상태를
+        /// <br/> 되돌린다.
+        /// </summary>
+        // --------------------------------------------------------------------------------
         [TestCase(false)]
         [TestCase(true)]
         public void TEST_PresentationLayerRegistry_활성화중RegistryDispose_등록공개안함(bool applyAfterCallback)

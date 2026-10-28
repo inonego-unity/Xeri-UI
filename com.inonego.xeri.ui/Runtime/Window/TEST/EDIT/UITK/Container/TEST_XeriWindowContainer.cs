@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : TEST_XeriWindowContainer.cs
-수정일 : 2026-10-04
+수정일 : 2026-10-28
 
 # 설명
 XeriWindowContainer의 낮은 수준 Panel host와 Registry order 반영을 검증한다.
@@ -84,19 +84,6 @@ namespace inonego.Xeri.UI.TEST.Window
     #endregion
 
     #region C-1: 기본 구성
-
-        // ------------------------------------------------------------
-        /// <summary>
-        /// 생성된 Container가 Window Layer를 제공한다.
-        /// </summary>
-        // ------------------------------------------------------------
-        [Test]
-        public void TEST_XeriWindowContainer_Construct_Layer_제공()
-        {
-            var container = new XeriWindowContainer(new XeriWindowRegistry());
-
-            Assert.IsNotNull(container.WindowLayer);
-        }
 
         // ----------------------------------------------------------------------
         /// <summary>

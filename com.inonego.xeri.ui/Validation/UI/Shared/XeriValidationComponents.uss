@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : XeriValidationComponents.uss
-수정일 : 2026-10-04
+수정일 : 2026-10-19
 
 # 설명
 Validation UI의 dark surface, button, chip, card, modal과 toast 공통 component style.
@@ -59,15 +59,18 @@ Validation UI의 dark surface, button, chip, card, modal과 toast 공통 compone
 
 .xeri-validation-button {
     min-height: var(--xeri-validation-control-height);
-    min-width: 84px;
+    min-width: 88px;
+    flex-shrink: 0;
     margin-left: 0;
     margin-right: 0;
     margin-top: 0;
     margin-bottom: 0;
-    padding-left: var(--xeri-desktop-space-3);
-    padding-right: var(--xeri-desktop-space-3);
-    padding-top: 0;
-    padding-bottom: 0;
+    padding-left: var(--xeri-validation-space-4);
+    padding-right: var(--xeri-validation-space-4);
+    padding-top: 6px;
+    padding-bottom: 6px;
+    font-size: var(--xeri-validation-font-md);
+    white-space: nowrap;
     align-items: center;
     justify-content: center;
     color: var(--xeri-desktop-text);
@@ -128,8 +131,8 @@ Validation UI의 dark surface, button, chip, card, modal과 toast 공통 compone
     flex-shrink: 0;
     padding-left: var(--xeri-desktop-space-3);
     padding-right: var(--xeri-desktop-space-3);
-    padding-top: 0;
-    padding-bottom: 0;
+    padding-top: 4px;
+    padding-bottom: 4px;
     align-items: center;
     justify-content: center;
     color: var(--xeri-validation-accent-hover);

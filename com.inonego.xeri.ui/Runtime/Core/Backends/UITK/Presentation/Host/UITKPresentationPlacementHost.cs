@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : UITKPresentationPlacementHost.cs
-수정일 : 2026-09-29
+수정일 : 2026-10-21
 
 # 설명
 VisualElementReference로 지정한 authored element를 특정 Presentation의 optional Placement Root로 제공한다.
@@ -9,6 +9,7 @@ Root는 Layer ManagedRoot의 direct child여야 하며 LocalOrder z-index 적용
 
 using System;
 using System.Collections;
+using System.Collections.Generic;
 
 using UnityEngine;
 using UnityEngine.UIElements;
@@ -39,6 +40,11 @@ namespace inonego.Xeri.UI
         internal override PresentationBackend Backend => PresentationBackend.UITK;
 
         private VisualElement root = null;
+        private IPresentationLayerDriver<VisualElement> parentLayer;
+        private UITKPresentationLayer driver;
+        private VisualElement borrowedRoot;
+        private StyleInt originalZIndex;
+        private int localOrder;
         private bool resolvedCallbackRegistered = false;
         private bool unloadedCallbackRegistered = false;
 
@@ -70,24 +76,21 @@ namespace inonego.Xeri.UI
                 );
             }
 
-            VisualElement resolvedRoot = null;
-            var originalZIndex = default(StyleInt);
-            var hasOriginalZIndex = false;
-
             try
             {
+                parentLayer = uitk;
+                localOrder = plan.LocalOrder;
+                driver = new UITKPresentationLayer(null);
+                if (parentLayer is UITKPresentationLayer observed)
+                {
+                    observed.RootChanged += HandleParentRootChanged;
+                }
+
                 RegisterReferenceCallbacks();
-                resolvedRoot = RequireRoot(uitk.Root);
-                originalZIndex = resolvedRoot.style.zIndex;
-                hasOriginalZIndex = true;
-                resolvedRoot.style.zIndex = plan.LocalOrder;
-                release = () => ReleaseBorrowedState
-                (
-                    resolvedRoot,
-                    originalZIndex,
-                    restoreZIndex: true
-                );
-                return new UITKPresentationLayer(resolvedRoot);
+                RequireRoot(uitk.Root);
+                RefreshRoot();
+                release = ReleaseBorrowedState;
+                return driver;
             }
             catch (Exception exception)
             {
@@ -98,12 +101,7 @@ namespace inonego.Xeri.UI
 
                 try
                 {
-                    ReleaseBorrowedState
-                    (
-                        resolvedRoot,
-                        originalZIndex,
-                        hasOriginalZIndex
-                    );
+                    ReleaseBorrowedState();
                 }
                 catch (Exception cleanupException)
                 {
@@ -128,27 +126,26 @@ namespace inonego.Xeri.UI
         /// borrowed z-index와 reference callback lifetime을 서로 독립적으로 복원한다.
         /// </summary>
         // --------------------------------------------------------------------------------
-        private void ReleaseBorrowedState
-        (
-            VisualElement resolvedRoot,
-            StyleInt originalZIndex,
-            bool restoreZIndex
-        )
+        private void ReleaseBorrowedState()
         {
-            var errors = new System.Collections.Generic.List<Exception>();
+            var errors = new List<Exception>();
 
-            if (restoreZIndex && resolvedRoot != null)
+            if (parentLayer is UITKPresentationLayer observed)
             {
-                try
-                {
-                    resolvedRoot.style.zIndex = originalZIndex;
-                }
-                catch (Exception exception)
-                {
-                    errors.Add(exception);
-                }
+                observed.RootChanged -= HandleParentRootChanged;
             }
 
+            parentLayer = null;
+            try
+            {
+                BindRoot(null);
+            }
+            catch (Exception exception)
+            {
+                errors.Add(exception);
+            }
+
+            driver = null;
             try
             {
                 UnregisterReferenceCallbacks();
@@ -170,6 +167,59 @@ namespace inonego.Xeri.UI
                 "UITK Placement Host borrowed state 복원이 실패했습니다.",
                 errors
             );
+        }
+
+        // ----------------------------------------------------------------------
+        /// <summary>
+        /// Layer와 Placement 참조의 resolve 순서에 관계없이 새 요소를 연결한다.
+        /// </summary>
+        // ----------------------------------------------------------------------
+        private void RefreshRoot()
+        {
+            if (driver == null) return;
+            var managedRoot = parentLayer?.Root;
+            if (root == null || managedRoot == null)
+            {
+                BindRoot(null);
+                return;
+            }
+
+            if (ReferenceEquals(root.parent, managedRoot))
+            {
+                BindRoot(root);
+                return;
+            }
+
+            // 서로 다른 Native 트리는 상대 참조의 resolve를 기다린다.
+            var tree = managedRoot;
+            while (tree.parent != null)
+            {
+                tree = tree.parent;
+            }
+
+            BindRoot(null);
+            if (tree.Contains(root))
+            {
+                RequireRoot(managedRoot);
+            }
+        }
+
+        private void BindRoot(VisualElement value)
+        {
+            if (ReferenceEquals(borrowedRoot, value)) return;
+            if (borrowedRoot != null)
+            {
+                borrowedRoot.style.zIndex = originalZIndex;
+            }
+
+            borrowedRoot = value;
+            if (value != null)
+            {
+                originalZIndex = value.style.zIndex;
+                value.style.zIndex = localOrder;
+            }
+
+            driver?.RebindRoot(value);
         }
 
         // ----------------------------------------------------------------------
@@ -313,6 +363,7 @@ namespace inonego.Xeri.UI
         private void HandleRootResolved(VisualElement element)
         {
             root = element;
+            RefreshRoot();
         }
 
         // ----------------------------------------------------------------------
@@ -325,6 +376,7 @@ namespace inonego.Xeri.UI
             if (ReferenceEquals(root, element))
             {
                 root = null;
+                RefreshRoot();
             }
         }
 
@@ -335,7 +387,12 @@ namespace inonego.Xeri.UI
         // ----------------------------------------------------------------------
         private void OnDestroy()
         {
-            UnregisterReferenceCallbacks();
+            ReleaseBorrowedState();
+        }
+
+        private void HandleParentRootChanged(UITKPresentationLayer layer)
+        {
+            RefreshRoot();
         }
 
     #endregion

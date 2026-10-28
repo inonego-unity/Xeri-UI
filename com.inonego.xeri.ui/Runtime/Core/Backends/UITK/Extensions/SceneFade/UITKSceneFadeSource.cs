@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : UITKSceneFadeSource.cs
-수정일 : 2026-10-03
+수정일 : 2026-10-28
 # 설명
 직렬화한 VisualTreeAsset Scene Fade View를 UITK Layer에 Clone하고 반환 소유권을 관리한다.
 ========================================================================= BLOCK_HEADER_END */
@@ -26,7 +26,7 @@ namespace inonego.Xeri.UI
 
         // ============================================================
         /// <summary>
-        /// Source가 생성한 Fade Driver와 Clone Root.
+        /// 소스가 생성한 Fade Driver와 콘텐츠 연결 수명.
         /// </summary>
         // ============================================================
         private sealed class OwnedView
@@ -43,10 +43,10 @@ namespace inonego.Xeri.UI
 
             // ------------------------------------------------------------
             /// <summary>
-            /// Layer에 추가한 VisualTreeAsset Clone Root.
+            /// Clone의 Layer 연결과 재연결 등록을 함께 해제한다.
             /// </summary>
             // ------------------------------------------------------------
-            public TemplateContainer Container { get; }
+            public Lease Attachment { get; }
 
         #endregion
 
@@ -54,17 +54,17 @@ namespace inonego.Xeri.UI
 
             // ------------------------------------------------------------
             /// <summary>
-            /// Fade Driver와 제거할 Clone Root를 묶는다.
+            /// Fade Driver와 콘텐츠 연결 수명을 묶는다.
             /// </summary>
             // ------------------------------------------------------------
             public OwnedView
             (
                 UITKSceneFadeDriver driver,
-                TemplateContainer container
-            ) : base()
+                Lease attachment
+            )
             {
                 Driver = driver ?? throw new ArgumentNullException(nameof(driver));
-                Container = container ?? throw new ArgumentNullException(nameof(container));
+                Attachment = attachment ?? throw new ArgumentNullException(nameof(attachment));
             }
 
         #endregion
@@ -157,9 +157,11 @@ namespace inonego.Xeri.UI
                 );
             }
 
+            Lease attachment = null;
+
             try
             {
-                layerPanel.Root.Add(container);
+                attachment = UITKPresentationLayer.Attach(layerPanel, container);
 
                 // Panel Attach callback이 Source를 종료했으면 새 View를 종료된 소유 목록에 공개하지 않는다.
                 if (isDisposed)
@@ -168,13 +170,14 @@ namespace inonego.Xeri.UI
                 }
 
                 var driver = new UITKSceneFadeDriver(root, container);
-                ownedViews.Add(new OwnedView(driver, container));
+                ownedViews.Add(new OwnedView(driver, attachment));
                 return driver;
             }
             catch (Exception exception)
             {
                 try
                 {
+                    attachment?.Dispose();
                     container.RemoveFromHierarchy();
                 }
                 catch (Exception cleanupException)
@@ -212,9 +215,9 @@ namespace inonego.Xeri.UI
                 throw new InvalidOperationException("이 Source가 소유하지 않은 Scene Fade View입니다.");
             }
 
-            var container = ownedViews[index].Container;
+            var attachment = ownedViews[index].Attachment;
             ownedViews.RemoveAt(index);
-            container.RemoveFromHierarchy();
+            attachment.Dispose();
         }
 
         // ------------------------------------------------------------
@@ -250,12 +253,12 @@ namespace inonego.Xeri.UI
 
             for (var i = ownedViews.Count - 1; i >= 0; i--)
             {
-                var container = ownedViews[i].Container;
+                var attachment = ownedViews[i].Attachment;
                 ownedViews.RemoveAt(i);
 
                 try
                 {
-                    container.RemoveFromHierarchy();
+                    attachment.Dispose();
                 }
                 catch (Exception exception)
                 {

@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: XeriUIValidationSettings
   m_EditorClassIdentifier: inonego.Xeri.UI::inonego.Xeri.UI.UISettingsAsset
   defaultLayout: {fileID: 11400000, guid: f38804ce9035b3771d3e9e48527b1134, type: 2}
-  uitkPanelSettingsTemplate: {fileID: 11400000, guid: b04eb6c13eb14bc49d40f9216e5a91cb, type: 2}
+  uitkPanelSettingsTemplate: {fileID: 11400000, guid: 371cbaf937794a44b88181df6ed0bbde, type: 2}
   uguiOutputTemplate: {fileID: 0}
   presentationDestinations:
   - destinationID: Application
@@ -27,6 +27,8 @@ MonoBehaviour:
   - destinationID: System
     layerID: SystemFade
   backendSupport: 3
+  highPrecisionOutput: 1
+  uiPostProcessing: 0
   defaultFadeColor: {r: 0, g: 0, b: 0, a: 1}
   defaultFadeDuration: 0.25
   uiActionsAsset: {fileID: -944628639613478452, guid: e8b9617b473f4e5989a37969dbf6e607, type: 3}

@@ -45,6 +45,8 @@ Static Placements
 | `UGUIOutputTemplate` | generated UGUI output template |
 | `Presentation Destinations` (`DestinationDefinitions`) | app-wide semantic destination → Root Layer 매핑 |
 | `BackendSupport` | Runtime bootstrap에서 지원할 UITK/UGUI capability |
+| `HighPrecisionOutput` | 지원되는 URP/HDRP 카메라에 고정밀 UI 출력을 요청하는 옵션 |
+| `UIPostProcessing` | UI를 후처리 이전 또는 이후에 합성할지 선택하는 독립 정책 |
 | `DefaultFadeColor` | 기본 Fade 색 |
 | `DefaultFadeDuration` | 기본 Fade 시간 |
 | `UIActionsAsset` / `UIActionMap` | UI input action source |
@@ -52,6 +54,8 @@ Static Placements
 | `ReleaseActionNames` | Screen 종료 뒤 release barrier가 관찰할 action |
 
 UI Action Map과 Gameplay Action Map은 서로 다른 map을 사용합니다.
+
+출력 정책은 프로젝트 단위로 적용됩니다. 고정밀 출력과 후처리 적용에는 파이프라인별 설치 및 지원되는 카메라·버퍼가 필요하며, 조건이 맞지 않으면 Native 출력을 유지합니다. [Native UI 출력 정책](../core/presentation.md#native-ui-출력-정책)에서 공통 정책과 URP/HDRP별 설정을 확인합니다.
 
 ## 3. Runtime Host
 

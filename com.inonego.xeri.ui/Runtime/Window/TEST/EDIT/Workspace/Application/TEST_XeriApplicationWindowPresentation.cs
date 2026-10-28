@@ -1,12 +1,13 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : TEST_XeriApplicationWindowPresentation.cs
-수정일 : 2026-10-05
+수정일 : 2026-10-28
 
 # 설명
 Application Window의 Child PresentationSession과 local Layer namespace 격리를 검증한다.
 
 # 테스트 구성
  P: Child PresentationSession과 local UI world
+ C: Window 콘텐츠 소유권과 종료 순서
 ========================================================================= BLOCK_HEADER_END */
 
 using System;
@@ -34,7 +35,7 @@ namespace inonego.Xeri.UI.TEST.Window
     public sealed class TEST_XeriApplicationWindowPresentation
     {
 
-    #region 콘텐츠 소유권
+    #region C-1: 콘텐츠 소유권
 
         // ------------------------------------------------------------
         /// <summary>

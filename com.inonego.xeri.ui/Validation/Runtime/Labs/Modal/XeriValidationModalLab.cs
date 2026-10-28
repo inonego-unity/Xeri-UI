@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : XeriValidationModalLab.cs
-수정일 : 2026-10-07
+수정일 : 2026-10-19
 
 # 설명
 Root UIContext의 global Modal stack과 nested focus 복원을 자유롭게 조작하는 instrumented Modal Lab.
@@ -111,11 +111,11 @@ namespace inonego.Xeri.UI.Validation
                 PresentationTarget.Host(PresentationDestinationID.Modal),
                 assets,
                 appearance,
-                "Global Modal A",
-                "This Modal belongs to the root Validation UIContext.",
+                "기본 대화상자 A",
+                "전체 검증 작업 공간에서 동작하는 대화상자입니다.",
                 OpenNested
             );
-            checklist?.Mark(XeriValidationChecklist.Item.Modal, "Depth 1");
+            checklist?.Mark(XeriValidationChecklist.Item.Modal, "1개 열림");
             Refresh();
         }
 
@@ -143,10 +143,10 @@ namespace inonego.Xeri.UI.Validation
                 PresentationTarget.Host(PresentationDestinationID.Modal),
                 assets,
                 appearance,
-                "Global Modal B",
-                "Closing this top modal should restore focus to Modal A."
+                "기본 대화상자 B",
+                "닫으면 대화상자 A의 입력 위치로 돌아갑니다."
             );
-            checklist?.Mark(XeriValidationChecklist.Item.Modal, "Nested");
+            checklist?.Mark(XeriValidationChecklist.Item.Modal, "중첩");
             Refresh();
         }
 
@@ -184,7 +184,7 @@ namespace inonego.Xeri.UI.Validation
             // Lab 종료 중 발생하는 Modal 해제는 표시를 갱신하지 않는다.
             if (isDisposed) return;
 
-            status.text = $"Root modal depth · {context.Modals.Count}";
+            status.text = $"열린 기본 대화상자 · {context.Modals.Count}";
         }
 
     #endregion

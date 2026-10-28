@@ -1,8 +1,9 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : UISettingsAsset.cs
-수정일 : 2026-10-07
+수정일 : 2026-10-19
 # 설명
 UI Runtime의 기본 PresentationLayout, app-wide Presentation destination, backend capability와 Input System 공통 설정을 정의한다.
+고정밀 출력과 후처리 참여 시점을 URP/HDRP 통합부에 제공한다.
 ========================================================================= BLOCK_HEADER_END */
 
 using System;
@@ -77,16 +78,42 @@ namespace inonego.Xeri.UI
         private PresentationDestinationDefinition[] presentationDestinations =
             Array.Empty<PresentationDestinationDefinition>();
 
-        // ----------------------------------------------------------------------
+        // ------------------------------------------------------------
         /// <summary>
-        /// Runtime bootstrap에서 지원할 UI backend infrastructure capability.
+        /// Inspector의 Everything(-1)을 정의된 전체 backend로 해석한다.
         /// </summary>
-        // ----------------------------------------------------------------------
-        public PresentationBackendSupport BackendSupport => backendSupport;
+        // ------------------------------------------------------------
+        public PresentationBackendSupport BackendSupport =>
+            backendSupport == (PresentationBackendSupport)(-1)
+                ? PresentationBackendSupport.All
+                : backendSupport;
 
         [SerializeField]
         private PresentationBackendSupport backendSupport =
             PresentationBackendSupport.UITK;
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// FP16 카메라 출력 요청. 지원되지 않는 경로는 Native를 유지한다.
+        /// </summary>
+        // ------------------------------------------------------------
+        public bool HighPrecisionOutput => highPrecisionOutput;
+
+        [SerializeField]
+        [Tooltip("Unity 7 URP/HDRP의 지원되는 카메라에서 FP16 출력을 요청합니다. 파이프라인 출력 설치가 필요하며, 미지원 조건에서는 Native 출력을 유지합니다.")]
+        private bool highPrecisionOutput = false;
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// 후처리 이전/이후 통합 UI 출력 선택. 정밀도와 독립적인 정책.
+        /// </summary>
+        // ------------------------------------------------------------
+        public UIPresentationPostProcessing UIPostProcessing => uiPostProcessing;
+
+        [SerializeField]
+        [Tooltip("URP/HDRP의 주요 후처리 이전(Affected) 또는 이후(Unaffected)에 UI를 합성합니다. 정밀도 설정과 독립적으로 적용됩니다.")]
+        private UIPresentationPostProcessing uiPostProcessing =
+            UIPresentationPostProcessing.Unaffected;
 
         // ------------------------------------------------------------
         /// <summary>
@@ -186,6 +213,14 @@ namespace inonego.Xeri.UI
 
             ValidatePresentationComposition();
 
+            if (!Enum.IsDefined(typeof(UIPresentationPostProcessing), uiPostProcessing))
+            {
+                throw new InvalidOperationException
+                (
+                    "UI 출력 Post Processing 값이 정의되지 않았습니다."
+                );
+            }
+
             if
             (
                 !defaultFadeDuration.IsFinite() ||
@@ -239,13 +274,15 @@ namespace inonego.Xeri.UI
                 throw new InvalidOperationException("Presentation Destination이 하나 이상 필요합니다.");
             }
 
-            if (backendSupport == PresentationBackendSupport.None)
+            var capabilities = BackendSupport;
+
+            if (capabilities == PresentationBackendSupport.None)
             {
                 throw new InvalidOperationException("Presentation Backend capability가 비어 있습니다.");
             }
 
             var unsupportedCapabilities =
-                backendSupport & ~PresentationBackendSupport.All;
+                capabilities & ~PresentationBackendSupport.All;
 
             if (unsupportedCapabilities != PresentationBackendSupport.None)
             {
@@ -315,7 +352,7 @@ namespace inonego.Xeri.UI
                     ),
                 };
 
-                if ((backendSupport & required) != required)
+                if ((capabilities & required) != required)
                 {
                     throw new InvalidOperationException
                     (
@@ -340,7 +377,7 @@ namespace inonego.Xeri.UI
                 ),
             };
 
-            return (backendSupport & required) == required;
+            return (BackendSupport & required) == required;
         }
 
     #endregion

@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : XeriValidationTokens.uss
-수정일 : 2026-10-05
+수정일 : 2026-10-19
 
 # 설명
 외관 소유 Root에서 상속하는 Validation 색상, spacing, radius와 typography token.
@@ -35,8 +35,8 @@
     --xeri-validation-radius-sm: 4px;
     --xeri-validation-radius: 6px;
     --xeri-validation-radius-large: 8px;
-    --xeri-validation-control-height: 36px;
-    --xeri-validation-chip-height: 26px;
+    --xeri-validation-control-height: 38px;
+    --xeri-validation-chip-height: 28px;
     --xeri-validation-icon-size: 40px;
     --xeri-validation-motion: 0.16s;
 
@@ -45,9 +45,9 @@
     --xeri-validation-icon-width: 116px;
     --xeri-validation-icon-height: 100px;
 
-    --xeri-validation-font-xs: 10px;
-    --xeri-validation-font-sm: 11px;
-    --xeri-validation-font-md: 12px;
+    --xeri-validation-font-xs: 11px;
+    --xeri-validation-font-sm: 12px;
+    --xeri-validation-font-md: 13px;
     --xeri-validation-font-lg: 16px;
     --xeri-validation-font-xl: 22px;
 }

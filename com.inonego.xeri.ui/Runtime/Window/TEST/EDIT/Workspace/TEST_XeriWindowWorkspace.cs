@@ -6,7 +6,7 @@
 XeriWindowWorkspace의 기본 Window 수명, View Source, rollback과 Record 복원 계약을 검증한다.
 
 # 테스트 구성
- W: Window Open/Close와 Workspace Screen 수명
+ W: Window 열기·닫기와 Workspace Screen 수명
  V: View Source와 UI Session 수명
  D: Open 실패 rollback
  R: Record 검증과 복원
@@ -39,7 +39,7 @@ namespace inonego.Xeri.UI.TEST.Window
     public sealed class TEST_XeriWindowWorkspace
     {
 
-    #region W-1: 창 열기과 닫기 수명
+    #region W-1: 창 열기와 닫기 수명
 
         // --------------------------------------------------------------------------------
         /// <summary>
@@ -223,6 +223,12 @@ namespace inonego.Xeri.UI.TEST.Window
 
     #region D-1: 열기 실패 롤백
 
+        // --------------------------------------------------------------------------------
+        /// <summary>
+        /// <br/> 등록 콜백에서 Window가 닫히면 열기 절차를 롤백하고 View를 반환한 뒤 같은 ID로 다시
+        /// <br/> 열 수 있다.
+        /// </summary>
+        // --------------------------------------------------------------------------------
         [Test]
         public void TEST_XeriWindowWorkspace_등록중Close_미완료Window반환과재사용()
         {
@@ -409,6 +415,11 @@ namespace inonego.Xeri.UI.TEST.Window
 
     #region R-2: 레코드 옵션 복원
 
+        // ----------------------------------------------------------------------
+        /// <summary>
+        /// 호출 옵션에서 StackLayer를 생략하면 Record의 AlwaysOnTop 설정을 유지한다.
+        /// </summary>
+        // ----------------------------------------------------------------------
         [Test]
         public void TEST_XeriWindowWorkspace_RecordOption_생략_StackLayer_보존()
         {
@@ -422,6 +433,11 @@ namespace inonego.Xeri.UI.TEST.Window
             Assert.AreEqual(XeriWindowStackLayer.AlwaysOnTop, options.StackLayer);
         }
 
+        // ------------------------------------------------------------
+        /// <summary>
+        /// 호출 옵션에 StackLayer를 지정하면 Record의 값을 덮어쓴다.
+        /// </summary>
+        // ------------------------------------------------------------
         [Test]
         public void TEST_XeriWindowWorkspace_RecordOption_명시_StackLayer_덮어씀()
         {
@@ -441,6 +457,11 @@ namespace inonego.Xeri.UI.TEST.Window
 
     #region R-3: 일반 경계 복원
 
+        // ----------------------------------------------------------------------
+        /// <summary>
+        /// Maximized Record의 복원용 NormalBounds를 초기 Bounds로 선택한다.
+        /// </summary>
+        // ----------------------------------------------------------------------
         [Test]
         public void TEST_XeriWindowWorkspace_MaximizedRecord_NormalBounds_사용()
         {
@@ -459,6 +480,11 @@ namespace inonego.Xeri.UI.TEST.Window
             Assert.AreEqual(record.NormalSize, bounds.size);
         }
 
+        // ------------------------------------------------------------
+        /// <summary>
+        /// Normal Record는 일반 Pos와 Size를 복원용 Bounds로 선택한다.
+        /// </summary>
+        // ------------------------------------------------------------
         [Test]
         public void TEST_XeriWindowWorkspace_NormalRecord_PosSize_우선()
         {
@@ -500,8 +526,14 @@ namespace inonego.Xeri.UI.TEST.Window
 
     #endregion
 
-    #region R-4: 완료 상태 프리미티브 복원
+    #region R-4: 기록된 창 상태 적용
 
+        // --------------------------------------------------------------------------------
+        /// <summary>
+        /// <br/> Record의 Maximized 상태를 Driver와 Visibility에 적용하고 최대화 Bounds 처리를
+        /// <br/> 호출한다.
+        /// </summary>
+        // --------------------------------------------------------------------------------
         [Test]
         public void TEST_XeriWindowWorkspace_ApplyRecordState_Maximized_표시와Bounds_적용()
         {
@@ -514,6 +546,11 @@ namespace inonego.Xeri.UI.TEST.Window
             Assert.IsTrue(driver.MaximizedApplied);
         }
 
+        // --------------------------------------------------------------------------------
+        /// <summary>
+        /// Record의 Minimized 상태를 Driver에 적용하고 Visibility를 숨김으로 설정한다.
+        /// </summary>
+        // --------------------------------------------------------------------------------
         [Test]
         public void TEST_XeriWindowWorkspace_ApplyRecordState_Minimized_숨김()
         {
@@ -525,6 +562,11 @@ namespace inonego.Xeri.UI.TEST.Window
             Assert.IsFalse(driver.Visibility.Modified);
         }
 
+        // ------------------------------------------------------------
+        /// <summary>
+        /// 복원 가능한 Record 상태가 아닌 Closed 상태의 적용을 거부한다.
+        /// </summary>
+        // ------------------------------------------------------------
         [Test]
         public void TEST_XeriWindowWorkspace_ApplyRecordState_Closed_거부()
         {

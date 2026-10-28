@@ -24,6 +24,7 @@ namespace inonego.Xeri.UI.TEST.Core
     using inonego;
     using inonego.Xeri;
     using inonego.Xeri.UI;
+
     // ============================================================
     /// <summary>
     /// UIContext facade의 state/lifetime 위임 계약 테스트.
@@ -305,6 +306,11 @@ namespace inonego.Xeri.UI.TEST.Core
 
     #region C-1: 공통 파사드
 
+        // ----------------------------------------------------------------------
+        /// <summary>
+        /// UIContext의 Screen 등록 Handle 해제가 Registry 등록을 제거한다.
+        /// </summary>
+        // ----------------------------------------------------------------------
         [Test]
         public void TEST_UIContext_RegisterScreen_Registry와같은등록수명()
         {
@@ -346,6 +352,11 @@ namespace inonego.Xeri.UI.TEST.Core
             Assert.DoesNotThrow(layerLease.Dispose);
         }
 
+        // --------------------------------------------------------------------------------
+        /// <summary>
+        /// Presentation Lease가 획득한 Layer Usage와 Source를 같은 수명으로 해제한다.
+        /// </summary>
+        // --------------------------------------------------------------------------------
         [Test]
         public void TEST_UIContext_AcquirePresentation_LocalLayerLease와Source를같은수명으로소유()
         {
@@ -430,6 +441,12 @@ namespace inonego.Xeri.UI.TEST.Core
 
     #region M-1: UITK 모달 파사드
 
+        // --------------------------------------------------------------------------------
+        /// <summary>
+        /// <br/> UITK Modal을 열면 Placement Usage와 Root 상호작용 상태를 소유하고 닫을 때 원상
+        /// <br/> 복원한다.
+        /// </summary>
+        // --------------------------------------------------------------------------------
         [Test]
         public void TEST_UITKModal_Open_PlacementUsage와HierarchyLifetime소유()
         {
@@ -459,6 +476,11 @@ namespace inonego.Xeri.UI.TEST.Core
             Assert.DoesNotThrow(presentation.ValidateCanDispose);
         }
 
+        // --------------------------------------------------------------------------------
+        /// <summary>
+        /// Modal 종료 뒤 Root 상태를 되돌리고 동일 Focus Scope와 Root로 다시 열 수 있다.
+        /// </summary>
+        // --------------------------------------------------------------------------------
         [Test]
         public void TEST_UITKModal_Open_FocusScopeDispose후같은Scope재사용가능()
         {
@@ -509,6 +531,11 @@ namespace inonego.Xeri.UI.TEST.Core
             Assert.AreEqual(PickingMode.Ignore, root.pickingMode);
         }
 
+        // --------------------------------------------------------------------------------
+        /// <summary>
+        /// Focus 선택 실패 시 Modal 등록과 Root 상태를 롤백하고 같은 Root로 재시도할 수 있다.
+        /// </summary>
+        // --------------------------------------------------------------------------------
         [Test]
         public void TEST_UITKModal_OpenWithFocus_Select실패_전체롤백후재시도가능()
         {
@@ -559,6 +586,12 @@ namespace inonego.Xeri.UI.TEST.Core
             Assert.DoesNotThrow(presentation.ValidateCanDispose);
         }
 
+        // --------------------------------------------------------------------------------
+        /// <summary>
+        /// <br/> UITK Modal을 UGUI Placement에 열 수 없으며 실패 시 Root와 Presentation
+        /// <br/> Usage를 변경하지 않는다.
+        /// </summary>
+        // --------------------------------------------------------------------------------
         [Test]
         public void TEST_UITKModal_Open_UGUIPlacement이면Usage와Root상태롤백()
         {
@@ -585,6 +618,12 @@ namespace inonego.Xeri.UI.TEST.Core
             Assert.DoesNotThrow(presentation.ValidateCanDispose);
         }
 
+        // --------------------------------------------------------------------------------
+        /// <summary>
+        /// <br/> Composition Modal이 전달받은 Lifetime을 소유하고 종료 시 Interaction 상태와
+        /// <br/> 자원을 복원한다.
+        /// </summary>
+        // --------------------------------------------------------------------------------
         [Test]
         public void TEST_UITKModal_CompositionOpen_전달Lifetime과Interaction상태복원()
         {

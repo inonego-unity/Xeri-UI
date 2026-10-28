@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명: XeriTrayReorderAnimator.cs
-수정일 : 2026-09-20
+수정일 : 2026-10-28
 
 # 설명
 Tray reorder preview에서 주변 entry를 transform 기반으로 이동시킨다.
@@ -25,6 +25,11 @@ namespace inonego.Xeri.UI.Tray
 
     #region 생성자
 
+        // ------------------------------------------------------------
+        /// <summary>
+        /// Tray 순서 변경 애니메이터를 생성한다.
+        /// </summary>
+        // ------------------------------------------------------------
         public XeriTrayReorderAnimator() : base()
         {
             // NONE

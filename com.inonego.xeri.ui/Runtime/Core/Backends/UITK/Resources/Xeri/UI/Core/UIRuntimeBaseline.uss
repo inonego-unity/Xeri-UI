@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : UIRuntimeBaseline.uss
-수정일 : 2026-08-02
+수정일 : 2026-10-19
 
 # 설명
 Xeri UI Layer 아래의 표준 UI Toolkit Control에 예측 가능한 외부
@@ -10,8 +10,10 @@ Xeri UI Layer 아래의 표준 UI Toolkit Control에 예측 가능한 외부
 Scroller, Slider Tracker, Popup Arrow 등 Control 동작에 필요한 내부 간격은
 Unity Runtime Theme에 위임한다.
 ========================================================================= BLOCK_HEADER_END */
-.xeri-ui .unity-label,
-.xeri-ui .unity-button {
+/* 이 시트는 Xeri root에만 연결된다. 타입 선택자로 작성해 개별 클래스의
+   padding과 margin이 기본 초기화보다 항상 우선하도록 한다. */
+Label,
+Button {
     margin-left: 0;
     margin-right: 0;
     margin-top: 0;
@@ -22,8 +24,8 @@ Unity Runtime Theme에 위임한다.
     padding-bottom: 0;
 }
 
-.xeri-ui .unity-base-field,
-.xeri-ui .unity-progress-bar {
+.unity-base-field,
+.unity-progress-bar {
     margin-left: 0;
     margin-right: 0;
     margin-top: 0;

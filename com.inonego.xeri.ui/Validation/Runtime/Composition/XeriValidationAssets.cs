@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : XeriValidationAssets.cs
-수정일 : 2026-10-05
+수정일 : 2026-10-28
 
 # 설명
 통합 Validation Scene이 사용하는 UXML, USS, PanelSettings와 Application child Layout을 한 Asset에서 참조한다.
@@ -16,7 +16,8 @@ namespace inonego.Xeri.UI.Validation
 {
     // ============================================================
     /// <summary>
-    /// Validation의 템플릿과 스타일 참조를 제공한다.
+    /// <br/> Validation UI 템플릿과 스타일을 제공한다.
+    /// <br/> PanelSettings와 Application child layout도 포함한다.
     /// </summary>
     // ============================================================
     [CreateAssetMenu

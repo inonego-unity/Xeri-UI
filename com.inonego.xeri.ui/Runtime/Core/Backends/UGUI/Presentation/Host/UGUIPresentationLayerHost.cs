@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : UGUIPresentationLayerHost.cs
-수정일 : 2026-10-05
+수정일 : 2026-10-17
 
 # 설명
 Scene-authored UGUI Layer의 Canvas Native Output과 explicit ManagedRoot를 Presentation Layer로 제공한다.
@@ -76,20 +76,18 @@ namespace inonego.Xeri.UI
                 );
             }
 
-            var originalSortingOrder = output.Canvas.sortingOrder;
             var hostObject = gameObject;
             var originalActive = hostObject.activeSelf;
 
             try
             {
-                output.Initialize(plan.LayerOrder);
+                output.InitializeBorrowed(plan.LayerOrder);
                 hostObject.SetActive(true);
                 var driver = new UGUIPresentationLayer(managedRoot);
                 release = () => ReleaseBorrowedState
                 (
                     output,
                     hostObject,
-                    originalSortingOrder,
                     originalActive
                 );
                 return driver;
@@ -102,7 +100,6 @@ namespace inonego.Xeri.UI
                     (
                         output,
                         hostObject,
-                        originalSortingOrder,
                         originalActive
                     );
                 }
@@ -129,22 +126,18 @@ namespace inonego.Xeri.UI
         (
             UGUIPresentationOutput output,
             GameObject hostObject,
-            int originalSortingOrder,
             bool originalActive
         )
         {
             var errors = new List<Exception>();
 
-            if (output != null && output.Canvas != null)
+            try
             {
-                try
-                {
-                    output.Canvas.sortingOrder = originalSortingOrder;
-                }
-                catch (Exception exception)
-                {
-                    errors.Add(exception);
-                }
+                output?.ReleaseOutputState();
+            }
+            catch (Exception exception)
+            {
+                errors.Add(exception);
             }
 
             if (hostObject != null)

@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : XeriValidationModal.cs
-수정일 : 2026-10-07
+수정일 : 2026-10-19
 
 # 설명
 Validation Lab과 Application Window가 production UITKModal 경로로 Modal을 열 수 있게 하는 공통 helper.
@@ -128,7 +128,7 @@ namespace inonego.Xeri.UI.Validation
             var eyebrow = new Label("Xeri");
             eyebrow.AddToClassList("xeri-validation-modal__eyebrow");
 
-            var titleLabel = new Label(title ?? "Modal");
+            var titleLabel = new Label(title ?? "대화상자");
             titleLabel.AddToClassList("xeri-validation-modal__title");
 
             var copy = new Label(description ?? string.Empty);
@@ -141,7 +141,7 @@ namespace inonego.Xeri.UI.Validation
             {
                 var nestedButton = new Button(openNested)
                 {
-                    text = "Open Nested",
+                    text = "중첩 열기",
                 };
                 nestedButton.AddToClassList("xeri-validation-button");
                 nestedButton.AddToClassList("xeri-validation-button--secondary");
@@ -150,7 +150,7 @@ namespace inonego.Xeri.UI.Validation
 
             var closeButton = new Button
             {
-                text = "Close",
+                text = "닫기",
             };
             closeButton.AddToClassList("xeri-validation-button");
             closeButton.AddToClassList("xeri-validation-button--primary");

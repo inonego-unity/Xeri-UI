@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : XeriWindowPanel.cs
-수정일 : 2026-09-29
+수정일 : 2026-10-28
 
 # 설명
 Xeri 커스텀 윈도우 하나를 표시하는 UITK VisualElement.
@@ -21,7 +21,7 @@ namespace inonego.Xeri.UI.Window
     public sealed class XeriWindowPanel : VisualElement
     {
 
-    #region 필드
+    #region Window 요소와 상태
 
         private const string WINDOW_UXML_PATH = "XeriUI/Window/XeriWindow";
         private const string WINDOW_USS_PATH  = "XeriUI/Window/XeriWindow";
@@ -221,6 +221,11 @@ namespace inonego.Xeri.UI.Window
 
     #region 생성자
 
+        // ------------------------------------------------------------
+        /// <summary>
+        /// Window 제어와 콘텐츠 영역을 갖는 Panel을 생성한다.
+        /// </summary>
+        // ------------------------------------------------------------
         public XeriWindowPanel() : base()
         {
             name = "xeri-window";
@@ -267,19 +272,19 @@ namespace inonego.Xeri.UI.Window
             (
                 minimizeButton,
                 XeriWindowButtonIconType.Minimize,
-                "Minimize"
+                "최소화"
             );
             maximizeButtonIcon = CreateControlButtonIcon
             (
                 maximizeButton,
                 XeriWindowButtonIconType.Maximize,
-                "Maximize"
+                "최대화"
             );
             closeButtonIcon = CreateControlButtonIcon
             (
                 closeButton,
                 XeriWindowButtonIconType.Close,
-                "Close"
+                "닫기"
             );
 
             hierarchy.Add(titleBar);
@@ -513,11 +518,12 @@ namespace inonego.Xeri.UI.Window
             resizeBottomRight.RemoveFromHierarchy();
         }
 
-        // --------------------------------------------------------------------------------
+        // ------------------------------------------------------------
         /// <summary>
-        /// UXML clone 이후 window 내부 element가 flex 흐름으로 배치되도록 구조 layout을 확정한다.
+        /// <br/> UXML clone 이후 내부 element를 flex 흐름에 둔다.
+        /// <br/> Titlebar, control button, 콘텐츠의 배치 기준을 정한다.
         /// </summary>
-        // --------------------------------------------------------------------------------
+        // ------------------------------------------------------------
         private void ApplyStructuralLayout()
         {
             titleBar.style.position       = Position.Relative;

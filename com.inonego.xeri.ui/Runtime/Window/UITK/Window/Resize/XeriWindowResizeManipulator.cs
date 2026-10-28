@@ -23,7 +23,7 @@ namespace inonego.Xeri.UI.Window
     public sealed class XeriWindowResizeManipulator
     {
 
-    #region 필드
+    #region Resize 입력 상태
 
         private readonly XeriWindowPanel panel = null;
         private readonly XeriWindowController controller = null;

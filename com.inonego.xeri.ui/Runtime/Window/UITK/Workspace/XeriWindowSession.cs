@@ -25,7 +25,7 @@ namespace inonego.Xeri.UI.Window
     public sealed class XeriWindowSession : IDisposable
     {
 
-    #region 필드
+    #region Session 상태와 소유 참조
 
         // ------------------------------------------------------------
         /// <summary>

@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : XeriValidationShell.uss
-수정일 : 2026-10-04
+수정일 : 2026-10-19
 
 # 설명
 통합 Validation Desktop의 wallpaper, system bar, desktop launcher, monitor, checklist와 taskbar를 정의한다.
@@ -9,10 +9,12 @@ Validation token 기반의 spacing/control size를 사용하고 장식보다 기
 
 .xeri-validation-desktop {
     position: absolute;
-    left: 0;
-    right: 0;
-    top: 0;
-    bottom: 0;
+    left: 50%;
+    top: 50%;
+    width: 1920px;
+    height: 1080px;
+    margin-left: -960px;
+    margin-top: -540px;
     overflow: hidden;
     color: var(--xeri-validation-text-on-dark);
     background-color: var(--xeri-validation-desktop-a);
@@ -24,7 +26,7 @@ Validation token 기반의 spacing/control size를 사용하고 장식보다 기
     right: 0;
     top: 0;
     bottom: 0;
-    background-image: linear-gradient(138deg, var(--xeri-validation-desktop-a) 0%, var(--xeri-validation-desktop-b) 48%, var(--xeri-validation-desktop-c) 100%);
+    background-image: linear-gradient(180deg, var(--xeri-validation-desktop-a) 0%, var(--xeri-validation-desktop-b) 50%, var(--xeri-validation-desktop-a) 100%);
 }
 
 .xeri-validation-desktop__ambient {
@@ -33,8 +35,25 @@ Validation token 기반의 spacing/control size를 사용하고 장식보다 기
     right: 0;
     top: 0;
     bottom: 0;
-    opacity: 0.34;
-    background-image: linear-gradient(32deg, rgba(73, 206, 214, 0.20) 0%, rgba(73, 206, 214, 0) 36%, rgba(122, 113, 230, 0) 62%, rgba(122, 113, 230, 0.18) 100%);
+}
+
+/* Two broad, diagonally mirrored glows overlap without separate corner spots. */
+.xeri-validation-desktop__radial {
+    position: absolute;
+    width: 110%;
+    height: 160%;
+}
+
+.xeri-validation-desktop__radial--cyan {
+    left: -30%;
+    bottom: -60%;
+    background-image: radial-gradient(ellipse closest-side at 50% 50%, rgba(73, 206, 214, 0.30) 0%, rgba(73, 206, 214, 0.12) 45%, rgba(73, 206, 214, 0) 100%);
+}
+
+.xeri-validation-desktop__radial--violet {
+    right: -30%;
+    top: -60%;
+    background-image: radial-gradient(ellipse closest-side at 50% 50%, rgba(122, 113, 230, 0.30) 0%, rgba(122, 113, 230, 0.12) 45%, rgba(122, 113, 230, 0) 100%);
 }
 
 .xeri-validation-desktop__chrome {
@@ -93,12 +112,12 @@ Validation token 기반의 spacing/control size를 사용하고 장식보다 기
 }
 
 .xeri-validation-desktop__tools .xeri-validation-button {
-    height: 32px;
-    min-width: 92px;
+    min-height: 36px;
+    min-width: 96px;
     color: var(--xeri-validation-text-on-dark);
     background-color: var(--xeri-validation-surface-subtle);
     border-color: var(--xeri-desktop-border);
-    font-size: 11px;
+    font-size: var(--xeri-validation-font-sm);
 }
 
 .xeri-validation-desktop__tools .xeri-validation-button:hover,
@@ -164,6 +183,7 @@ Validation token 기반의 spacing/control size를 사용하고 장식보다 기
 }
 
 .xeri-validation-launcher__icon {
+    flex-shrink: 0;
     width: 38px;
     height: 38px;
     margin-bottom: var(--xeri-validation-space-2);
@@ -277,7 +297,7 @@ Validation token 기반의 spacing/control size를 사용하고 장식보다 기
 
 .xeri-validation-monitor__label {
     color: var(--xeri-validation-muted-on-dark);
-    font-size: 10px;
+    font-size: var(--xeri-validation-font-xs);
 }
 
 .xeri-validation-monitor__value {
@@ -285,28 +305,27 @@ Validation token 기반의 spacing/control size를 사용하고 장식보다 기
     color: var(--xeri-validation-text-on-dark);
     font-size: 13px;
     -unity-font-style: bold;
+    white-space: normal;
 }
 
-/* The dock centers one scrollable flex row at every viewport width. */
+/* The taskbar occupies the lower edge of the fixed desktop. */
 .xeri-validation-taskbar-dock {
     position: absolute;
-    left: 16px;
-    right: 16px;
-    bottom: 16px;
+    left: 0;
+    right: 0;
+    bottom: 0;
     align-items: center;
 }
 
 .xeri-validation-taskbar {
-    width: 90%;
-    max-width: 1040px;
+    width: 100%;
     min-width: 0;
     min-height: var(--xeri-validation-taskbar-height);
     padding: var(--xeri-validation-space-2);
     background-color: var(--xeri-validation-glass-strong);
-    border-width: 1px;
-    border-color: var(--xeri-desktop-border-strong);
-    border-radius: var(--xeri-desktop-radius-lg);
-    filter: drop-shadow(0px 8px 28px rgba(0, 0, 0, 0.28));
+    border-top-width: 1px;
+    border-top-color: var(--xeri-desktop-border-strong);
+    border-radius: 0;
 }
 
 .xeri-validation-taskbar > .unity-scroll-view__content-and-vertical-scroll-container > .unity-scroll-view__content-viewport > .unity-scroll-view__content-container {
@@ -381,10 +400,10 @@ Validation token 기반의 spacing/control size를 사용하고 장식보다 기
 }
 
 .xeri-validation-taskbar__tray .xeri-tray-button__close-button {
-    width: 24px;
-    min-width: 24px;
-    height: 24px;
-    min-height: 24px;
+    width: 28px;
+    min-width: 28px;
+    height: 28px;
+    min-height: 28px;
     flex-shrink: 0;
     margin-left: var(--xeri-validation-space-2);
     margin-right: 0;
@@ -467,97 +486,31 @@ Validation token 기반의 spacing/control size를 사용하고 장식보다 기
     flex-direction: row;
     align-items: center;
     justify-content: space-between;
+    gap: var(--xeri-validation-space-2);
     border-bottom-width: 1px;
     border-bottom-color: var(--xeri-desktop-border);
 }
 
 .xeri-validation-checklist__name {
+    min-width: 0;
+    flex-shrink: 1;
+    white-space: normal;
     color: var(--xeri-validation-muted-on-dark);
-    font-size: 10px;
+    font-size: var(--xeri-validation-font-xs);
 }
 
 .xeri-validation-checklist__state {
+    min-width: 0;
+    max-width: 50%;
+    flex-shrink: 1;
+    white-space: normal;
+    -unity-text-align: middle-right;
     color: var(--xeri-validation-disabled);
-    font-size: 10px;
+    font-size: var(--xeri-validation-font-xs);
 }
 
 .xeri-validation-checklist__state--complete {
     color: var(--xeri-validation-success);
-}
-
-/* Responsive desktop shell --------------------------------------------------------------- */
-.xeri-validation-desktop--compact .xeri-validation-launcher {
-    left: var(--xeri-validation-space-4);
-    width: 320px;
-}
-
-.xeri-validation-desktop--compact .xeri-validation-launcher__item {
-    width: 96px;
-    min-width: 96px;
-    height: 80px;
-}
-
-.xeri-validation-desktop--compact .xeri-validation-launcher__icon {
-    width: 32px;
-    height: 32px;
-    margin-bottom: var(--xeri-validation-space-1);
-}
-
-.xeri-validation-desktop--compact .xeri-validation-monitor,
-.xeri-validation-desktop--compact .xeri-validation-checklist {
-    right: var(--xeri-validation-space-4);
-    width: 276px;
-}
-
-.xeri-validation-desktop--compact .xeri-validation-taskbar {
-    max-width: 1040px;
-}
-
-.xeri-validation-desktop--narrow .xeri-validation-desktop__chrome {
-    padding-left: var(--xeri-validation-space-2);
-    padding-right: var(--xeri-validation-space-2);
-}
-
-.xeri-validation-desktop--narrow .xeri-validation-desktop__subtitle,
-.xeri-validation-desktop--narrow .xeri-validation-desktop__tools,
-.xeri-validation-desktop--narrow .xeri-validation-monitor,
-.xeri-validation-desktop--narrow .xeri-validation-checklist {
-    display: none;
-}
-
-.xeri-validation-desktop--narrow .xeri-validation-launcher {
-    left: var(--xeri-desktop-space-3);
-    right: var(--xeri-desktop-space-3);
-    top: 68px;
-    width: auto;
-}
-
-.xeri-validation-desktop--narrow .xeri-validation-launcher__item {
-    width: 92px;
-    min-width: 92px;
-    height: 76px;
-    padding-top: var(--xeri-validation-space-2);
-    padding-bottom: var(--xeri-validation-space-2);
-}
-
-.xeri-validation-desktop--narrow .xeri-validation-taskbar {
-    width: 100%;
-    max-width: 100%;
-}
-
-.xeri-validation-desktop--narrow .xeri-validation-taskbar__tray .xeri-tray-button {
-    min-width: 96px;
-    max-width: 152px;
-}
-
-.xeri-validation-desktop--short .xeri-validation-monitor,
-.xeri-validation-desktop--short .xeri-validation-checklist {
-    display: none;
-}
-
-.xeri-validation-desktop--short .xeri-validation-launcher {
-    top: 64px;
-    gap: var(--xeri-validation-space-2);
 }
 
 .xeri-validation-taskbar__tray .xeri-tray-button--visible {

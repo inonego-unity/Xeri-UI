@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : XeriWindowWorkspace.cs
-수정일 : 2026-10-07
+수정일 : 2026-10-28
 
 # 설명
 UI Core Child Context의 단일 Screen 위에 Xeri Window Container와 Window Session을 조립한다.
@@ -41,12 +41,20 @@ namespace inonego.Xeri.UI.Window
             public XeriWindowContainer Container { get; private set; }
 
             private readonly IXeriWindowRegistry registry = null;
+            private Lease attachment = null;
 
             public ContainerScreenSource(IXeriWindowRegistry registry)
             {
                 this.registry = registry ?? throw new ArgumentNullException(nameof(registry));
             }
 
+            // ----------------------------------------------------------------------
+            /// <summary>
+            /// <br/> Window Container를 Core Screen에 연결한다.
+            /// <br/> 생성한 ScreenInstance로 획득 결과를 제공한다.
+            /// <br/> 실패하면 Container와 attachment를 정리한 뒤 예외를 전달한다.
+            /// </summary>
+            // ----------------------------------------------------------------------
             public ScreenInstance Acquire(ScreenViewScope scope)
             {
                 if (Container != null)
@@ -66,7 +74,7 @@ namespace inonego.Xeri.UI.Window
 
                 try
                 {
-                    layer.Root.Add(container);
+                    attachment = UITKPresentationLayer.Attach(layer, container);
                     var instance = new ScreenInstance(new UITKScreenDriver(container));
                     Container = container;
                     return instance;
@@ -89,6 +97,8 @@ namespace inonego.Xeri.UI.Window
 
                     try
                     {
+                        attachment?.Dispose();
+                        attachment = null;
                         container.RemoveFromHierarchy();
                     }
                     catch (Exception cleanupException)
@@ -109,6 +119,12 @@ namespace inonego.Xeri.UI.Window
                 }
             }
 
+            // ------------------------------------------------------------
+            /// <summary>
+            /// <br/> 획득한 Container와 attachment를 해제한다.
+            /// <br/> 연결에 사용한 소유 자원을 반환한다.
+            /// </summary>
+            // ------------------------------------------------------------
             public void Release(ScreenInstance instance)
             {
                 var container = Container;
@@ -129,6 +145,8 @@ namespace inonego.Xeri.UI.Window
 
                 try
                 {
+                    attachment?.Dispose();
+                    attachment = null;
                     container.RemoveFromHierarchy();
                 }
                 catch (Exception exception)
@@ -149,7 +167,7 @@ namespace inonego.Xeri.UI.Window
 
     #endregion
 
-    #region 필드
+    #region Workspace 상태와 소유 참조
 
         private readonly UIContext context = null;
 
@@ -380,6 +398,7 @@ namespace inonego.Xeri.UI.Window
 
             return OpenWindowInternal(record, view, windowOptions, false, null);
         }
+
         // ------------------------------------------------------------
         /// <summary>
         /// Record의 ViewSourceID를 해석해 Window를 연다.
@@ -1142,6 +1161,7 @@ namespace inonego.Xeri.UI.Window
                 RestoreFocus(session.Handle);
             }
         }
+
         // --------------------------------------------------------------------------------
         /// <summary>
         /// Registry active Window 변경을 Workspace Core Context Focus로 연결한다.
@@ -1315,6 +1335,7 @@ namespace inonego.Xeri.UI.Window
                 throw new AggregateException("Window Session 해제가 실패했습니다.", errors);
             }
         }
+
         // --------------------------------------------------------------------------------
         /// <summary>
         /// Workspace Screen이 없으면 Core Screen을 열어 Container와 Layer Usage를 획득한다.
@@ -1564,6 +1585,7 @@ namespace inonego.Xeri.UI.Window
                 record.UISession
             );
         }
+
         // ----------------------------------------------------------------------
         /// <summary>
         /// Window 조립 실패 시 Workspace가 획득한 자원만 생성 역순으로 반환한다.

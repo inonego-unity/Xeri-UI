@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : XeriValidationLabs.uss
-수정일 : 2026-10-04
+수정일 : 2026-10-19
 
 # 설명
 Core, Window, Modal instrumented Lab의 control surface와 상태 표시 스타일.
@@ -64,11 +64,12 @@ Core, Window, Modal instrumented Lab의 control surface와 상태 표시 스타�
 
 .xeri-validation-lab__status {
     max-width: 100%;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    min-height: 25px;
+    white-space: normal;
+    min-height: var(--xeri-validation-chip-height);
     padding-left: var(--xeri-desktop-space-3);
     padding-right: var(--xeri-desktop-space-3);
+    padding-top: 4px;
+    padding-bottom: 4px;
     align-items: center;
     justify-content: center;
     flex-shrink: 0;
@@ -78,7 +79,7 @@ Core, Window, Modal instrumented Lab의 control surface와 상태 표시 스타�
     border-top-right-radius: 13px;
     border-bottom-left-radius: 13px;
     border-bottom-right-radius: 13px;
-    font-size: 10px;
+    font-size: var(--xeri-validation-font-xs);
     -unity-font-style: bold;
     -unity-text-align: middle-center;
 }
@@ -159,7 +160,7 @@ Core, Window, Modal instrumented Lab의 control surface와 상태 표시 스타�
 
 .xeri-validation-projection-tray .xeri-tray-button__title {
     color: var(--xeri-desktop-text);
-    font-size: 11px;
+    font-size: var(--xeri-validation-font-sm);
 }
 
 .xeri-validation-core-screen {
@@ -199,5 +200,5 @@ Core, Window, Modal instrumented Lab의 control surface와 상태 표시 스타�
 
 .xeri-validation-core-screen__label {
     color: var(--xeri-desktop-muted);
-    font-size: 10px;
+    font-size: var(--xeri-validation-font-xs);
 }

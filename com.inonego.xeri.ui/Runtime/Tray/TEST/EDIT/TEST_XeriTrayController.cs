@@ -1,11 +1,12 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : TEST_XeriTrayController.cs
-수정일 : 2026-10-06
+수정일 : 2026-10-28
 
 # 설명
 공통 Tray controller 이벤트 라우팅 테스트.
 
 # 테스트 구성
+ C: 생성 인자 검증
  R: Reload 흐름
  E: Entry 이벤트 전달
  D: Dispose 구독 해제
@@ -281,7 +282,7 @@ namespace inonego.Xeri.UI.TEST.Tray
 
     #endregion
 
-    #region R-2: 재로드 필요
+    #region R-3: 재로드 필요
 
         // ----------------------------------------------------------------------
         /// <summary>

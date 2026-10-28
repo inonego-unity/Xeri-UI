@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : TEST_PresentationSession_HostValidation.cs
-수정일 : 2026-10-05
+수정일 : 2026-10-28
 
 # 설명
 PresentationSession의 explicit Scene Host collection 사전 검증과 activation rollback 계약을 검증한다.
@@ -17,6 +17,7 @@ using System.Reflection;
 
 using UnityEngine;
 using UnityEngine.UI;
+using UnityEngine.UIElements;
 
 using NUnit;
 using NUnit.Framework;
@@ -550,8 +551,60 @@ namespace inonego.Xeri.UI.TEST.Core
 
     #endregion
 
+    #region V-3: 독립 UITK 출력의 설정 소유권
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// 같은 패널 설정을 빌린 두 출력을 변경 전에 거부한다.
+        /// </summary>
+        // ------------------------------------------------------------
+        [Test]
+        public void TEST_PresentationSession_공유PanelSettings를변경전에거부()
+        {
+            var settings = ScriptableObject.CreateInstance<PanelSettings>();
+            ownedObjects.Add(settings);
+            settings.sortingOrder = 37;
+            var runtime = CreateOwnedRoot("Shared Panel Runtime");
+            var hosts = new PresentationLayerHost[2];
+            var layers = new List<PresentationPlanLayer>();
+            for (var index = 0; index < hosts.Length; index++)
+            {
+                var id = "UITK" + index;
+                var hostObject = new GameObject(id);
+                hostObject.SetActive(false);
+                hostObject.transform.SetParent(runtime.transform, false);
+                var renderer = hostObject.AddComponent<PanelRenderer>();
+                renderer.panelSettings = settings;
+                var host = hostObject.AddComponent<UITKPresentationLayerHost>();
+                SetField(host, "layerID", id);
+                hosts[index] = host;
+                layers.Add(Layer(id, PresentationBackend.UITK));
+            }
+
+            var plan = CreatePlan(layers, Array.Empty<PresentationPlanPlacement>());
+            Assert.Throws<InvalidOperationException>
+            (
+                () => PresentationSession.CreateTopLevel(plan, runtime.transform, null, null, layerHosts: hosts)
+            );
+            Assert.AreEqual(37, settings.sortingOrder);
+            Assert.AreEqual(2, runtime.transform.childCount);
+            foreach (var host in hosts)
+            {
+                Assert.IsFalse(host.gameObject.activeSelf);
+                Assert.AreSame(settings, host.GetComponent<PanelRenderer>().panelSettings);
+            }
+        }
+
+    #endregion
+
     #region R-1: 최상위 구체화 롤백
 
+        // --------------------------------------------------------------------------------
+        /// <summary>
+        /// <br/> 생성된 Output Component 또는 GameObject가 외부에서 파괴된 뒤 Release가 남은
+        /// <br/> generated object를 제거한다.
+        /// </summary>
+        // --------------------------------------------------------------------------------
         [TestCase(false)]
         [TestCase(true)]
         public void TEST_PresentationMaterializer_외부파괴후Release_잔여GeneratedObject제거(bool destroyGameObject)
@@ -572,6 +625,12 @@ namespace inonego.Xeri.UI.TEST.Core
             Assert.AreEqual(0, root.transform.childCount);
         }
 
+        // --------------------------------------------------------------------------------
+        /// <summary>
+        /// <br/> Borrowed Layer Host가 외부에서 파괴된 뒤 Release가 authored 활성 상태와
+        /// <br/> Canvas order를 복원한다.
+        /// </summary>
+        // --------------------------------------------------------------------------------
         [Test]
         public void TEST_PresentationLayerHost_HostComponent외부파괴_AuthoredState복원()
         {

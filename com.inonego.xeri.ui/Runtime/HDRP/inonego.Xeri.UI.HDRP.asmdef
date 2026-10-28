@@ -1,0 +1,27 @@
+{
+  "name": "inonego.Xeri.UI.HDRP",
+  "rootNamespace": "",
+  "references": [
+    "Unity.Collections",
+    "Unity.RenderPipelines.Core.Runtime",
+    "Unity.RenderPipelines.HighDefinition.Runtime",
+    "inonego.Xeri.UI"
+  ],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": true,
+  "defineConstraints": [
+    "XERI_HDRP_17_7_OR_NEWER"
+  ],
+  "versionDefines": [
+    {
+      "name": "com.unity.render-pipelines.high-definition",
+      "expression": "[17.7.0,99.0.0)",
+      "define": "XERI_HDRP_17_7_OR_NEWER"
+    }
+  ],
+  "noEngineReferences": false
+}

@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : UITKModal.cs
-수정일 : 2026-10-07
+수정일 : 2026-10-21
 
 # 설명
 일반 UITK Modal 사용에서 PresentationTarget Layer Lease 획득, hierarchy attach/detach,
@@ -317,8 +317,7 @@ namespace inonego.Xeri.UI
                     );
                 }
 
-                layer.Root.Add(root);
-                hierarchyLifetime = new Lease(root.RemoveFromHierarchy);
+                hierarchyLifetime = UITKPresentationLayer.Attach(layer, root);
 
                 return focusScope == null
                     ? Open(context, root, layerLease, hierarchyLifetime)

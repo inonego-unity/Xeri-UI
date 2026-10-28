@@ -233,6 +233,11 @@ namespace inonego.Xeri.UI
             return true;
         }
 
+        // ------------------------------------------------------------
+        /// <summary>
+        /// 활성 소비자가 없는 Layer를 비활성화하고 등록을 terminal 처리한다.
+        /// </summary>
+        // ------------------------------------------------------------
         internal void Unregister(Entry entry)
         {
             if (entry == null)

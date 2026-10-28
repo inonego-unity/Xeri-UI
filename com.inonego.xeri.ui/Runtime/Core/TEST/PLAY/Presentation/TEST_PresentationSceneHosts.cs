@@ -1,13 +1,13 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : TEST_PresentationSceneHosts.cs
-수정일 : 2026-09-30
+수정일 : 2026-10-21
 
 # 설명
 PanelRenderer와 VisualElementReference를 사용하는 scene-authored UITK Presentation Host의
 borrow, LocalOrder 적용, authored state 복원 계약을 PlayMode에서 검증한다.
 
 # 테스트 구성
- H: UITK Scene-authored LayerHost / PlacementHost
+ H: UITK authored Host, Native 트리 재생성과 포커스 재연결
 ========================================================================= BLOCK_HEADER_END */
 
 using System;
@@ -558,6 +558,89 @@ namespace inonego.Xeri.UI.TEST.Core
                     session.Dispose();
                 }
             }
+        }
+
+    #endregion
+
+    #region H-2: Native 트리 재생성과 입력 재연결
+
+        // ----------------------------------------------------------------------
+        /// <summary>
+        /// UXML 재생성 뒤 authored·generated 콘텐츠와 포커스를 함께 재연결한다.
+        /// </summary>
+        // ----------------------------------------------------------------------
+        [UnityTest]
+        public IEnumerator TEST_PresentationSession_UITKSceneHost_루트재생성뒤콘텐츠와포커스유지()
+        {
+            using var fixture = new HostFixture();
+            var placementHost = fixture.CreatePlacementHost("Screen.Late", LATE_PLACEMENT_AUTHORING_ID);
+            SetField
+            (
+                fixture.LayerHost, "placementHosts",
+                new PresentationPlacementHost[]
+                {
+                    placementHost
+                }
+            );
+            using var managedObserver = new ReferenceObserver(fixture.Renderer, MANAGED_ROOT_AUTHORING_ID);
+            using var placementObserver = new ReferenceObserver(fixture.Renderer, LATE_PLACEMENT_AUTHORING_ID);
+            yield return WaitForReferences(managedObserver, placementObserver);
+
+            var focus = fixture.Root.AddComponent<UITKFocusDriver>();
+            var plan = CreatePlan(Layer("Screen", 100), ("Screen.Generated", 20), ("Screen.Late", 30));
+            PresentationSession session = null;
+            Lease generatedUsage = null;
+            Lease authoredUsage = null;
+            Lease attachment = null;
+            try
+            {
+                session = PresentationSession.CreateTopLevel
+                (
+                    plan, fixture.Root.transform, null, null,
+                    bindFocus: layer => focus.RegisterLayer(layer),
+                    layerHosts: new PresentationLayerHost[]
+                    {
+                        fixture.LayerHost
+                    }
+                );
+                Assert.IsTrue(session.TryAcquirePlacement("Screen.Generated", out var generated, out generatedUsage));
+                Assert.IsTrue(session.TryAcquirePlacement("Screen.Late", out var authored, out authoredUsage));
+                var generatedRoot = ((IPresentationLayerDriver<VisualElement>)generated).Root;
+                var authoredLayer = (UITKPresentationLayer)authored;
+                var previousRoot = authoredLayer.Root;
+                var button = new Button();
+                attachment = UITKPresentationLayer.Attach(authoredLayer, button);
+                var tree = fixture.Renderer.visualTreeAsset;
+
+                fixture.Renderer.visualTreeAsset = null;
+                yield return null;
+                Assert.IsNull(authoredLayer.Root);
+                Assert.IsNull(button.parent);
+                Assert.IsNull(generatedRoot.parent);
+
+                fixture.Renderer.visualTreeAsset = tree;
+                yield return WaitForReferences(managedObserver, placementObserver);
+                yield return null;
+                Assert.AreNotSame(previousRoot, authoredLayer.Root);
+                Assert.AreSame(placementObserver.Value, authoredLayer.Root);
+                Assert.AreSame(authoredLayer.Root, button.parent);
+                Assert.AreSame(managedObserver.Value, generatedRoot.parent);
+                Assert.AreEqual(30, authoredLayer.Root.style.zIndex.value);
+                Assert.AreEqual(20, generatedRoot.style.zIndex.value);
+                Assert.IsNotNull(fixture.Output.Root.Q("static-content"));
+                Assert.IsTrue(focus.IsValid(button));
+                focus.Select(button);
+                Assert.AreSame(button, focus.Current);
+            }
+            finally
+            {
+                attachment?.Dispose();
+                authoredUsage?.Dispose();
+                generatedUsage?.Dispose();
+                session?.Dispose();
+            }
+
+            Assert.AreEqual(37, fixture.OriginalPanelSettings.sortingOrder);
         }
 
     #endregion

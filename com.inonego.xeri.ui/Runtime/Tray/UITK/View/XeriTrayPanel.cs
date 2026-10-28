@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명: XeriTrayPanel.cs
-수정일 : 2026-10-03
+수정일 : 2026-10-28
 
 # 설명
 공통 Tray entry 목록을 표시하고 UI Core Presentation 상태를 제공하는 UITK Tray panel.
@@ -31,7 +31,7 @@ namespace inonego.Xeri.UI.Tray
         IPresentation
     {
 
-    #region 필드
+    #region Panel 상태와 표시 요소
 
         private const string TRAY_PANEL_UXML_PATH = "XeriUI/Tray/XeriTrayPanel";
         private const string TRAY_PANEL_USS_PATH  = "XeriUI/Tray/XeriTrayPanelStyles";
@@ -133,6 +133,11 @@ namespace inonego.Xeri.UI.Tray
 
     #region 생성자
 
+        // ------------------------------------------------------------
+        /// <summary>
+        /// Tray 항목을 표시하는 Panel을 생성한다.
+        /// </summary>
+        // ------------------------------------------------------------
         public XeriTrayPanel() : base()
         {
             name = "xeri-tray";

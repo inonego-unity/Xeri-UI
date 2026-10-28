@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : PresentationVisibility.cs
-수정일 : 2026-10-06
+수정일 : 2026-10-28
 
 # 설명
 Presentation의 local Visibility 값과 Modifier 소유권을 backend 적용과 함께 관리한다.
@@ -30,14 +30,36 @@ namespace inonego.Xeri.UI
 
     #region 상태
 
+        // ------------------------------------------------------------
+        /// <summary>
+        /// 연결된 Visibility 대상이 유효한지 확인한다.
+        /// </summary>
+        // ------------------------------------------------------------
         public bool IsValid => target != null && target.IsValid;
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// Modifier 적용 전의 기준 표시 상태이다.
+        /// </summary>
+        // ------------------------------------------------------------
         public bool Base
         {
             get => state.Base;
             set => Set(value);
         }
 
+        // ------------------------------------------------------------
+        /// <summary>
+        /// Modifier를 적용해 계산한 표시 상태이다.
+        /// </summary>
+        // ------------------------------------------------------------
         public bool Modified => state.Modified;
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// 등록된 Visibility Modifier를 순서대로 제공한다.
+        /// </summary>
+        // ------------------------------------------------------------
         public IReadOnlyXOrdered<int, string, IModifier<bool>> Modifiers => state.Modifiers;
 
         private readonly IPresentationVisibilityTarget target;
@@ -81,11 +103,21 @@ namespace inonego.Xeri.UI
 
     #region 생성자
 
+        // ------------------------------------------------------------
+        /// <summary>
+        /// 대상 없이 기본 표시 상태로 생성한다.
+        /// </summary>
+        // ------------------------------------------------------------
         public PresentationVisibility()
         {
             state = new PresentationValue<bool>(this, true, null, null);
         }
 
+        // ------------------------------------------------------------
+        /// <summary>
+        /// 대상의 현재 표시 상태를 기준값으로 사용한다.
+        /// </summary>
+        // ------------------------------------------------------------
         public PresentationVisibility(IPresentationVisibilityTarget target)
         {
             this.target = RequireTarget(target);

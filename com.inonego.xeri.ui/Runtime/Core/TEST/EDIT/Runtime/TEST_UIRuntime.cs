@@ -1,6 +1,6 @@
 ﻿/* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : TEST_UIRuntime.cs
-수정일 : 2026-10-07
+수정일 : 2026-10-19
 
 # 설명
 UIRuntime의 Root Presentation, Context Authority, Scene 구성과 초기화·종료 실패 정리를 검증한다.
@@ -10,7 +10,7 @@ UIRuntime의 Root Presentation, Context Authority, Scene 구성과 초기화·�
  R: Runtime 종료 실패와 Terminal 정리
  S: Screen 정리 실패와 Terminal Shutdown
  A: Main/Child Context tree와 Context Authority
- C: Host·Scene 구성 검증
+ C: Runtime 초기화와 Scene 구성 검증
 ========================================================================= BLOCK_HEADER_END */
 
 using System;
@@ -1245,6 +1245,12 @@ namespace inonego.Xeri.UI.TEST.Core
             Assert.DoesNotThrow(fixture.Runtime.Shutdown);
         }
 
+        // --------------------------------------------------------------------------------
+        /// <summary>
+        /// <br/> Child Context는 직접 Parent Session에 속한 Presentation만 받아들이고 손자
+        /// <br/> Presentation 연결을 거부한다.
+        /// </summary>
+        // --------------------------------------------------------------------------------
         [Test]
         public void TEST_UIContext_ChildPresentation_직접ParentSession관계만허용()
         {
@@ -1507,7 +1513,7 @@ namespace inonego.Xeri.UI.TEST.Core
 
     #endregion
 
-    #region C-1: 싱글턴과 씬 구성 중복
+    #region C-1: Runtime 초기화와 Scene 구성 검증
 
         // ----------------------------------------------------------------------
         /// <summary>
@@ -1560,6 +1566,38 @@ namespace inonego.Xeri.UI.TEST.Core
             Assert.IsTrue(fixture.Runtime.IsReleased);
             Assert.AreEqual(0, fixture.PresentationRoot.childCount);
             Assert.AreEqual(0, fixture.FadeProvider.AcquireCount);
+        }
+
+        // ----------------------------------------------------------------------
+        /// <summary>
+        /// Inspector의 Everything과 명시적인 All 모두 Runtime을 초기화한다.
+        /// </summary>
+        // ----------------------------------------------------------------------
+        [TestCase(-1)]
+        [TestCase((int)PresentationBackendSupport.All)]
+        public void TEST_UIRuntime_BackendEverything_정상초기화(int serializedValue)
+        {
+            var fixture = CreateRuntimeFixture();
+            JsonUtility.FromJsonOverwrite
+            (
+                "{\"backendSupport\":" + serializedValue + "}",
+                fixture.Settings
+            );
+
+            fixture.Runtime.Initialize(fixture.Settings);
+
+            Assert.AreEqual(PresentationBackendSupport.All, fixture.Settings.BackendSupport);
+            Assert.IsTrue(fixture.Settings.SupportsBackend(PresentationBackend.UGUI));
+            Assert.IsTrue(fixture.Settings.SupportsBackend(PresentationBackend.UITK));
+            Assert.IsTrue(fixture.Runtime.IsInitialized);
+            Assert.AreSame(fixture.Runtime, UIRuntime.Current);
+            Assert.IsNotNull(fixture.Runtime.Main);
+            Assert.IsTrue(fixture.Runtime.Main.IsEffective);
+
+            fixture.Runtime.Shutdown();
+
+            Assert.IsTrue(fixture.Runtime.IsReleased);
+            Assert.IsFalse(UIRuntime.TryCurrent(out _));
         }
 
         // ------------------------------------------------------------

@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : XeriValidationTaskBoard.cs
-수정일 : 2026-10-05
+수정일 : 2026-10-19
 
 # 설명
 Validation Desktop에서 일반 사용 흐름을 제공하는 Task Board natural application.
@@ -73,11 +73,11 @@ namespace inonego.Xeri.UI.Validation
             status = XeriValidationUI.Require<Label>(Root, "TaskStatus");
 
             addButton.clicked += AddTask;
-            AddTask("Review validation topology");
-            AddTask("Exercise window interactions");
-            input.value = "Check free-form interaction";
+            AddTask("검증 화면 구성 살펴보기");
+            AddTask("창 이동과 크기 변경 확인하기");
+            input.value = "자유롭게 조작해 보기";
             RefreshStatus();
-            checklist?.Mark(XeriValidationChecklist.Item.WindowOpen, "Task Board");
+            checklist?.Mark(XeriValidationChecklist.Item.WindowOpen, "할 일");
         }
 
         // ------------------------------------------------------------
@@ -134,7 +134,7 @@ namespace inonego.Xeri.UI.Validation
                 }
             }
 
-            status.text = $"{complete} / {tasks.Count} complete";
+            status.text = $"{complete} / {tasks.Count} 완료";
         }
 
         // ------------------------------------------------------------

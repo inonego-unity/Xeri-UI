@@ -129,6 +129,11 @@ namespace inonego.Xeri.UI.TEST.Core
 
     #region T-1: UGUI 최상위 네이티브 출력
 
+        // --------------------------------------------------------------------------------
+        /// <summary>
+        /// 최상위 UGUI Layer가 출력 Canvas 아래에 구체화되고 Canvas 렌더 설정을 사용한다.
+        /// </summary>
+        // --------------------------------------------------------------------------------
         [Test]
         public void TEST_PresentationSession_TopLevelUGUI_LayerOrder_CanvasSortingOrder반영()
         {
@@ -154,6 +159,12 @@ namespace inonego.Xeri.UI.TEST.Core
 
     #region T-2: UITK 레이어별 네이티브 출력
 
+        // --------------------------------------------------------------------------------
+        /// <summary>
+        /// <br/> 최상위 UITK Layer별로 PanelRenderer와 Runtime PanelSettings를 만들고 Layer
+        /// <br/> order를 반영한다.
+        /// </summary>
+        // --------------------------------------------------------------------------------
         [Test]
         public void TEST_PresentationSession_TopLevelUITK_Layer별PanelRenderer와Order생성()
         {
@@ -419,6 +430,11 @@ namespace inonego.Xeri.UI.TEST.Core
 
     #region T-4: 배치 호스트 토폴로지 검증
 
+        // --------------------------------------------------------------------------------
+        /// <summary>
+        /// 다른 Layer 소속 Placement를 연결한 authored Host 구성을 활성화 전에 거부한다.
+        /// </summary>
+        // --------------------------------------------------------------------------------
         [Test]
         public void TEST_PresentationSession_PlacementHost가다른Layer에연결_Activation전거부()
         {
@@ -493,6 +509,11 @@ namespace inonego.Xeri.UI.TEST.Core
 
     #region P-1: UGUI LocalOrder 정렬
 
+        // ----------------------------------------------------------------------
+        /// <summary>
+        /// UGUI Placement를 LocalOrder 순서대로 sibling index에 구체화한다.
+        /// </summary>
+        // ----------------------------------------------------------------------
         [Test]
         public void TEST_PresentationSession_UGUIPlacement_LocalOrder를SiblingOrder로Materialize()
         {
@@ -553,6 +574,11 @@ namespace inonego.Xeri.UI.TEST.Core
 
     #region P-2: UITK LocalOrder 정렬
 
+        // ----------------------------------------------------------------------
+        /// <summary>
+        /// UITK Placement의 LocalOrder를 VisualElement z-index에 구체화한다.
+        /// </summary>
+        // ----------------------------------------------------------------------
         [Test]
         public void TEST_PresentationSession_UITKPlacement_LocalOrder를ZIndex로Materialize()
         {
@@ -652,6 +678,12 @@ namespace inonego.Xeri.UI.TEST.Core
 
     #region C-1: 자식 세션 연결와 분리
 
+        // --------------------------------------------------------------------------------
+        /// <summary>
+        /// <br/> Child Session 생성과 해제가 Parent Plan을 바꾸지 않고 호스트 하위 트리를 함께
+        /// <br/> 정리한다.
+        /// </summary>
+        // --------------------------------------------------------------------------------
         [Test]
         public void TEST_PresentationSession_Child생성해제_ParentPlan불변과Tree수명유지()
         {
@@ -816,6 +848,12 @@ namespace inonego.Xeri.UI.TEST.Core
 
     #region C-2: 자식 세션 분기 불변식
 
+        // --------------------------------------------------------------------------------
+        /// <summary>
+        /// <br/> Child Session이 외부 Root를 사용하거나 Host backend와 맞지 않는 경우 생성을
+        /// <br/> 거부한다.
+        /// </summary>
+        // --------------------------------------------------------------------------------
         [Test]
         public void TEST_PresentationSession_ChildRoot_외부Root와Backend불일치거부()
         {
@@ -870,6 +908,12 @@ namespace inonego.Xeri.UI.TEST.Core
             );
         }
 
+        // --------------------------------------------------------------------------------
+        /// <summary>
+        /// <br/> 이미 Child Session이 소유한 branch 내부 Root를 Parent의 새 Child Root로
+        /// <br/> 재사용하지 못하게 한다.
+        /// </summary>
+        // --------------------------------------------------------------------------------
         [Test]
         public void TEST_PresentationSession_Parent가ExistingChildBranch에SiblingRoot거부()
         {
@@ -931,6 +975,12 @@ namespace inonego.Xeri.UI.TEST.Core
 
     #region I-1: 동일 레이아웃 형제 세션 격리
 
+        // --------------------------------------------------------------------------------
+        /// <summary>
+        /// <br/> 같은 Layout으로 만든 형제 Child Session이 Registry, Placement Root와 종료
+        /// <br/> 상태를 독립적으로 소유한다.
+        /// </summary>
+        // --------------------------------------------------------------------------------
         [Test]
         public void TEST_PresentationSession_동일LayoutSibling_Registry와PlacementState독립()
         {
@@ -1037,6 +1087,12 @@ namespace inonego.Xeri.UI.TEST.Core
 
     #region L-1: 활성 소비자 수명
 
+        // --------------------------------------------------------------------------------
+        /// <summary>
+        /// <br/> 활성 Placement Usage가 있을 때 Session 종료를 거부하고 Usage 반환 뒤 종료를
+        /// <br/> 허용한다.
+        /// </summary>
+        // --------------------------------------------------------------------------------
         [Test]
         public void TEST_PresentationSession_활성PlacementUsage_Dispose거부후반환뒤종료()
         {

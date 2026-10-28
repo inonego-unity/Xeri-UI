@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : TEST_ScreenController.cs
-수정일 : 2026-10-05
+수정일 : 2026-10-28
 
 # 설명
 Screen 수명·상태 훅 정리, Focus 복원과 닫기 입력 장벽 계약을 검증한다.
@@ -15,6 +15,7 @@ Screen 수명·상태 훅 정리, Focus 복원과 닫기 입력 장벽 계약을
  T: Transition 취소 Terminal 처리·실패·Clear
  F: persistent Focus Scope와 LastFocus
  X: 완료 훅 예외 정리
+ Y: 입력·커서·전환 실패 시 트랜잭션 정리
 ========================================================================= BLOCK_HEADER_END */
 
 using System;

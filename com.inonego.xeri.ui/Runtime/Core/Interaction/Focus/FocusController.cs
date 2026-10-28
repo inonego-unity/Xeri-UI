@@ -1,6 +1,6 @@
 ﻿/* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : FocusController.cs
-수정일 : 2026-10-03
+수정일 : 2026-10-28
 
 # 설명
 Screen과 Focus Scope의 persistent Focus record를 통합해 Base, Primary와 Override 선택을 관리한다.
@@ -27,6 +27,12 @@ namespace inonego.Xeri.UI
     #region 필드
 
         internal FocusController.Record Record { get; private set; }
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// Focus Scope 사용 수명이 종료됐는지 확인한다.
+        /// </summary>
+        // ------------------------------------------------------------
         public bool IsDisposed => Record == null;
 
         private FocusController owner = null;
@@ -124,6 +130,11 @@ namespace inonego.Xeri.UI
 
     #region 생성자
 
+        // ------------------------------------------------------------
+        /// <summary>
+        /// 지정한 Focus Driver를 사용하는 Controller를 생성한다.
+        /// </summary>
+        // ------------------------------------------------------------
         public FocusController(IFocusDriver driver)
         {
             this.driver = driver ?? throw new ArgumentNullException(nameof(driver));
@@ -203,6 +214,11 @@ namespace inonego.Xeri.UI
             return record;
         }
 
+        // ------------------------------------------------------------
+        /// <summary>
+        /// Base Scope를 바꾸고 현재 유효한 범위만 native Focus에 적용한다.
+        /// </summary>
+        // ------------------------------------------------------------
         private void SetBaseRecord(Record record)
         {
             var previous = baseRecord;
@@ -378,6 +394,11 @@ namespace inonego.Xeri.UI
             return new Lease(() => ReleaseOverride(record));
         }
 
+        // ------------------------------------------------------------
+        /// <summary>
+        /// Override를 제거하고 top 변경 시 다음 유효 Focus를 복원한다.
+        /// </summary>
+        // ------------------------------------------------------------
         private void ReleaseOverride(Record record)
         {
             var index = overrides.IndexOf(record);
@@ -416,6 +437,11 @@ namespace inonego.Xeri.UI
             ThrowErrors("Focus Override 해제", errors);
         }
 
+        // ------------------------------------------------------------
+        /// <summary>
+        /// Scope 등록과 선택 참조를 제거하고 필요하면 Focus를 복원한다.
+        /// </summary>
+        // ------------------------------------------------------------
         internal void Unregister(Record record)
         {
             if (record == null || !records.TryGetValue(record.Owner, out var current)) return;
@@ -470,6 +496,11 @@ namespace inonego.Xeri.UI
             ThrowErrors("Focus Scope 등록 해제", errors);
         }
 
+        // ----------------------------------------------------------------------
+        /// <summary>
+        /// Handle을 검증하고 이 Controller에 등록된 Scope record를 반환한다.
+        /// </summary>
+        // ----------------------------------------------------------------------
         private Record ResolveHandle(FocusScopeHandle handle)
         {
             if (handle == null) return null;
@@ -491,6 +522,11 @@ namespace inonego.Xeri.UI
 
     #region 권한과 네이티브 포커스
 
+        // ------------------------------------------------------------
+        /// <summary>
+        /// 현재 Focus를 기록하고 native Focus 적용 권한을 반환한다.
+        /// </summary>
+        // ------------------------------------------------------------
         internal void Suspend()
         {
             if (!hasAuthority) return;
@@ -517,6 +553,11 @@ namespace inonego.Xeri.UI
             }
         }
 
+        // ------------------------------------------------------------
+        /// <summary>
+        /// Focus 적용 권한을 얻고 유효한 선택 상태를 복원한다.
+        /// </summary>
+        // ------------------------------------------------------------
         internal void Resume()
         {
             if (hasAuthority) return;
@@ -540,6 +581,11 @@ namespace inonego.Xeri.UI
             CaptureCurrent();
         }
 
+        // ----------------------------------------------------------------------
+        /// <summary>
+        /// 현재 선택이 effective 범위 안에 있으면 그 범위의 기억값으로 저장한다.
+        /// </summary>
+        // ----------------------------------------------------------------------
         private void CaptureCurrent()
         {
             if (!hasAuthority) return;
@@ -563,6 +609,11 @@ namespace inonego.Xeri.UI
             HandleNativeFocusChanged(target);
         }
 
+        // ------------------------------------------------------------
+        /// <summary>
+        /// native 선택을 effective 범위에 기록하거나 범위 밖 선택을 복원한다.
+        /// </summary>
+        // ------------------------------------------------------------
         internal void HandleNativeFocusChanged(object target)
         {
             if (!hasAuthority) return;
@@ -583,6 +634,11 @@ namespace inonego.Xeri.UI
             RestoreEffective();
         }
 
+        // ----------------------------------------------------------------------
+        /// <summary>
+        /// effective 범위의 기억값·기본값 또는 backend fallback을 선택한다.
+        /// </summary>
+        // ----------------------------------------------------------------------
         private void RestoreEffective()
         {
             if (!hasAuthority) return;
@@ -591,6 +647,11 @@ namespace inonego.Xeri.UI
             driver.Select(record != null ? Resolve(record) : driver.FindFallback());
         }
 
+        // ----------------------------------------------------------------------
+        /// <summary>
+        /// Override top, Primary, Base 순서로 현재 Focus 범위를 반환한다.
+        /// </summary>
+        // ----------------------------------------------------------------------
         private Record GetEffectiveRecord()
         {
             return overrides.Count > 0

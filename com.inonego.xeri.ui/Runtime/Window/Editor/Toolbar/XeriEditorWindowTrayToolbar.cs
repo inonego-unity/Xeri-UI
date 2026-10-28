@@ -28,7 +28,7 @@ namespace inonego.Xeri.UI.Window.Editor
     public sealed class XeriEditorWindowTrayToolbar : VisualElement, IDisposable
     {
 
-    #region 필드
+    #region Tray 연결 상태
 
         // ------------------------------------------------------------
         /// <summary>

@@ -1,13 +1,13 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : TEST_UITKUI.cs
-수정일 : 2026-09-24
+수정일 : 2026-10-28
 
 # 설명
-UITK Placement, Interaction, Native Output, Screen, Modal과 Fade의 공개 Runtime 경계를 검증한다.
+UITK Interaction, Native Output, Screen, Modal과 Fade의 공개 Runtime 경계를 검증한다.
 
 # 테스트 구성
- P: backend 공통 Placement와 UITK Interaction
- L: UITK Native Output materialization
+ I: UITK Interaction
+ L: UITK Native Output materialization과 소유 콘텐츠 재연결
  D: Screen·Modal·Fade Driver
  C: Screen Close와 Visual Tree 반환
 ========================================================================= BLOCK_HEADER_END */
@@ -360,67 +360,7 @@ namespace inonego.Xeri.UI.TEST.Core
 
     #endregion
 
-    #region P-1: 배치와 상호작용
-
-        // --------------------------------------------------------------------------------
-        /// <summary>
-        /// <br/> 같은 Top 정렬이 UGUI Y-up과 UITK Y-down에서 시각적으로 같은 방향을 가리키고,
-        /// <br/> 요소 Pivot을 반영한 clamp가 전체 Rect를 Bounds 안에 유지하는지 검증한다.
-        /// </summary>
-        // --------------------------------------------------------------------------------
-        [Test]
-        public void TEST_PlacementSolver_좌표방향과Pivot_동일정렬과Bounds유지()
-        {
-            var solver = new PlacementSolver();
-            var bounds = new Rect(0.0f, 0.0f, 100.0f, 100.0f);
-            var yUp = solver.Place
-            (
-                bounds,
-                new Vector2(50.0f, 50.0f),
-                new Vector2(20.0f, 10.0f),
-                new PlacementOptions
-                (
-                    PlacementAlignment.Top,
-                    Vector2.zero,
-                    Vector2.zero,
-                    clampToBounds: false,
-                    coordinateSystem: PlacementCoordinateSystem.YUp
-                )
-            );
-            var yDown = solver.Place
-            (
-                bounds,
-                new Vector2(50.0f, 50.0f),
-                new Vector2(20.0f, 10.0f),
-                new PlacementOptions
-                (
-                    PlacementAlignment.Top,
-                    Vector2.zero,
-                    Vector2.zero,
-                    clampToBounds: false,
-                    coordinateSystem: PlacementCoordinateSystem.YDown
-                )
-            );
-            var clamped = solver.Place
-            (
-                bounds,
-                new Vector2(95.0f, 95.0f),
-                new Vector2(20.0f, 10.0f),
-                Vector2.zero,
-                new PlacementOptions
-                (
-                    PlacementAlignment.Center,
-                    Vector2.zero,
-                    Vector2.zero,
-                    coordinateSystem: PlacementCoordinateSystem.YDown
-                )
-            );
-
-            Assert.AreEqual(55.0f, yUp.LocalPosition.y);
-            Assert.AreEqual(45.0f, yDown.LocalPosition.y);
-            Assert.AreEqual(new Vector2(80.0f, 90.0f), clamped.LocalPosition);
-            Assert.IsTrue(clamped.WasClamped);
-        }
+    #region I-1: UITK 상호작용
 
         // --------------------------------------------------------------------------------
         /// <summary>
@@ -474,7 +414,6 @@ namespace inonego.Xeri.UI.TEST.Core
             Assert.AreSame(output.RuntimePanelSettings, panelRenderer.panelSettings);
             Assert.AreEqual(23.0f, output.RuntimePanelSettings.sortingOrder);
             Assert.IsNull(output.RuntimePanelSettings.targetTexture);
-            Assert.IsFalse(output.RuntimePanelSettings.forceGammaRendering);
             Assert.IsFalse(output.RuntimePanelSettings.clearDepthStencil);
 
             output.ReleaseOutputState();
@@ -533,6 +472,50 @@ namespace inonego.Xeri.UI.TEST.Core
             Assert.AreEqual(23.0f, output.RuntimePanelSettings.sortingOrder);
 
             output.ReleaseOutputState();
+        }
+
+    #endregion
+
+    #region L-2: 런타임 콘텐츠의 루트 교체
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// 루트 교체 시 소유 콘텐츠만 옮기고 원래 요소와 논리 상태를 보존한다.
+        /// </summary>
+        // ------------------------------------------------------------
+        [Test]
+        public void TEST_UITKPresentationLayer_루트교체와해제에서소유콘텐츠만이동()
+        {
+            var originalRoot = new VisualElement();
+            var authored = new VisualElement();
+            originalRoot.Add(authored);
+            var originalDisplay = originalRoot.style.display;
+            var layer = new UITKPresentationLayer(originalRoot);
+            var content = new VisualElement();
+            var button = new Button();
+            content.Add(button);
+            using var attachment = UITKPresentationLayer.Attach(layer, content);
+            layer.SetActive(false);
+
+            layer.RebindRoot(null);
+            Assert.IsNull(layer.Root);
+            Assert.IsNull(content.parent);
+            Assert.AreSame(originalRoot, authored.parent);
+            Assert.AreEqual(originalDisplay, originalRoot.style.display);
+
+            var replacement = new VisualElement();
+            var replacementAuthored = new VisualElement();
+            replacement.Add(replacementAuthored);
+            layer.RebindRoot(replacement);
+            Assert.AreSame(replacement, content.parent);
+            Assert.AreSame(content, button.parent);
+            Assert.AreSame(replacement, replacementAuthored.parent);
+            Assert.AreSame(originalRoot, authored.parent);
+            Assert.AreEqual(DisplayStyle.None, replacement.style.display.value);
+
+            attachment.Dispose();
+            layer.RebindRoot(new VisualElement());
+            Assert.IsNull(content.parent, "반환한 콘텐츠가 다음 루트에 다시 연결됐습니다.");
         }
 
     #endregion

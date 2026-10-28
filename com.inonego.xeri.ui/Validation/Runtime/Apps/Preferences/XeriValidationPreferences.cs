@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : XeriValidationPreferences.cs
-수정일 : 2026-10-05
+수정일 : 2026-10-19
 
 # 설명
 Validation Desktop의 form/control natural application.
@@ -79,6 +79,8 @@ namespace inonego.Xeri.UI.Validation
             applyButton = XeriValidationUI.Require<Button>(Root, "PreferencesApply");
             status = XeriValidationUI.Require<Label>(Root, "PreferencesStatus");
 
+            theme.formatSelectedValueCallback = FormatWindowStyle;
+            theme.formatListItemCallback = FormatWindowStyle;
             theme.choices = new List<string>
             {
                 "Windows",
@@ -86,12 +88,14 @@ namespace inonego.Xeri.UI.Validation
                 "Minimal",
             };
             theme.value = appearance.WindowStyle;
+            palette.formatSelectedValueCallback = FormatPalette;
+            palette.formatListItemCallback = FormatPalette;
             palette.choices = new List<string>
             {
                 "Dark", "Light",
             };
             palette.value = appearance.Palette;
-            displayName.value = "Validation User";
+            displayName.value = "사용자";
             compactMode.value = appearance.Compact;
             scale.lowValue = 0.8f;
             scale.highValue = 1.4f;
@@ -99,7 +103,7 @@ namespace inonego.Xeri.UI.Validation
             applyButton.clicked += Apply;
             theme.RegisterValueChangedCallback(OnThemeChanged);
             palette.RegisterValueChangedCallback(OnThemeChanged);
-            status.text = $"{appearance.Palette} · {appearance.WindowStyle}";
+            RefreshStatus();
         }
 
     #endregion
@@ -124,8 +128,37 @@ namespace inonego.Xeri.UI.Validation
         private void Apply()
         {
             appearance.Set(palette.value, theme.value, compactMode.value);
-            status.text =
-                $"{appearance.Palette} · {appearance.WindowStyle}";
+            RefreshStatus();
+        }
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// 저장된 설정값과 구분해 한글 표시 이름을 갱신한다.
+        /// </summary>
+        // ------------------------------------------------------------
+        private void RefreshStatus()
+        {
+            status.text = $"{FormatPalette(appearance.Palette)} · {FormatWindowStyle(appearance.WindowStyle)}";
+        }
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// 팔레트의 화면 표시 이름을 반환한다.
+        /// </summary>
+        // ------------------------------------------------------------
+        private static string FormatPalette(string value)
+        {
+            return value == "Light" ? "밝게" : "어둡게";
+        }
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// 창 스타일의 화면 표시 이름을 반환한다.
+        /// </summary>
+        // ------------------------------------------------------------
+        private static string FormatWindowStyle(string value)
+        {
+            return value == "Minimal" ? "미니멀" : value;
         }
 
     #endregion

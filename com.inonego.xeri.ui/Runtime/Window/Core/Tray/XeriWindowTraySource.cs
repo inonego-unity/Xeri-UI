@@ -25,7 +25,7 @@ namespace inonego.Xeri.UI.Window
     public sealed class XeriWindowTraySource : IXeriTraySource, IDisposable
     {
 
-    #region 필드
+    #region Source 상태와 Registry 연결
 
         // ------------------------------------------------------------
         /// <summary>

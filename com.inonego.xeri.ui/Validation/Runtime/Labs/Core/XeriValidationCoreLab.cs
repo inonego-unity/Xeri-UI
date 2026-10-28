@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : XeriValidationCoreLab.cs
-수정일 : 2026-10-07
+수정일 : 2026-10-19
 
 # 설명
 Root UIContext의 Host Target 기반 Presentation, Spotlight와 Scene Fade를 실제 public API로 행사하는 instrumented Core Lab.
@@ -111,7 +111,7 @@ namespace inonego.Xeri.UI.Validation
             overlayButton.clicked += ToggleOverlay;
             spotlightButton.clicked += ToggleSpotlight;
             fadeButton.clicked += RunFade;
-            status.text = "Ready · public Core path";
+            status.text = "준비됨 · 기본 기능";
         }
 
         // ------------------------------------------------------------
@@ -125,13 +125,13 @@ namespace inonego.Xeri.UI.Validation
             (
                 assets,
                 appearance,
-                "CORE HOME"
+                "기본 홈"
             );
             detailSource = new CoreScreenSource
             (
                 assets,
                 appearance,
-                "CORE DETAIL"
+                "기본 상세"
             );
             homeRegistration = runtime.Main.RegisterScreen
             (
@@ -172,12 +172,12 @@ namespace inonego.Xeri.UI.Validation
         {
             var response = runtime.Main.Screens.Open(XeriValidationIDs.CoreHome);
             status.text = response.Accepted
-                ? "Root Screen · Home opened"
-                : "Root Screen · Home rejected";
+                ? "기본 화면 · 홈 열림"
+                : "기본 화면 · 홈 열기 거부됨";
 
             if (response.Accepted)
             {
-                checklist?.Mark(XeriValidationChecklist.Item.CoreScreen, "Open");
+                checklist?.Mark(XeriValidationChecklist.Item.CoreScreen, "열기");
             }
         }
 
@@ -190,12 +190,12 @@ namespace inonego.Xeri.UI.Validation
         {
             var response = runtime.Main.Screens.Open(XeriValidationIDs.CoreDetail);
             status.text = response.Accepted
-                ? $"Root Screen · Push depth {runtime.Main.Screens.Count}"
-                : "Root Screen · Push rejected";
+                ? $"기본 화면 · {runtime.Main.Screens.Count}개 열림"
+                : "기본 화면 · 추가 거부됨";
 
             if (response.Accepted)
             {
-                checklist?.Mark(XeriValidationChecklist.Item.CoreScreen, "Push");
+                checklist?.Mark(XeriValidationChecklist.Item.CoreScreen, "추가");
             }
         }
 
@@ -208,12 +208,12 @@ namespace inonego.Xeri.UI.Validation
         {
             var response = runtime.Main.Screens.Replace(XeriValidationIDs.CoreDetail);
             status.text = response.Accepted
-                ? "Root Screen · Top replaced"
-                : "Root Screen · Replace rejected";
+                ? "기본 화면 · 현재 화면 교체됨"
+                : "기본 화면 · 교체 거부됨";
 
             if (response.Accepted)
             {
-                checklist?.Mark(XeriValidationChecklist.Item.CoreScreen, "Replace");
+                checklist?.Mark(XeriValidationChecklist.Item.CoreScreen, "교체");
             }
         }
 
@@ -226,12 +226,12 @@ namespace inonego.Xeri.UI.Validation
         {
             var closed = runtime.Main.Screens.Close();
             status.text = closed
-                ? $"Root Screen · Pop depth {runtime.Main.Screens.Count}"
-                : "Root Screen · Pop rejected";
+                ? $"기본 화면 · {runtime.Main.Screens.Count}개 남음"
+                : "기본 화면 · 돌아가기 거부됨";
 
             if (closed)
             {
-                checklist?.Mark(XeriValidationChecklist.Item.CoreScreen, "Pop");
+                checklist?.Mark(XeriValidationChecklist.Item.CoreScreen, "이전 화면");
             }
         }
 
@@ -243,8 +243,8 @@ namespace inonego.Xeri.UI.Validation
         private void ClearScreens()
         {
             runtime.Main.Screens.Clear();
-            status.text = "Root Screen · Cleared";
-            checklist?.Mark(XeriValidationChecklist.Item.CoreScreen, "Clear");
+            status.text = "기본 화면 · 모두 닫힘";
+            checklist?.Mark(XeriValidationChecklist.Item.CoreScreen, "모두 닫기");
         }
 
     #endregion
@@ -270,7 +270,7 @@ namespace inonego.Xeri.UI.Validation
                 PresentationTarget.Host(PresentationDestinationID.Overlay),
                 source
             );
-            status.text = "Overlay lease acquired";
+            status.text = "알림 표시됨";
             checklist?.Mark(XeriValidationChecklist.Item.Overlay);
         }
 
@@ -289,7 +289,7 @@ namespace inonego.Xeri.UI.Validation
             var current = overlayLease;
             overlayLease = null;
             current.Dispose();
-            status.text = "Overlay lease released";
+            status.text = "알림 닫힘";
         }
 
         // ------------------------------------------------------------
@@ -303,8 +303,8 @@ namespace inonego.Xeri.UI.Validation
             {
                 spotlightLease.Dispose();
                 spotlightLease = null;
-                spotlightButton.text = "Show highlight";
-                status.text = "Highlight hidden";
+                spotlightButton.text = "강조 표시";
+                status.text = "강조 숨겨짐";
                 return;
             }
 
@@ -325,8 +325,8 @@ namespace inonego.Xeri.UI.Validation
                     blocksOutsideInput: false
                 )
             );
-            spotlightButton.text = "Hide highlight";
-            status.text = "Highlight visible · controls remain available";
+            spotlightButton.text = "강조 숨기기";
+            status.text = "강조 표시 중 · 버튼 조작 가능";
         }
 
     #endregion
@@ -349,16 +349,16 @@ namespace inonego.Xeri.UI.Validation
                 runtime.DefaultSceneFadeParams,
                 () =>
                 {
-                    status.text = "Fade covered";
+                    status.text = "화면 가려짐";
                     checklist?.Mark(XeriValidationChecklist.Item.Fade);
                     revealSchedule = Root.schedule.Execute(RevealFade).StartingIn(450);
                 },
                 exception =>
                 {
-                    status.text = $"Fade failed · {exception.GetType().Name}";
+                    status.text = $"화면 전환 실패 · {exception.GetType().Name}";
                 }
             );
-            status.text = "Fade covering";
+            status.text = "화면 전환 중";
         }
 
         // ------------------------------------------------------------
@@ -373,8 +373,8 @@ namespace inonego.Xeri.UI.Validation
             runtime.SceneFader.Reveal
             (
                 runtime.DefaultSceneFadeParams,
-                () => status.text = "Fade clear",
-                exception => status.text = $"Reveal failed · {exception.GetType().Name}"
+                () => status.text = "화면 전환 완료",
+                exception => status.text = $"화면 복원 실패 · {exception.GetType().Name}"
             );
         }
 
@@ -619,7 +619,7 @@ namespace inonego.Xeri.UI.Validation
             // ------------------------------------------------------------
             public void OnOpening(ScreenStateContext context)
             {
-                lifecycle.text = "Opening";
+                lifecycle.text = "여는 중";
             }
 
             // ------------------------------------------------------------
@@ -629,7 +629,7 @@ namespace inonego.Xeri.UI.Validation
             // ------------------------------------------------------------
             public void OnOpened(ScreenStateContext context)
             {
-                lifecycle.text = "Active";
+                lifecycle.text = "활성";
             }
 
             // ------------------------------------------------------------
@@ -639,7 +639,7 @@ namespace inonego.Xeri.UI.Validation
             // ------------------------------------------------------------
             public void OnClosing(ScreenStateContext context)
             {
-                lifecycle.text = "Closing";
+                lifecycle.text = "닫는 중";
             }
 
             // ------------------------------------------------------------
@@ -649,7 +649,7 @@ namespace inonego.Xeri.UI.Validation
             // ------------------------------------------------------------
             public void OnClosed(ScreenStateContext context)
             {
-                lifecycle.text = "Closed";
+                lifecycle.text = "닫힘";
             }
 
         #endregion
@@ -745,10 +745,10 @@ namespace inonego.Xeri.UI.Validation
                 var copy = new VisualElement();
                 copy.AddToClassList("xeri-validation-toast__copy");
 
-                var title = new Label("Presentation");
+                var title = new Label("화면 표시");
                 title.AddToClassList("xeri-validation-toast__title");
 
-                var message = new Label("The transient presentation is active.");
+                var message = new Label("임시 알림이 표시되고 있습니다.");
                 message.AddToClassList("xeri-validation-toast__message");
 
                 copy.Add(title);

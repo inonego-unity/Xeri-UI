@@ -36,7 +36,7 @@ namespace inonego.Xeri.UI
 
     #endregion
 
-    #region 필드
+    #region 상태와 표시 요소
 
         // ------------------------------------------------------------
         /// <summary>

@@ -19,7 +19,7 @@ namespace inonego.Xeri.UI.Window
     public sealed class UITKWindowDriver : IXeriWindowDriver, IFocusScope
     {
 
-    #region 필드
+    #region Window 상태와 표시 대상
 
         private readonly VisualElement target = null;
         private readonly UITKPresentation presentation = null;

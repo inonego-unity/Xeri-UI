@@ -272,6 +272,11 @@ namespace inonego.Xeri.UI
             DisposeCore();
         }
 
+        // ------------------------------------------------------------
+        /// <summary>
+        /// 모든 등록 Handle을 종료하고 Registry의 조회 상태를 비운다.
+        /// </summary>
+        // ------------------------------------------------------------
         private void DisposeCore()
         {
             if (isDisposed) return;

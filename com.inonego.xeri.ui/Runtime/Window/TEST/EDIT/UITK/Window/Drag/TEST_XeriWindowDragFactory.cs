@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : TEST_XeriWindowDragFactory.cs
-수정일 : 2026-09-20
+수정일 : 2026-10-28
 
 # 설명
 XeriWindowDragFactory titlebar drag binding 테스트.
@@ -257,20 +257,29 @@ namespace inonego.Xeri.UI.TEST.Window
 
         // ------------------------------------------------------------
         /// <summary>
-        /// <br/> Titlebar drag는 이동 중인 window 내부 좌표계 대신
-        /// <br/> 안정적인 panel 좌표 provider를 사용한다.
+        /// <br/> 창의 변환이 바뀌어도 Titlebar drag는
+        /// <br/> 입력 panel 좌표와 포인터 이동량을 유지한다.
         /// </summary>
         // ------------------------------------------------------------
         [Test]
-        public void TEST_XeriWindowDragFactory_CreateTitleBarDrag_TitleBar_CoordinateProvider_사용()
+        public void TEST_XeriWindowDragFactory_CreateTitleBarDrag_창이동에도Panel좌표유지()
         {
             var factory = new XeriWindowDragFactory();
-            var drag = factory.CreateTitleBarDrag(new XeriWindowPanel(), CreateController());
+            var panel = new XeriWindowPanel();
+            var drag = factory.CreateTitleBarDrag(panel, CreateController());
+            var provider = drag.DragManipulator.CoordinateProvider;
+            var firstPointer = new Vector2(100.0f, 80.0f);
+            var secondPointer = new Vector2(120.0f, 90.0f);
 
-            Assert.IsInstanceOf<XeriWindowTitleBarCoordinateProvider>
-            (
-                drag.DragManipulator.CoordinateProvider
-            );
+            panel.transform.position = new Vector3(40.0f, 25.0f, 0.0f);
+            var first = provider.ToLocalPos(firstPointer);
+            panel.transform.position = new Vector3(90.0f, 45.0f, 0.0f);
+            var second = provider.ToLocalPos(secondPointer);
+
+            Assert.AreEqual(Vector2.zero, provider.Pos);
+            Assert.AreEqual(firstPointer, first);
+            Assert.AreEqual(secondPointer, second);
+            Assert.AreEqual(secondPointer - firstPointer, second - first);
         }
 
     #endregion
@@ -538,6 +547,50 @@ namespace inonego.Xeri.UI.TEST.Window
                 manipulator.Detach();
                 hostWindow.Close();
             }
+        }
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// 작업 영역이 Panel 원점에서 이동해도 최대화 창 복원 위치는 같다.
+        /// </summary>
+        // ------------------------------------------------------------
+        [Test]
+        public void TEST_XeriWindowTitleBarManipulator_MaximizedDrag_부모좌표기준복원()
+        {
+            Vector2 RestoreAt(Vector2 offset)
+            {
+                var parent = new VisualElement();
+                parent.transform.position = offset;
+                var panel = new XeriWindowPanel();
+                parent.Add(panel);
+                var driver = new TestWindowDriver
+                {
+                    State = XeriWindowState.Maximized,
+                };
+                var manipulator = new XeriWindowTitleBarManipulator(panel, new XeriWindowController(driver));
+                var host = CreateHostWindow(parent);
+
+                try
+                {
+                    manipulator.Attach();
+                    SendPointerDown(panel.TitleBar, offset + new Vector2(100f, 10f));
+                    SendPointerMove(panel.TitleBar, offset + new Vector2(120f, 10f));
+                    SendPointerUp(panel.TitleBar, offset + new Vector2(120f, 10f));
+                    Assert.That(driver.State, Is.EqualTo(XeriWindowState.Normal));
+                    return driver.Pos;
+                }
+                finally
+                {
+                    manipulator.Detach();
+                    host.Close();
+                }
+            }
+
+            var origin = RestoreAt(Vector2.zero);
+            var shifted = RestoreAt(new Vector2(200f, 60f));
+
+            Assert.That(shifted.x, Is.EqualTo(origin.x).Within(0.01f));
+            Assert.That(shifted.y, Is.EqualTo(origin.y).Within(0.01f));
         }
 
     #endregion

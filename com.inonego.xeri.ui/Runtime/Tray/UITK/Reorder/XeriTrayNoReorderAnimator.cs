@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명: XeriTrayNoReorderAnimator.cs
-수정일 : 2026-09-20
+수정일 : 2026-10-28
 
 # 설명
 Tray reorder preview 애니메이션을 사용하지 않는 구현이다.
@@ -21,6 +21,11 @@ namespace inonego.Xeri.UI.Tray
 
     #region 생성자
 
+        // ------------------------------------------------------------
+        /// <summary>
+        /// 이동 애니메이션을 사용하지 않는 처리기를 생성한다.
+        /// </summary>
+        // ------------------------------------------------------------
         public XeriTrayNoReorderAnimator() : base()
         {
             // NONE

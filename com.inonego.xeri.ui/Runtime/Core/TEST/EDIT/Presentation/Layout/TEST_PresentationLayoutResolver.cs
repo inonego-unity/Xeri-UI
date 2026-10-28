@@ -8,7 +8,6 @@ PresentationLayoutResolver의 순수 validation, deterministic order와 immutabl
 # 테스트 구성
  R: Layer/Placement resolve와 ordering
  V: ID·order·output topology validation
- E: Embedded shared-output 제약
  I: Layout과 분리된 immutable Plan snapshot
 ========================================================================= BLOCK_HEADER_END */
 
@@ -92,6 +91,11 @@ namespace inonego.Xeri.UI.TEST.Core
 
     #region R-1: 해석 결과와 조회
 
+        // ----------------------------------------------------------------------
+        /// <summary>
+        /// Layer와 Placement를 각 order에 따라 정렬해 PresentationPlan에 반영한다.
+        /// </summary>
+        // ----------------------------------------------------------------------
         [Test]
         public void TEST_PresentationLayoutResolver_Layer와Placement_Order기준정렬()
         {
@@ -121,6 +125,11 @@ namespace inonego.Xeri.UI.TEST.Core
             Assert.AreEqual("Modal.A", plan.Placements[2].PresentationID);
         }
 
+        // ----------------------------------------------------------------------
+        /// <summary>
+        /// Presentation ID 조회가 해당 Layer와 LocalOrder 정보를 유지한다.
+        /// </summary>
+        // ----------------------------------------------------------------------
         [Test]
         public void TEST_PresentationLayoutResolver_PresentationID조회_Layer와LocalOrder보존()
         {
@@ -148,6 +157,11 @@ namespace inonego.Xeri.UI.TEST.Core
 
     #region R-2: LocalOrder 레이어 경계
 
+        // --------------------------------------------------------------------------------
+        /// <summary>
+        /// 서로 다른 Layer에서 LocalOrder가 같으면 Layer order로 Placement 순서를 정한다.
+        /// </summary>
+        // --------------------------------------------------------------------------------
         [Test]
         public void TEST_PresentationLayoutResolver_다른Layer동일LocalOrder_LayerOrder우선정렬()
         {
@@ -177,6 +191,11 @@ namespace inonego.Xeri.UI.TEST.Core
 
     #region V-1: ID와 참조 검증
 
+        // ------------------------------------------------------------
+        /// <summary>
+        /// 중복 Layer ID가 있는 Layout의 해석을 거부한다.
+        /// </summary>
+        // ------------------------------------------------------------
         [Test]
         public void TEST_PresentationLayoutResolver_중복LayerID_거부()
         {
@@ -196,6 +215,11 @@ namespace inonego.Xeri.UI.TEST.Core
             );
         }
 
+        // ----------------------------------------------------------------------
+        /// <summary>
+        /// 서로 다른 Layer에 같은 Presentation ID가 선언된 Layout의 해석을 거부한다.
+        /// </summary>
+        // ----------------------------------------------------------------------
         [Test]
         public void TEST_PresentationLayoutResolver_중복PresentationID_거부()
         {
@@ -219,6 +243,11 @@ namespace inonego.Xeri.UI.TEST.Core
             );
         }
 
+        // ------------------------------------------------------------
+        /// <summary>
+        /// 존재하지 않는 Layer를 참조하는 Placement를 거부한다.
+        /// </summary>
+        // ------------------------------------------------------------
         [Test]
         public void TEST_PresentationLayoutResolver_정의되지않은LayerPlacement_거부()
         {
@@ -244,6 +273,11 @@ namespace inonego.Xeri.UI.TEST.Core
 
     #region V-2: 순서 충돌와 네이티브 범위
 
+        // ------------------------------------------------------------
+        /// <summary>
+        /// 서로 다른 Layer의 order가 중복된 Layout을 거부한다.
+        /// </summary>
+        // ------------------------------------------------------------
         [Test]
         public void TEST_PresentationLayoutResolver_중복LayerOrder_거부()
         {
@@ -263,6 +297,11 @@ namespace inonego.Xeri.UI.TEST.Core
             );
         }
 
+        // ------------------------------------------------------------
+        /// <summary>
+        /// 한 Layer 안에서 LocalOrder가 중복된 Placement를 거부한다.
+        /// </summary>
+        // ------------------------------------------------------------
         [Test]
         public void TEST_PresentationLayoutResolver_동일Layer중복LocalOrder_거부()
         {
@@ -285,6 +324,11 @@ namespace inonego.Xeri.UI.TEST.Core
             );
         }
 
+        // ----------------------------------------------------------------------
+        /// <summary>
+        /// Native 출력 범위를 넘는 Overlay Layer order를 가진 Layout을 거부한다.
+        /// </summary>
+        // ----------------------------------------------------------------------
         [Test]
         public void TEST_PresentationLayoutResolver_ScreenOverlayLayerOrder_Native범위초과거부()
         {
@@ -307,6 +351,11 @@ namespace inonego.Xeri.UI.TEST.Core
 
     #region I-1: 불변 스냅샷
 
+        // ----------------------------------------------------------------------
+        /// <summary>
+        /// PresentationPlan의 Layer와 Placement 컬렉션을 외부에서 변경할 수 없다.
+        /// </summary>
+        // ----------------------------------------------------------------------
         [Test]
         public void TEST_PresentationPlan_ReadOnlyCollection_외부변경거부()
         {

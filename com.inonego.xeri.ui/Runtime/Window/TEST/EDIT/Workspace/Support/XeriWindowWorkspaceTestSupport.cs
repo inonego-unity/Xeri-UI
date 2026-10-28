@@ -5,13 +5,7 @@
 # 설명
 Window Workspace 통합 테스트가 공유하는 test double, runtime fixture와 Application helper를 제공한다.
 
-# 테스트 구성
- D: Window Driver test double
- F: Focus Driver test double
- V: UI Session과 View Source test double
- A: Application Screen과 Focus Scope test double
- X-1: Workspace runtime fixture
- X-2: 공용 static helper
+테스트 대역과 Workspace fixture, Application helper를 선언 순서에 따라 구분한다.
 ========================================================================= BLOCK_HEADER_END */
 
 using System;
@@ -37,7 +31,7 @@ using inonego.Xeri.UI.Window;
 
 namespace inonego.Xeri.UI.TEST.Window
 {
-    #region D-1: 창 테스트 대역
+    #region 테스트 대역: 창 Driver
 
     internal sealed class TestWindowDriver : IXeriWindowDriver
     {
@@ -82,7 +76,7 @@ namespace inonego.Xeri.UI.TEST.Window
 
     #endregion
 
-    #region F-1: 포커스 드라이버
+    #region 테스트 대역: Focus Driver
 
     internal sealed class TestFocusDriver : FocusDriverBehaviour
     {
@@ -115,7 +109,7 @@ namespace inonego.Xeri.UI.TEST.Window
 
     #endregion
 
-    #region V-1: UI 세션
+    #region 테스트 대역: UI Session
 
     internal sealed class TestSession : IXeriUISession
     {
@@ -124,7 +118,7 @@ namespace inonego.Xeri.UI.TEST.Window
 
     #endregion
 
-    #region A-1: 애플리케이션 스크린과 포커스 범위
+    #region 테스트 대역: Application Screen과 Focus Scope
 
     internal sealed class TestApplicationScreenSource : IScreenSource
     {
@@ -202,7 +196,7 @@ namespace inonego.Xeri.UI.TEST.Window
 
     #endregion
 
-    #region V-2: 뷰 소스
+    #region 테스트 대역: View Source
 
     internal sealed class TestViewSource : IXeriUIViewSource
     {
@@ -266,7 +260,7 @@ namespace inonego.Xeri.UI.TEST.Window
 
     #endregion
 
-    #region D-2: 드래그 생성기 재진입
+    #region 테스트 대역: Drag Factory 재진입
 
     internal sealed class CallbackDragFactory : IXeriWindowDragFactory
     {
@@ -287,7 +281,7 @@ namespace inonego.Xeri.UI.TEST.Window
 
     #endregion
 
-    #region X-1: 워크스페이스 픽스처
+    #region Workspace fixture
 
     internal sealed class WorkspaceFixture : IDisposable
     {
@@ -545,7 +539,7 @@ namespace inonego.Xeri.UI.TEST.Window
 
     #endregion
 
-    #region X-2: 정적 헬퍼
+    #region 공용 테스트 헬퍼
 
     internal static class XeriWindowWorkspaceTestSupport
     {

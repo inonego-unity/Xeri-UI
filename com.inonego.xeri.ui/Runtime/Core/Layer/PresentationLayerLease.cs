@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : PresentationLayerLease.cs
-수정일 : 2026-10-07
+수정일 : 2026-10-28
 
 # 설명
 resolved Presentation Layer와 해당 Layer consumer lifetime을 하나의 Lease로 묶는다.
@@ -21,8 +21,19 @@ namespace inonego.Xeri.UI
 
     #region 필드
 
+        // ------------------------------------------------------------
+        /// <summary>
+        /// 사용 중인 Layer이며 Lease 해제 후에는 접근할 수 없다.
+        /// </summary>
+        // ------------------------------------------------------------
         public IPresentationLayerDriver Layer =>
             layer ?? throw new ObjectDisposedException(nameof(PresentationLayerLease));
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// 이 Lease가 반환됐는지 확인한다.
+        /// </summary>
+        // ------------------------------------------------------------
         public bool IsDisposed => usage == null;
 
         private IPresentationLayerDriver layer = null;
@@ -46,6 +57,11 @@ namespace inonego.Xeri.UI
 
     #region 수명 해제
 
+        // ------------------------------------------------------------
+        /// <summary>
+        /// Layer 자체가 아닌 이 Lease의 사용 수명을 한 번 반환한다.
+        /// </summary>
+        // ------------------------------------------------------------
         public void Dispose()
         {
             var current = usage;

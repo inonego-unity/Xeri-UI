@@ -219,6 +219,29 @@ Layer C -> Native Output C
 
 Layer merge는 현재 correctness contract에 포함하지 않는 implementation optimization이다.
 
+Top-level Native Output의 두 concrete implementation은 다음과 같이 대칭적인 lifetime 계약을 갖는다.
+
+| 계약 | UITK | UGUI |
+| --- | --- | --- |
+| Output | `UITKPresentationOutput` | `UGUIPresentationOutput` |
+| Native identity | `PanelRenderer + PanelSettings` | `Canvas` |
+| Generated | `Initialize(template, LayerOrder)` | `Initialize(LayerOrder)` |
+| Scene-authored | `InitializeBorrowed(LayerOrder)` | `InitializeBorrowed(LayerOrder)` |
+| 반환 | `ReleaseOutputState()` | `ReleaseOutputState()` |
+
+- Output은 **borrowed native order 설정과 복원**을 소유한다.
+- LayerHost는 output 자체를 파괴하지 않고 authored ManagedRoot, GameObject active 등
+  Host 관할 상태만 원복한다.
+- Materializer는 generated output의 Native state cleanup을 시도한 뒤
+  GameObject를 제거하며, 정리 단계마다 독립적으로 실패를 보고한다.
+- Output lifetime의 public generic IAdapter를 추가하지 않는다.
+  Native identity가 다른 concrete backend를 유지하되 **획득/반환 의미**를 일치시킨다.
+- `UIRuntime`의 출력 정책과 URP/HDRP 통합은 Camera pass와 Native Overlay
+  ownership을 다룬다. PresentationLayout/Session/Window는 이를 선택하지 않는다.
+- 스타일 해석과 Gradient 보간은 Unity Native Renderer에 맡긴다. FP16 합성은
+  Chrome CSS와의 색상 일치를 보장하지 않는다. 출력 정책과 지원 조건은
+  [Native UI 출력 정책](../core/presentation.md#native-ui-출력-정책)을 참조한다.
+
 한 Layer가 사용하는 native object 수나 batching 형태는 public topology semantic이 아니다.
 공개 계약은 LayerOrder / LocalOrder, Session lifetime, backend identity와
 generated/scene-authored ownership 경계를 우선한다.
@@ -817,7 +840,7 @@ Window coarse z-group은 Window-specific ordering domain이다.
 
 ## 30. Editor authoring
 
-Unity 6000.7 in-scene UI authoring / UI staging / Scene hierarchy / Inspector를 기본 visual authoring surface로 사용한다.
+Unity 7 in-scene UI authoring / UI staging / Scene hierarchy / Inspector를 기본 visual authoring surface로 사용한다.
 
 Xeri Editor는 Unity가 모르는 semantic만 보완한다.
 

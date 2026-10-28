@@ -1,10 +1,10 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : UITKFocusDriver.cs
-수정일 : 2026-09-29
+수정일 : 2026-10-28
 
 # 설명
 등록된 UITK Presentation Layer 범위의 Unity native Focus를 관찰하고 선택하는 얇은 backend bridge.
-Layer Root 자체의 Focus event lifetime만 대칭 관리하고 Panel navigation/focus graph는 Unity FocusController에 위임한다.
+루트 교체·unload 시 실제 구독한 요소의 콜백을 반환하고 포커스 이동은 Unity FocusController에 위임한다.
 ========================================================================= BLOCK_HEADER_END */
 
 using System;
@@ -16,6 +16,11 @@ using UnityEngine.UIElements;
 
 namespace inonego.Xeri.UI
 {
+    // ============================================================
+    /// <summary>
+    /// 등록된 UITK Layer 범위의 Native Focus와 루트 교체를 연결한다.
+    /// </summary>
+    // ============================================================
     public sealed class UITKFocusDriver : FocusDriverBehaviour
     {
 
@@ -27,6 +32,7 @@ namespace inonego.Xeri.UI
         private string fallbackName = "";
 
         private readonly List<VisualElement> layerRoots = new();
+        private readonly Dictionary<IPresentationLayerDriver<VisualElement>, VisualElement> registeredRoots = new();
 
         private VisualElement current = null;
         private VisualElement reportedCurrent = null;
@@ -44,24 +50,14 @@ namespace inonego.Xeri.UI
         // ----------------------------------------------------------------------
         protected override void HandleLayerRegistered(IPresentationLayerDriver driver)
         {
-            if
-            (
-                driver is not IPresentationLayerDriver<VisualElement> layer ||
-                layer.Root == null ||
-                layerRoots.Contains(layer.Root)
-            )
+            if (driver is not IPresentationLayerDriver<VisualElement> layer || registeredRoots.ContainsKey(layer)) return;
+            registeredRoots.Add(layer, null);
+            if (layer is UITKPresentationLayer observed)
             {
-                return;
+                observed.RootChanged += HandleLayerRootChanged;
             }
 
-            var root = layer.Root;
-            layerRoots.Add(root);
-            root.RegisterCallback<FocusInEvent>(HandleFocusIn, TrickleDown.TrickleDown);
-            root.RegisterCallback<FocusOutEvent>(HandleFocusOut, TrickleDown.TrickleDown);
-            root.RegisterCallback<DetachFromPanelEvent>(HandleLayerDetached);
-
-            var focused = root.panel?.focusController?.focusedElement as VisualElement;
-            PublishCurrent(ResolveFocusTarget(focused));
+            RefreshLayerRoot(layer);
         }
 
         // ----------------------------------------------------------------------
@@ -71,27 +67,47 @@ namespace inonego.Xeri.UI
         // ----------------------------------------------------------------------
         protected override void HandleLayerUnregistered(IPresentationLayerDriver driver)
         {
-            if
-            (
-                driver is not IPresentationLayerDriver<VisualElement> layer ||
-                layer.Root == null
-            )
+            if (driver is not IPresentationLayerDriver<VisualElement> layer || !registeredRoots.TryGetValue(layer, out var root)) return;
+            if (layer is UITKPresentationLayer observed)
             {
-                return;
+                observed.RootChanged -= HandleLayerRootChanged;
             }
 
+            registeredRoots.Remove(layer);
+            ReleaseRoot(root);
+        }
+
+        private void RefreshLayerRoot(IPresentationLayerDriver<VisualElement> layer)
+        {
+            if (!registeredRoots.TryGetValue(layer, out var previous)) return;
             var root = layer.Root;
+            if (ReferenceEquals(previous, root)) return;
+            registeredRoots[layer] = root;
+            ReleaseRoot(previous);
+            if (root == null || layerRoots.Contains(root)) return;
+            layerRoots.Add(root);
+            root.RegisterCallback<FocusInEvent>(HandleFocusIn, TrickleDown.TrickleDown);
+            root.RegisterCallback<FocusOutEvent>(HandleFocusOut, TrickleDown.TrickleDown);
+            root.RegisterCallback<DetachFromPanelEvent>(HandleLayerDetached);
+            var focused = root.panel?.focusController?.focusedElement as VisualElement;
+            PublishCurrent(ResolveFocusTarget(focused));
+        }
 
-            if (!layerRoots.Remove(root)) return;
-
+        private void ReleaseRoot(VisualElement root)
+        {
+            if (root == null || registeredRoots.ContainsValue(root) || !layerRoots.Remove(root)) return;
             root.UnregisterCallback<FocusInEvent>(HandleFocusIn, TrickleDown.TrickleDown);
             root.UnregisterCallback<FocusOutEvent>(HandleFocusOut, TrickleDown.TrickleDown);
             root.UnregisterCallback<DetachFromPanelEvent>(HandleLayerDetached);
-
-            if (IsDescendantOf(current, root))
+            if (IsDescendantOf(current, root) || !IsValid(current))
             {
                 PublishCurrent(null);
             }
+        }
+
+        private void HandleLayerRootChanged(UITKPresentationLayer layer)
+        {
+            RefreshLayerRoot(layer);
         }
 
     #endregion
@@ -310,10 +326,19 @@ namespace inonego.Xeri.UI
 
     #endregion
 
-    #region Unity 이벤트
+    #region 유니티 이벤트
 
         private void OnDestroy()
         {
+            foreach (var layer in registeredRoots.Keys)
+            {
+                if (layer is UITKPresentationLayer observed)
+                {
+                    observed.RootChanged -= HandleLayerRootChanged;
+                }
+            }
+
+            registeredRoots.Clear();
             for (var index = 0; index < layerRoots.Count; index++)
             {
                 var root = layerRoots[index];

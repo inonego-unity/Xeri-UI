@@ -1,0 +1,26 @@
+{
+    "name": "inonego.Xeri.UI.URP",
+    "rootNamespace": "",
+    "references": [
+        "Unity.RenderPipelines.Core.Runtime",
+        "Unity.RenderPipelines.Universal.Runtime",
+        "inonego.Xeri.UI"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [
+        "XERI_URP_17_7_OR_NEWER"
+    ],
+    "versionDefines": [
+        {
+            "name": "com.unity.render-pipelines.universal",
+            "expression": "[17.7.0,99.0.0)",
+            "define": "XERI_URP_17_7_OR_NEWER"
+        }
+    ],
+    "noEngineReferences": false
+}

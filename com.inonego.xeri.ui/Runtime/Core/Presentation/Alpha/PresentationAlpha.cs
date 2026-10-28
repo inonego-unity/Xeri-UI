@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : PresentationAlpha.cs
-수정일 : 2026-10-06
+수정일 : 2026-10-28
 
 # 설명
 Presentation의 local Alpha 값과 Modifier 소유권을 backend 적용과 함께 관리한다.
@@ -31,14 +31,36 @@ namespace inonego.Xeri.UI
 
     #region 상태
 
+        // ------------------------------------------------------------
+        /// <summary>
+        /// 연결된 Alpha 대상이 유효한지 확인한다.
+        /// </summary>
+        // ------------------------------------------------------------
         public bool IsValid => target != null && target.IsValid;
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// Modifier 적용 전의 기준 Alpha이다.
+        /// </summary>
+        // ------------------------------------------------------------
         public float Base
         {
             get => state.Base;
             set => Set(value);
         }
 
+        // ------------------------------------------------------------
+        /// <summary>
+        /// Modifier를 적용해 계산한 Alpha이다.
+        /// </summary>
+        // ------------------------------------------------------------
         public float Modified => state.Modified;
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// 등록된 Alpha Modifier를 순서대로 제공한다.
+        /// </summary>
+        // ------------------------------------------------------------
         public IReadOnlyXOrdered<int, string, IModifier<float>> Modifiers => state.Modifiers;
 
         private readonly IPresentationAlphaTarget target;
@@ -82,11 +104,21 @@ namespace inonego.Xeri.UI
 
     #region 생성자
 
+        // ------------------------------------------------------------
+        /// <summary>
+        /// 대상 없이 기본 Alpha 1로 상태를 생성한다.
+        /// </summary>
+        // ------------------------------------------------------------
         public PresentationAlpha()
         {
             state = new PresentationValue<float>(this, 1.0f, null, null);
         }
 
+        // ------------------------------------------------------------
+        /// <summary>
+        /// 대상의 현재 Alpha를 기준값으로 사용한다.
+        /// </summary>
+        // ------------------------------------------------------------
         public PresentationAlpha(IPresentationAlphaTarget target)
         {
             this.target = RequireTarget(target);
@@ -94,6 +126,11 @@ namespace inonego.Xeri.UI
             state.Refresh(false);
         }
 
+        // ------------------------------------------------------------
+        /// <summary>
+        /// 대상과 명시한 기준 Alpha로 상태를 생성한다.
+        /// </summary>
+        // ------------------------------------------------------------
         public PresentationAlpha(IPresentationAlphaTarget target, float baseAlpha)
         {
             this.target = RequireTarget(target);

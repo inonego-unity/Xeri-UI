@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : XeriValidationApplication.cs
-수정일 : 2026-10-07
+수정일 : 2026-10-19
 
 # 설명
 Application Window의 Child PresentationSession과 Child UIContext 안에서 Home/Detail Screen, nested Modal과 Focus 복원을 행사한다.
@@ -74,8 +74,8 @@ namespace inonego.Xeri.UI.Validation
             (
                 assets,
                 applicationName,
-                "HOME",
-                "Go Detail",
+                "홈",
+                "상세 보기",
                 () => window.Context.Screens.Replace(XeriValidationIDs.ApplicationDetail),
                 OpenModal,
                 () => window.Context.Screens.Close()
@@ -84,8 +84,8 @@ namespace inonego.Xeri.UI.Validation
             (
                 assets,
                 applicationName,
-                "DETAIL",
-                "Back Home",
+                "상세",
+                "홈으로",
                 () => window.Context.Screens.Replace(XeriValidationIDs.ApplicationHome),
                 OpenModal,
                 () => window.Context.Screens.Close()
@@ -147,8 +147,8 @@ namespace inonego.Xeri.UI.Validation
                 PresentationTarget.Local(XeriValidationIDs.ApplicationModalLayer),
                 assets,
                 appearance,
-                "Application Modal",
-                "This modal belongs to this Application Window child UIContext.",
+                "앱 대화상자",
+                "이 대화상자는 현재 앱 안에서만 동작합니다.",
                 OpenNestedModal
             );
         }
@@ -171,8 +171,8 @@ namespace inonego.Xeri.UI.Validation
                 PresentationTarget.Local(XeriValidationIDs.ApplicationModalLayer),
                 assets,
                 appearance,
-                "Nested Modal",
-                "Closing this modal restores focus to the modal below it."
+                "중첩 대화상자",
+                "닫으면 아래 대화상자의 입력 위치로 돌아갑니다."
             );
         }
 
@@ -422,7 +422,7 @@ namespace inonego.Xeri.UI.Validation
         // ------------------------------------------------------------
         public void OnOpening(ScreenStateContext context)
         {
-            lifecycle.text = "Opening";
+            lifecycle.text = "여는 중";
         }
 
         // ------------------------------------------------------------
@@ -432,7 +432,7 @@ namespace inonego.Xeri.UI.Validation
         // ------------------------------------------------------------
         public void OnOpened(ScreenStateContext context)
         {
-            lifecycle.text = "Active";
+            lifecycle.text = "활성";
         }
 
         // ------------------------------------------------------------
@@ -442,7 +442,7 @@ namespace inonego.Xeri.UI.Validation
         // ------------------------------------------------------------
         public void OnClosing(ScreenStateContext context)
         {
-            lifecycle.text = "Closing";
+            lifecycle.text = "닫는 중";
         }
 
         // ------------------------------------------------------------
@@ -452,7 +452,7 @@ namespace inonego.Xeri.UI.Validation
         // ------------------------------------------------------------
         public void OnClosed(ScreenStateContext context)
         {
-            lifecycle.text = "Closed";
+            lifecycle.text = "닫힘";
         }
 
     #endregion

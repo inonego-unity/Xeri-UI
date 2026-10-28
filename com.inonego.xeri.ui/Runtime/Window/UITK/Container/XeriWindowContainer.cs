@@ -24,7 +24,7 @@ namespace inonego.Xeri.UI.Window
     internal sealed class XeriWindowContainer : VisualElement, IDisposable
     {
 
-    #region 필드
+    #region Container 상태와 Registry 연결
 
         private const string CONTAINER_UXML_PATH = "XeriUI/Window/XeriWindowContainer";
         private const string CONTAINER_USS_PATH  = "XeriUI/Window/XeriWindowContainer";

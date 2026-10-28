@@ -1,6 +1,6 @@
 <!-- BLOCK_HEADER_BEGIN =====================================================================
 파일명 : CoreScreen.uxml
-수정일 : 2026-10-03
+수정일 : 2026-10-19
 
 # 설명
 Root UIContext Screen stack의 Home/Detail instance를 실제 ScreenController 경로로 표시하는 Validation view.
@@ -12,16 +12,16 @@ Root UIContext Screen stack의 Home/Detail instance를 실제 ScreenController �
 
     <ui:VisualElement name="CoreScreenRoot" class="xeri-validation xeri-validation-core-screen">
         <ui:VisualElement class="xeri-validation-core-screen__card">
-            <ui:Label text="Root screen stack" class="xeri-validation-eyebrow" />
-            <ui:Label name="CoreScreenTitle" text="Home" class="xeri-validation-core-screen__title" />
+            <ui:Label text="기본 화면 목록" class="xeri-validation-eyebrow" />
+            <ui:Label name="CoreScreenTitle" text="홈" class="xeri-validation-core-screen__title" />
             <ui:Label
-                text="This view is owned by the root ScreenController and can be pushed, replaced, popped, or cleared from Core Lab."
+                text="기본 기능 실험실에서 화면을 추가하거나 교체하고, 이전 화면으로 돌아가거나 모두 닫을 수 있습니다."
                 class="xeri-validation-copy" />
             <ui:VisualElement class="xeri-validation-row">
-                <ui:Label text="State" class="xeri-validation-core-screen__label" />
-                <ui:Label name="CoreScreenLifecycle" text="Opening" class="xeri-validation-status" />
+                <ui:Label text="상태" class="xeri-validation-core-screen__label" />
+                <ui:Label name="CoreScreenLifecycle" text="여는 중" class="xeri-validation-status" />
             </ui:VisualElement>
-            <ui:Button name="CoreScreenFocus" text="Focus target" class="xeri-validation-button xeri-validation-button--quiet" />
+            <ui:Button name="CoreScreenFocus" text="입력 위치 확인" class="xeri-validation-button xeri-validation-button--quiet" />
         </ui:VisualElement>
     </ui:VisualElement>
 </ui:UXML>

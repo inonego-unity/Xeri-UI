@@ -1,6 +1,6 @@
 <!-- BLOCK_HEADER_BEGIN =====================================================================
 파일명 : ModalLab.uxml
-수정일 : 2026-10-04
+수정일 : 2026-10-19
 
 # 설명
 Root UIContext Modal stack과 nested focus 복원을 직접 조작하는 Modal Lab control surface.
@@ -13,25 +13,25 @@ Root UIContext Modal stack과 nested focus 복원을 직접 조작하는 Modal L
     <ui:VisualElement name="ModalLabRoot" class="xeri-validation-lab">
         <ui:VisualElement class="xeri-validation-lab__header">
             <ui:VisualElement class="xeri-validation-lab__heading">
-                <ui:Label text="Modal Lab" class="xeri-validation-lab__title" />
-                <ui:Label text="Root modal stack · focus containment" class="xeri-validation-lab__copy" />
+                <ui:Label text="대화상자 실험실" class="xeri-validation-lab__title" />
+                <ui:Label text="대화상자 중첩 · 입력 범위" class="xeri-validation-lab__copy" />
             </ui:VisualElement>
-            <ui:Label name="ModalLabStatus" text="Root Modal Depth · 0" class="xeri-validation-lab__status" />
+            <ui:Label name="ModalLabStatus" text="열린 기본 대화상자 · 0" class="xeri-validation-lab__status" />
         </ui:VisualElement>
 
         <ui:ScrollView mode="Vertical" class="xeri-validation-lab__scroll">
             <ui:VisualElement class="xeri-validation-lab__group">
-                <ui:Label text="Modal stack" class="xeri-validation-lab__group-title" />
+                <ui:Label text="대화상자 목록" class="xeri-validation-lab__group-title" />
                 <ui:VisualElement class="xeri-validation-lab__actions">
-                    <ui:Button name="ModalOpen" text="Open modal A" class="xeri-validation-button xeri-validation-button--primary" />
-                    <ui:Button name="ModalNested" text="Open nested B" class="xeri-validation-button xeri-validation-button--secondary" />
-                    <ui:Button name="ModalCloseTop" text="Close top" class="xeri-validation-button xeri-validation-button--quiet" />
+                    <ui:Button name="ModalOpen" text="대화상자 A 열기" class="xeri-validation-button xeri-validation-button--primary" />
+                    <ui:Button name="ModalNested" text="중첩 B 열기" class="xeri-validation-button xeri-validation-button--secondary" />
+                    <ui:Button name="ModalCloseTop" text="맨 위 닫기" class="xeri-validation-button xeri-validation-button--quiet" />
                 </ui:VisualElement>
             </ui:VisualElement>
             <ui:VisualElement class="xeri-validation-lab__group">
-                <ui:Label text="Expected behavior" class="xeri-validation-lab__group-title" />
+                <ui:Label text="동작 안내" class="xeri-validation-lab__group-title" />
                 <ui:Label
-                    text="Modal B owns focus while on top. Closing B restores Modal A focus; closing A returns authority to the underlying UI."
+                    text="맨 위의 대화상자 B가 입력을 받습니다. B를 닫으면 A로, A를 닫으면 아래 화면으로 입력 위치가 돌아갑니다."
                     class="xeri-validation-copy" />
             </ui:VisualElement>
         </ui:ScrollView>

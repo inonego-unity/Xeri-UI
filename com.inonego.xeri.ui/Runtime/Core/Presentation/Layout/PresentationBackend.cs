@@ -10,12 +10,22 @@ using System;
 
 namespace inonego.Xeri.UI
 {
+    // ============================================================
+    /// <summary>
+    /// Presentation Layer를 구성하는 UI rendering backend 종류.
+    /// </summary>
+    // ============================================================
     public enum PresentationBackend
     {
         UGUI = 0,
         UITK = 1,
     }
 
+    // ============================================================
+    /// <summary>
+    /// Runtime이 지원하는 Presentation backend 조합.
+    /// </summary>
+    // ============================================================
     [Flags]
     public enum PresentationBackendSupport
     {

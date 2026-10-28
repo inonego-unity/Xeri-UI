@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : PresentationTarget.cs
-수정일 : 2026-10-07
+수정일 : 2026-10-28
 
 # 설명
 UI를 현재 Session의 local Layer 또는 Runtime PresentationHost destination에 표시할 대상을 정의한다.
@@ -27,8 +27,25 @@ namespace inonego.Xeri.UI
 
     #region 필드
 
+        // ------------------------------------------------------------
+        /// <summary>
+        /// 현재 Session 또는 Host 대상 범위이다.
+        /// </summary>
+        // ------------------------------------------------------------
         public PresentationTargetScope Scope { get; }
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// 선택한 범위에서 해석할 Layer 또는 Destination ID이다.
+        /// </summary>
+        // ------------------------------------------------------------
         public string ID { get; }
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// 대상 식별자가 비어 있지 않은지 확인한다.
+        /// </summary>
+        // ------------------------------------------------------------
         public bool IsValid => !string.IsNullOrWhiteSpace(ID);
 
     #endregion
@@ -46,11 +63,21 @@ namespace inonego.Xeri.UI
             ID = id;
         }
 
+        // ------------------------------------------------------------
+        /// <summary>
+        /// 현재 Session의 Layer를 대상으로 지정한다.
+        /// </summary>
+        // ------------------------------------------------------------
         public static PresentationTarget Local(string layerID)
         {
             return new PresentationTarget(PresentationTargetScope.Local, layerID);
         }
 
+        // ------------------------------------------------------------
+        /// <summary>
+        /// Runtime Host의 Destination을 대상으로 지정한다.
+        /// </summary>
+        // ------------------------------------------------------------
         public static PresentationTarget Host(string destinationID)
         {
             return new PresentationTarget(PresentationTargetScope.Host, destinationID);
@@ -60,6 +87,11 @@ namespace inonego.Xeri.UI
 
     #region 비교
 
+        // ------------------------------------------------------------
+        /// <summary>
+        /// 범위와 식별자가 같은 대상인지 비교한다.
+        /// </summary>
+        // ------------------------------------------------------------
         public bool Equals(PresentationTarget other)
         {
             return Scope == other.Scope &&
@@ -95,6 +127,11 @@ namespace inonego.Xeri.UI
 
     }
 
+    // ============================================================
+    /// <summary>
+    /// Runtime에서 사용하는 기본 Destination 식별자이다.
+    /// </summary>
+    // ============================================================
     public static class PresentationDestinationID
     {
         public const string Application = "Application";

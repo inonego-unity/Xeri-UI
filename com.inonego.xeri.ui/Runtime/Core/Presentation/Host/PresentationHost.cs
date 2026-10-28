@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : PresentationHost.cs
-수정일 : 2026-10-07
+수정일 : 2026-10-28
 
 # 설명
 app-wide semantic destination을 Root PresentationSession Layer에 resolve하고 Layer Lease를 발급한다.
@@ -23,6 +23,11 @@ namespace inonego.Xeri.UI
 
     #region 필드
 
+        // ------------------------------------------------------------
+        /// <summary>
+        /// Host 수명이 종료됐는지 확인한다.
+        /// </summary>
+        // ------------------------------------------------------------
         public bool IsReleased { get; private set; }
 
         private readonly PresentationSession rootSession = null;
@@ -97,6 +102,12 @@ namespace inonego.Xeri.UI
 
     #region 레이어 획득
 
+        // ----------------------------------------------------------------------
+        /// <summary>
+        /// <br/> Destination에 연결된 Layer의 사용 수명을 획득한다.
+        /// <br/> 반환한 Lease는 사용자가 해제하며 잘못된 대상이나 종료 상태는 거부한다.
+        /// </summary>
+        // ----------------------------------------------------------------------
         public PresentationLayerLease AcquireLayer(string destinationID)
         {
             ThrowIfReleased();
@@ -127,6 +138,11 @@ namespace inonego.Xeri.UI
             }
         }
 
+        // ------------------------------------------------------------
+        /// <summary>
+        /// 수명이 유지되는 Host에 Destination 매핑이 있는지 확인한다.
+        /// </summary>
+        // ------------------------------------------------------------
         public bool Contains(string destinationID)
         {
             return

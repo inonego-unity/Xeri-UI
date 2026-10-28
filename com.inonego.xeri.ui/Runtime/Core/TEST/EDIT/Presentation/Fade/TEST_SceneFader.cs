@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : TEST_SceneFader.cs
-수정일 : 2026-10-03
+수정일 : 2026-10-28
 
 # 설명
 SceneFader의 안정 상태, 완료 정리 실패와 Transition 시작 실패 롤백을 검증한다.
@@ -11,6 +11,7 @@ SceneFader의 안정 상태, 완료 정리 실패와 Transition 시작 실패 �
  R: Reveal 반환 실패의 Terminal 처리
  X: Transition 실패 전달과 롤백
  I: Overlay 초기화 실패 롤백
+ V: 전환 인자 검증
 ========================================================================= BLOCK_HEADER_END */
 
 using System;

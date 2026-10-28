@@ -598,6 +598,11 @@ namespace inonego.Xeri.UI
             DisposeCore();
         }
 
+        // ----------------------------------------------------------------------
+        /// <summary>
+        /// Fade 상태를 초기화하고 Transition과 Presentation 소유권을 반환한다.
+        /// </summary>
+        // ----------------------------------------------------------------------
         private void DisposeCore()
         {
             if (isDisposed) return;

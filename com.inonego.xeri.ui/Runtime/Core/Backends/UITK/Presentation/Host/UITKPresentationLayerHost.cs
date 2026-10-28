@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : UITKPresentationLayerHost.cs
-수정일 : 2026-10-05
+수정일 : 2026-10-28
 
 # 설명
 Scene-authored UITK Layer의 PanelRenderer output과 VisualElementReference ManagedRoot를 Presentation Layer로 제공한다.
@@ -42,12 +42,14 @@ namespace inonego.Xeri.UI
         internal override PresentationBackend Backend => PresentationBackend.UITK;
 
         private VisualElement managedRoot = null;
+        private UITKPresentationLayer driver = null;
+        private UITKPresentationOutput boundOutput = null;
         private bool resolvedCallbackRegistered = false;
         private bool unloadedCallbackRegistered = false;
 
     #endregion
 
-    #region 메서드
+    #region 획득과 대여 상태 반환
 
         // ----------------------------------------------------------------------
         /// <summary>
@@ -85,13 +87,15 @@ namespace inonego.Xeri.UI
 
             try
             {
+                boundOutput = output;
+                boundOutput.RootUpdated += HandleOutputRootUpdated;
                 output.InitializeBorrowed(plan.LayerOrder);
                 hostObject.SetActive(true);
                 var layerRoot = output.RequireRoot();
 
                 RegisterReferenceCallbacks();
                 var resolvedManagedRoot = RequireManagedRoot(layerRoot);
-                var driver = new UITKPresentationLayer(resolvedManagedRoot);
+                driver = new UITKPresentationLayer(resolvedManagedRoot);
                 release = () => ReleaseBorrowedState(output, hostObject, originalActive);
                 return driver;
             }
@@ -132,10 +136,7 @@ namespace inonego.Xeri.UI
 
             try
             {
-                if (output != null)
-                {
-                    output.ReleaseOutputState();
-                }
+                UnregisterReferenceCallbacks();
             }
             catch (Exception exception)
             {
@@ -144,7 +145,10 @@ namespace inonego.Xeri.UI
 
             try
             {
-                UnregisterReferenceCallbacks();
+                if (output != null)
+                {
+                    output.ReleaseOutputState();
+                }
             }
             catch (Exception exception)
             {
@@ -176,6 +180,10 @@ namespace inonego.Xeri.UI
                 errors
             );
         }
+
+    #endregion
+
+    #region 관리 루트 검증과 참조 구독
 
         // ----------------------------------------------------------------------
         /// <summary>
@@ -270,6 +278,23 @@ namespace inonego.Xeri.UI
         {
             var errors = new List<Exception>();
 
+            if (!ReferenceEquals(boundOutput, null))
+            {
+                boundOutput.RootUpdated -= HandleOutputRootUpdated;
+                boundOutput = null;
+            }
+
+            try
+            {
+                driver?.RebindRoot(null);
+            }
+            catch (Exception exception)
+            {
+                errors.Add(exception);
+            }
+
+            driver = null;
+
             if (unloadedCallbackRegistered)
             {
                 unloadedCallbackRegistered = false;
@@ -324,26 +349,43 @@ namespace inonego.Xeri.UI
 
     #region 이벤트 핸들러
 
-        // ----------------------------------------------------------------------
+        // ------------------------------------------------------------
         /// <summary>
-        /// authoring reference가 resolve되면 현재 ManagedRoot를 갱신한다.
+        /// authored 참조와 런타임 콘텐츠를 현재 ManagedRoot에 함께 연결한다.
         /// </summary>
-        // ----------------------------------------------------------------------
+        // ------------------------------------------------------------
         private void HandleManagedRootResolved(VisualElement element)
         {
             managedRoot = element;
+            RefreshManagedRoot();
         }
 
-        // ----------------------------------------------------------------------
+        private void HandleOutputRootUpdated(VisualElement root)
+        {
+            RefreshManagedRoot();
+        }
+
+        private void RefreshManagedRoot()
+        {
+            if (driver == null) return;
+            var layerRoot = boundOutput?.Root;
+            // Native 참조 resolve는 Output 루트 갱신보다 먼저 올 수 있다.
+            var ready = layerRoot != null && managedRoot != null &&
+                !ReferenceEquals(layerRoot, managedRoot) && layerRoot.Contains(managedRoot);
+            driver.RebindRoot(ready ? managedRoot : null);
+        }
+
+        // ------------------------------------------------------------
         /// <summary>
-        /// authoring reference가 unload되면 cached ManagedRoot를 무효화한다.
+        /// authored 참조가 unload되면 콘텐츠를 분리하고 현재 루트를 비운다.
         /// </summary>
-        // ----------------------------------------------------------------------
+        // ------------------------------------------------------------
         private void HandleManagedRootUnloaded(VisualElement element)
         {
             if (ReferenceEquals(managedRoot, element))
             {
                 managedRoot = null;
+                driver?.RebindRoot(null);
             }
         }
 

@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : XeriWindowRegistry.cs
-수정일 : 2026-10-05
+수정일 : 2026-10-28
 
 # 설명
 Xeri 커스텀 윈도우 controller와 저장 record를 관리하는 registry.
@@ -89,21 +89,51 @@ namespace inonego.Xeri.UI.Window
 
     #region 이벤트
 
+        // ------------------------------------------------------------
+        /// <summary>
+        /// Window 등록 목록 변경을 알린다.
+        /// </summary>
+        // ------------------------------------------------------------
         public event EventHandler OnCollectionChange = null;
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// Window 등록을 알린다.
+        /// </summary>
+        // ------------------------------------------------------------
         public event EventHandler<XeriWindowEventArgs> OnRegister = null;
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// Window 등록 해제를 알린다.
+        /// </summary>
+        // ------------------------------------------------------------
         public event EventHandler<XeriWindowEventArgs> OnUnregister = null;
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// 활성 Window 변경을 알린다.
+        /// </summary>
+        // ------------------------------------------------------------
         public event EventHandler<XeriWindowEventArgs> OnActiveChange = null;
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// Window 표시 순서 변경을 알린다.
+        /// </summary>
+        // ------------------------------------------------------------
         public event EventHandler OnOrderChange = null;
 
     #endregion
 
     #region 등록 메서드
 
-        // ------------------------------------------------------------
+        // ----------------------------------------------------------------------
         /// <summary>
-        /// 윈도우 controller를 등록하고 handle을 반환한다.
+        /// <br/> ID를 제목으로 사용하는 기본 record와 controller를 등록한다.
+        /// <br/> ID가 비어 있거나 중복되면 예외를 던진다.
         /// </summary>
-        // ------------------------------------------------------------
+        // ----------------------------------------------------------------------
         public XeriWindowHandle Register(string id, XeriWindowController controller)
         {
             var record = new XeriWindowRecord
@@ -115,11 +145,13 @@ namespace inonego.Xeri.UI.Window
             return Register(id, controller, record);
         }
 
-        // ------------------------------------------------------------
+        // ----------------------------------------------------------------------
         /// <summary>
-        /// 윈도우 controller와 record를 등록하고 handle을 반환한다.
+        /// <br/> Controller와 record 복사본을 등록하고 새 handle을 반환한다.
+        /// <br/> Controller의 현재 bounds와 상태를 복사본에 반영한다.
+        /// <br/> ID가 비어 있거나 중복되면 예외를 던진다.
         /// </summary>
-        // ------------------------------------------------------------
+        // ----------------------------------------------------------------------
         public XeriWindowHandle Register(string id, XeriWindowController controller, XeriWindowRecord record)
         {
             if (string.IsNullOrWhiteSpace(id))
@@ -271,7 +303,8 @@ namespace inonego.Xeri.UI.Window
 
         // ------------------------------------------------------------
         /// <summary>
-        /// Handle에 대응하는 record를 조회한다.
+        /// <br/> Handle에 대응하는 registry record의 복사본을 반환한다.
+        /// <br/> 유효하지 않은 handle이면 false와 null을 반환한다.
         /// </summary>
         // ------------------------------------------------------------
         public bool TryGetRecord(XeriWindowHandle handle, out XeriWindowRecord record)

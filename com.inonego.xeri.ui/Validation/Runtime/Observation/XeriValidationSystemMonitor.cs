@@ -1,9 +1,9 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : XeriValidationSystemMonitor.cs
-수정일 : 2026-10-07
+수정일 : 2026-10-19
 
 # 설명
-authored Desktop.Status placement에서 Runtime, Window, Screen, Modal과 입력 상태를 read-only telemetry로 표시한다.
+authored Desktop.Status placement에서 Runtime, 출력 정책, Window와 입력 상태를 관찰한다.
 Monitor 자체는 Window가 아니며 관찰 때문에 Window focus나 Context authority를 바꾸지 않는다.
 ========================================================================= BLOCK_HEADER_END */
 
@@ -39,6 +39,7 @@ namespace inonego.Xeri.UI.Validation
         private readonly Dictionary<XeriWindowHandle, XeriWindowController> controllers = new();
         private readonly VisualElement root = null;
         private readonly Label runtimeState = null;
+        private readonly Label outputPolicy = null;
         private readonly Label windowCount = null;
         private readonly Label activeWindow = null;
         private readonly Label windowState = null;
@@ -84,6 +85,7 @@ namespace inonego.Xeri.UI.Validation
             );
             root = placementLease.Value;
             runtimeState = XeriValidationUI.Require<Label>(root, "MonitorRuntimeState");
+            outputPolicy = XeriValidationUI.Require<Label>(root, "MonitorOutputPolicy");
             windowCount = XeriValidationUI.Require<Label>(root, "MonitorWindowCount");
             activeWindow = XeriValidationUI.Require<Label>(root, "MonitorActiveWindow");
             windowState = XeriValidationUI.Require<Label>(root, "MonitorWindowState");
@@ -134,7 +136,7 @@ namespace inonego.Xeri.UI.Validation
 
         // ------------------------------------------------------------
         /// <summary>
-        /// 현재 Core와 Window 상태를 표시한다.
+        /// 현재 출력 정책과 Core·Window 상태를 표시한다.
         /// </summary>
         // ------------------------------------------------------------
         private void Refresh()
@@ -144,17 +146,31 @@ namespace inonego.Xeri.UI.Validation
                 return;
             }
 
-            runtimeState.text = runtime.IsInitialized ? "Running" : "Offline";
+            runtimeState.text = runtime.IsInitialized ? "실행 중" : "중지됨";
+            var settings = runtime.Settings;
+            outputPolicy.text = settings != null
+                ? $"{(settings.HighPrecisionOutput ? "고정밀" : "표준")} · " +
+                  (settings.UIPostProcessing == UIPresentationPostProcessing.Unaffected
+                      ? "후처리 영향 없음"
+                      : "후처리 적용")
+                : "—";
             windowCount.text = controllers.Count.ToString();
             screenCount.text = runtime.Main?.Screens.Count.ToString() ?? "—";
             modalCount.text = runtime.Main?.Modals.Count.ToString() ?? "—";
 
             var device = runtime.LastInputDevice;
-            inputDevice.text = device != null
-                ? device.displayName.ToUpperInvariant()
-                : "No input";
+            inputDevice.text = device switch
+            {
+                Mouse => "마우스",
+                Keyboard => "키보드",
+                Gamepad => "게임패드",
+                Touchscreen => "터치스크린",
+                Pen => "펜",
+                null => "입력 없음",
+                _ => device.displayName,
+            };
 
-            activeWindow.text = "Desktop";
+            activeWindow.text = "바탕화면";
             windowState.text = "—";
 
             var handle = registry.ActiveHandle;
@@ -163,9 +179,26 @@ namespace inonego.Xeri.UI.Validation
                 activeWindow.text = record.Title;
                 if (registry.TryGetController(handle, out var controller))
                 {
-                    windowState.text = controller.EffectiveState.ToString().ToUpperInvariant();
+                    windowState.text = FormatWindowState(controller.EffectiveState);
                 }
             }
+        }
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// 창 상태의 화면 표시 이름을 반환한다.
+        /// </summary>
+        // ------------------------------------------------------------
+        private static string FormatWindowState(XeriWindowState state)
+        {
+            return state switch
+            {
+                XeriWindowState.Normal => "일반",
+                XeriWindowState.Minimized => "최소화",
+                XeriWindowState.Maximized => "최대화",
+                XeriWindowState.Closed => "닫힘",
+                _ => "—",
+            };
         }
 
     #endregion
@@ -192,7 +225,7 @@ namespace inonego.Xeri.UI.Validation
         private void OnWindowRegistered(object sender, XeriWindowEventArgs e)
         {
             BindWindow(e.Handle);
-            checklist?.Mark(XeriValidationChecklist.Item.WindowOpen, e.Handle.ID);
+            checklist?.Mark(XeriValidationChecklist.Item.WindowOpen, "창 열림");
             Refresh();
         }
 
@@ -228,7 +261,7 @@ namespace inonego.Xeri.UI.Validation
         // ------------------------------------------------------------
         private void OnWindowStateChanged(object sender, ValueChangeEventArgs<XeriWindowState> e)
         {
-            checklist?.Mark(XeriValidationChecklist.Item.WindowState, e.Current.ToString());
+            checklist?.Mark(XeriValidationChecklist.Item.WindowState, FormatWindowState(e.Current));
             Refresh();
         }
 
@@ -239,7 +272,7 @@ namespace inonego.Xeri.UI.Validation
         // ------------------------------------------------------------
         private void OnScreensChanged()
         {
-            checklist?.Mark(XeriValidationChecklist.Item.CoreScreen, $"Depth {context.Screens.Count}");
+            checklist?.Mark(XeriValidationChecklist.Item.CoreScreen, $"{context.Screens.Count}개 열림");
             Refresh();
         }
 
@@ -250,7 +283,7 @@ namespace inonego.Xeri.UI.Validation
         // ------------------------------------------------------------
         private void OnModalsChanged()
         {
-            checklist?.Mark(XeriValidationChecklist.Item.Modal, $"Depth {context.Modals.Count}");
+            checklist?.Mark(XeriValidationChecklist.Item.Modal, $"{context.Modals.Count}개 열림");
             Refresh();
         }
 

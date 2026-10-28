@@ -32,18 +32,21 @@ namespace inonego.Xeri.UI
         /// </summary>
         // ------------------------------------------------------------
         public bool IsDisposing { get; private set; }
+
         // ------------------------------------------------------------
         /// <summary>
         /// Context 수명이 종료되었는지 여부.
         /// </summary>
         // ------------------------------------------------------------
         public bool IsDisposed { get; private set; }
+
         // ------------------------------------------------------------
         /// <summary>
         /// 현재 입력 권한을 가진 Context인지 여부.
         /// </summary>
         // ------------------------------------------------------------
         public bool IsEffective => owner.IsEffectiveContext(this);
+
         // ------------------------------------------------------------
         /// <summary>
         /// 현재 활성 Context 경로에 포함되는지 여부.
@@ -58,6 +61,7 @@ namespace inonego.Xeri.UI
         /// </summary>
         // ----------------------------------------------------------------------
         public PresentationSession Presentation { get; private set; }
+
         // ------------------------------------------------------------
         /// <summary>
         /// <br/> Context에 등록된 Screen 정의와 Source.
@@ -65,12 +69,14 @@ namespace inonego.Xeri.UI
         /// </summary>
         // ------------------------------------------------------------
         public ScreenRegistry ScreenRegistry { get; }
+
         // ------------------------------------------------------------
         /// <summary>
         /// 독립 Screen 탐색 상태.
         /// </summary>
         // ------------------------------------------------------------
         public ScreenController Screens { get; }
+
         // ------------------------------------------------------------
         /// <summary>
         /// <br/> 독립 Modal 스택 상태.

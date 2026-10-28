@@ -1,16 +1,17 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : TEST_PresentationHandles.cs
-수정일 : 2026-10-06
+수정일 : 2026-10-28
 
 # 설명
-Modal·Drag Visual·Alpha·Visibility·Overlay의 해제와 UGUI 초기 표시 계약을 검증한다.
+Modal·Alpha·Visibility·Group과 Presentation 소유 수명을 검증한다.
 
 # 테스트 구성
- M: Modal top 복원과 Terminal 정리
- D: Drag Visual 외부 파괴
- A: Alpha Modifier reactive 반영
- V: UGUI 표시 구성 검증
- C: 중첩 Core 요청과 Overlay 롤백
+ M: Modal 상태 알림과 소유 수명
+ A: Alpha와 Visibility Modifier 합성과 실패 정리
+ V: Visibility 상태와 UGUI 백엔드
+ G: Presentation Group 합성
+ L: Layer 사용 수명의 획득과 반환
+ S: Provider 소스의 획득과 반환
 ========================================================================= BLOCK_HEADER_END */
 
 using System;
@@ -37,63 +38,6 @@ namespace inonego.Xeri.UI.TEST.Core
     // ============================================================
     public sealed class TEST_PresentationHandles
     {
-
-    #region 모달 상태 관찰
-
-        [Test]
-        public void TEST_ModalController_Open알림중종료_오래된알림과Session반환중단()
-        {
-            var controller = new ModalController();
-            var observed = new List<int>();
-            controller.OnStackChanged += () =>
-            {
-                if (controller.Count > 0)
-                {
-                    controller.Dispose();
-                }
-            };
-            controller.OnStackChanged += () => observed.Add(controller.Count);
-            Assert.Throws<InvalidOperationException>
-            (
-                () => controller.Open(new TestPresentation(), new TestModalDriver())
-            );
-            Assert.AreEqual(0, controller.Count);
-            Assert.AreEqual(1, observed.Count);
-            Assert.AreEqual(0, observed[0]);
-        }
-
-        // ------------------------------------------------------------
-        /// <summary>
-        /// 직접 Close와 Controller 종료 모두 실제 스택 깊이를 알린다.
-        /// </summary>
-        // ------------------------------------------------------------
-        [Test]
-        public void TEST_ModalController_상태알림_실제깊이와Top반영()
-        {
-            var controller = new ModalController();
-            var observed = new List<int>();
-            var firstDriver = new TestModalDriver();
-            var secondDriver = new TestModalDriver();
-            controller.OnStackChanged += () => observed.Add(controller.Count);
-            var first = controller.Open(new TestPresentation(), firstDriver);
-            var second = controller.Open(new TestPresentation(), secondDriver);
-            var released = false;
-            second.RegisterChild(new Lease(() => released = true));
-
-            second.Dispose();
-            Assert.IsTrue(released);
-            Assert.IsTrue(firstDriver.IsTop);
-            first.Dispose();
-            controller.Open(new TestPresentation(), new TestModalDriver());
-            controller.Dispose();
-            var expected = new[]
-            {
-                1, 2, 1, 0, 1, 0,
-            };
-            CollectionAssert.AreEqual(expected, observed);
-        }
-
-    #endregion
 
     #region 헬퍼
 
@@ -535,8 +479,77 @@ namespace inonego.Xeri.UI.TEST.Core
 
     #endregion
 
-    #region M-1: 모달 최상단 복원
+    #region M-1: 모달 상태 관찰
 
+        // --------------------------------------------------------------------------------
+        /// <summary>
+        /// <br/> Open 알림 도중 Controller가 종료되면 오래된 후속 알림을 중단하고 새 Modal
+        /// <br/> Session을 공개하지 않는다.
+        /// </summary>
+        // --------------------------------------------------------------------------------
+        [Test]
+        public void TEST_ModalController_Open알림중종료_오래된알림과Session반환중단()
+        {
+            var controller = new ModalController();
+            var observed = new List<int>();
+            controller.OnStackChanged += () =>
+            {
+                if (controller.Count > 0)
+                {
+                    controller.Dispose();
+                }
+            };
+            controller.OnStackChanged += () => observed.Add(controller.Count);
+            Assert.Throws<InvalidOperationException>
+            (
+                () => controller.Open(new TestPresentation(), new TestModalDriver())
+            );
+            Assert.AreEqual(0, controller.Count);
+            Assert.AreEqual(1, observed.Count);
+            Assert.AreEqual(0, observed[0]);
+        }
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// 직접 Close와 Controller 종료 모두 실제 스택 깊이를 알린다.
+        /// </summary>
+        // ------------------------------------------------------------
+        [Test]
+        public void TEST_ModalController_상태알림_실제깊이와Top반영()
+        {
+            var controller = new ModalController();
+            var observed = new List<int>();
+            var firstDriver = new TestModalDriver();
+            var secondDriver = new TestModalDriver();
+            controller.OnStackChanged += () => observed.Add(controller.Count);
+            var first = controller.Open(new TestPresentation(), firstDriver);
+            var second = controller.Open(new TestPresentation(), secondDriver);
+            var released = false;
+            second.RegisterChild(new Lease(() => released = true));
+
+            second.Dispose();
+            Assert.IsTrue(released);
+            Assert.IsTrue(firstDriver.IsTop);
+            first.Dispose();
+            controller.Open(new TestPresentation(), new TestModalDriver());
+            controller.Dispose();
+            var expected = new[]
+            {
+                1, 2, 1, 0, 1, 0,
+            };
+            CollectionAssert.AreEqual(expected, observed);
+        }
+
+    #endregion
+
+    #region M-2: 모달 수명과 재진입
+
+        // --------------------------------------------------------------------------------
+        /// <summary>
+        /// <br/> Driver 비활성화 또는 Lifetime 반환 중 전체 종료가 재진입해도 모든 Modal
+        /// <br/> Session과 자원을 한 번씩 정리한다.
+        /// </summary>
+        // --------------------------------------------------------------------------------
         [TestCase(false)]
         [TestCase(true)]
         public void TEST_ModalController_해제중전체종료_각Session한번만정리(bool shutdownFromDriver)
@@ -778,8 +791,76 @@ namespace inonego.Xeri.UI.TEST.Core
 
     #endregion
 
-    #region A-1: 알파 수정자 반응형 반영
+    #region M-3: 정상 모달 스택과 세션 종료
 
+        // --------------------------------------------------------------------------------
+        /// <summary>
+        /// Modal Stack이 마지막 Modal만 top으로 두고 해제 시 이전 top을 복원하는지 검증한다.
+        /// </summary>
+        // --------------------------------------------------------------------------------
+        [Test]
+        public void TEST_ModalController_정상Stack_마지막Top과이전Top복원()
+        {
+            var controller = new ModalController();
+            var firstDriver = new TestModalDriver();
+            var secondDriver = new TestModalDriver();
+            var first = controller.Open(new TestPresentation(), firstDriver);
+            var second = controller.Open(new TestPresentation(), secondDriver);
+
+            Assert.IsFalse(firstDriver.IsTop);
+            Assert.IsTrue(secondDriver.IsTop);
+
+            second.Dispose();
+
+            Assert.IsTrue(firstDriver.IsTop);
+            Assert.IsFalse(secondDriver.IsTop);
+
+            first.Dispose();
+            Assert.AreEqual(0, controller.Count);
+            controller.Dispose();
+        }
+
+        // --------------------------------------------------------------------------------
+        /// <summary>
+        /// 종료된 Modal Session에 뒤늦게 전달된 lifetime은 즉시 반환하고 소유 이전을 거부한다.
+        /// </summary>
+        // --------------------------------------------------------------------------------
+        [Test]
+        public void TEST_ModalSession_종료후Lifetime추가_즉시반환()
+        {
+            var controller = new ModalController();
+            var session = controller.Open
+            (
+                new TestPresentation(),
+                new TestModalDriver()
+            );
+            var disposeCount = 0;
+
+            session.Dispose();
+
+            Assert.Throws<ObjectDisposedException>
+            (
+                () => session.AddOwnedLifetime
+                (
+                    new Lease(() => disposeCount++)
+                )
+            );
+
+            Assert.AreEqual(1, disposeCount);
+            Assert.AreEqual(0, controller.Count);
+            controller.Dispose();
+        }
+
+    #endregion
+
+    #region A-1: 알파와 표시 수정자 합성
+
+        // --------------------------------------------------------------------------------
+        /// <summary>
+        /// <br/> Alpha Modifier 추가가 Backend 적용 중 실패하면 기존 Composite 등록과 출력값을
+        /// <br/> 보존하고 재시도할 수 있다.
+        /// </summary>
+        // --------------------------------------------------------------------------------
         [TestCase(false)]
         [TestCase(true)]
         public void TEST_PresentationAlpha_Modifier추가실패_기존Composite출력복원(bool applyBeforeFailure)
@@ -815,6 +896,12 @@ namespace inonego.Xeri.UI.TEST.Core
             Assert.AreEqual(0.025f, target.Alpha, 0.0001f);
         }
 
+        // --------------------------------------------------------------------------------
+        /// <summary>
+        /// <br/> Visibility Modifier 추가 실패가 기존 Composite 표시 상태와 Modifier 목록을
+        /// <br/> 바꾸지 않는다.
+        /// </summary>
+        // --------------------------------------------------------------------------------
         [Test]
         public void TEST_PresentationVisibility_Modifier추가실패_기존Composite출력복원()
         {
@@ -872,6 +959,11 @@ namespace inonego.Xeri.UI.TEST.Core
             Assert.AreEqual(1.0f, target.Alpha);
         }
 
+        // ----------------------------------------------------------------------
+        /// <summary>
+        /// Modifier 알림 결과가 변하지 않으면 Composite Alpha를 다시 적용하지 않는다.
+        /// </summary>
+        // ----------------------------------------------------------------------
         [Test]
         public void TEST_PresentationAlpha_Modifier동일결과_Composite출력유지()
         {
@@ -895,6 +987,11 @@ namespace inonego.Xeri.UI.TEST.Core
             Assert.AreEqual(applyCount, target.SetCount);
         }
 
+        // --------------------------------------------------------------------------------
+        /// <summary>
+        /// Backend가 값을 부분 적용한 뒤 실패해도 Alpha Modifier 등록과 출력값을 롤백한다.
+        /// </summary>
+        // --------------------------------------------------------------------------------
         [Test]
         public void TEST_PresentationAlpha_Add부분적Backend실패_기존값복원()
         {
@@ -911,6 +1008,12 @@ namespace inonego.Xeri.UI.TEST.Core
             Assert.AreEqual(1f, target.Alpha);
         }
 
+        // --------------------------------------------------------------------------------
+        /// <summary>
+        /// <br/> Backend 적용 중 재진입 Commit은 거부하되 Base 값은 보존하고 명시적 Refresh로 출력
+        /// <br/> 적용을 재시도한다.
+        /// </summary>
+        // --------------------------------------------------------------------------------
         [Test]
         public void TEST_PresentationAlpha_Backend재진입_중첩Commit거부후재시도()
         {
@@ -926,6 +1029,12 @@ namespace inonego.Xeri.UI.TEST.Core
             Assert.AreEqual(0.25f, target.Alpha);
         }
 
+        // --------------------------------------------------------------------------------
+        /// <summary>
+        /// <br/> Modifier 값 변경의 Backend 반영이 실패하면 내부 결과는 유지하고 명시적 재평가로
+        /// <br/> 출력에 반영한다.
+        /// </summary>
+        // --------------------------------------------------------------------------------
         [Test]
         public void TEST_PresentationAlpha_Modifier내부값실패_명시적재평가()
         {
@@ -945,6 +1054,12 @@ namespace inonego.Xeri.UI.TEST.Core
             Assert.AreEqual(0.25f, target.Alpha);
         }
 
+        // --------------------------------------------------------------------------------
+        /// <summary>
+        /// <br/> Visibility Modifier 변경의 Backend 적용 실패 뒤 명시적 재평가로 숨김 출력을
+        /// <br/> 적용한다.
+        /// </summary>
+        // --------------------------------------------------------------------------------
         [Test]
         public void TEST_PresentationVisibility_Modifier내부값실패_명시적재평가()
         {
@@ -1024,6 +1139,12 @@ namespace inonego.Xeri.UI.TEST.Core
             Assert.AreEqual(applyCount, target.SetCount);
         }
 
+        // --------------------------------------------------------------------------------
+        /// <summary>
+        /// <br/> Modifier 구독 또는 초기 변환 실패 시 등록과 구독을 롤백하고 기존 Alpha 출력을
+        /// <br/> 유지한다.
+        /// </summary>
+        // --------------------------------------------------------------------------------
         [TestCase(true)]
         [TestCase(false)]
         public void TEST_PresentationAlpha_Modifier획득실패_등록과구독Rollback(bool failSubscribe)
@@ -1043,6 +1164,12 @@ namespace inonego.Xeri.UI.TEST.Core
             Assert.AreEqual(1f, target.Alpha);
         }
 
+        // --------------------------------------------------------------------------------
+        /// <summary>
+        /// <br/> 여러 Modifier 구독 해제가 실패해도 전체를 terminal 상태로 비우고 이후 Callback
+        /// <br/> 적용을 무효화한다.
+        /// </summary>
+        // --------------------------------------------------------------------------------
         [Test]
         public void TEST_PresentationAlpha_Clear구독해제실패_전체Terminal과잔여Callback무효화()
         {
@@ -1068,6 +1195,12 @@ namespace inonego.Xeri.UI.TEST.Core
             Assert.AreEqual(applyCount, target.SetCount);
         }
 
+        // --------------------------------------------------------------------------------
+        /// <summary>
+        /// <br/> 같은 Modifier가 여러 Key로 등록된 동안 하나의 구독을 공유하고 마지막 제거 때 구독을
+        /// <br/> 해제한다.
+        /// </summary>
+        // --------------------------------------------------------------------------------
         [Test]
         public void TEST_PresentationAlpha_동일Modifier복수Key_마지막등록에서만구독해제()
         {
@@ -1086,6 +1219,11 @@ namespace inonego.Xeri.UI.TEST.Core
             Assert.AreEqual(1f, alpha.Modified);
         }
 
+        // ----------------------------------------------------------------------
+        /// <summary>
+        /// Observer 재진입 변경이 실제 Base 값을 바꿀 때만 이전 알림 전달을 중단한다.
+        /// </summary>
+        // ----------------------------------------------------------------------
         [TestCase(false)]
         [TestCase(true)]
         public void TEST_PresentationAlpha_Observer재진입_실제값변경일때만이전알림중단(bool changeValue)
@@ -1117,6 +1255,11 @@ namespace inonego.Xeri.UI.TEST.Core
             Assert.AreEqual(1, modifiedCount);
         }
 
+        // ----------------------------------------------------------------------
+        /// <summary>
+        /// Base Observer 예외가 발생해도 Backend 적용과 후속 Observer 호출을 완료한다.
+        /// </summary>
+        // ----------------------------------------------------------------------
         [Test]
         public void TEST_PresentationAlpha_BaseObserver실패_Backend와후속Observer유지()
         {
@@ -1250,7 +1393,7 @@ namespace inonego.Xeri.UI.TEST.Core
 
     #endregion
 
-    #region C-1: 중첩 코어 요청
+    #region V-1: 표시 상태와 수정자
 
         // ------------------------------------------------------------
         /// <summary>
@@ -1364,6 +1507,10 @@ namespace inonego.Xeri.UI.TEST.Core
             Assert.IsTrue(visibility.Modified);
             Assert.IsTrue(target.IsVisible);
         }
+
+    #endregion
+
+    #region G-1: 프레젠테이션 그룹 합성
 
         // ----------------------------------------------------------------------
         /// <summary>
@@ -1685,6 +1832,10 @@ namespace inonego.Xeri.UI.TEST.Core
             Assert.AreEqual(1.0f, target.Alpha);
         }
 
+    #endregion
+
+    #region L-1: 레이어 사용 수명
+
         // ------------------------------------------------------------
         /// <summary>
         /// Layer Lease의 consumer lifetime 획득·반환 대칭을 검증한다.
@@ -1744,6 +1895,10 @@ namespace inonego.Xeri.UI.TEST.Core
             Assert.IsTrue(host.IsReleased);
             Assert.Throws<ObjectDisposedException>(() => host.AcquireLayer("Global.Overlay"));
         }
+
+    #endregion
+
+    #region S-1: Provider 소스 수명
 
         // --------------------------------------------------------------------------------
         /// <summary>
@@ -1919,107 +2074,7 @@ namespace inonego.Xeri.UI.TEST.Core
 
     #endregion
 
-    #region M-2: 정상 모달 스택
-
-        // --------------------------------------------------------------------------------
-        /// <summary>
-        /// Modal Stack이 마지막 Modal만 top으로 두고 해제 시 이전 top을 복원하는지 검증한다.
-        /// </summary>
-        // --------------------------------------------------------------------------------
-        [Test]
-        public void TEST_ModalController_정상Stack_마지막Top과이전Top복원()
-        {
-            var controller = new ModalController();
-            var firstDriver = new TestModalDriver();
-            var secondDriver = new TestModalDriver();
-            var first = controller.Open(new TestPresentation(), firstDriver);
-            var second = controller.Open(new TestPresentation(), secondDriver);
-
-            Assert.IsFalse(firstDriver.IsTop);
-            Assert.IsTrue(secondDriver.IsTop);
-
-            second.Dispose();
-
-            Assert.IsTrue(firstDriver.IsTop);
-            Assert.IsFalse(secondDriver.IsTop);
-
-            first.Dispose();
-            Assert.AreEqual(0, controller.Count);
-            controller.Dispose();
-        }
-
-        // --------------------------------------------------------------------------------
-        /// <summary>
-        /// 종료된 Modal Session에 뒤늦게 전달된 lifetime은 즉시 반환하고 소유 이전을 거부한다.
-        /// </summary>
-        // --------------------------------------------------------------------------------
-        [Test]
-        public void TEST_ModalSession_종료후Lifetime추가_즉시반환()
-        {
-            var controller = new ModalController();
-            var session = controller.Open
-            (
-                new TestPresentation(),
-                new TestModalDriver()
-            );
-            var disposeCount = 0;
-
-            session.Dispose();
-
-            Assert.Throws<ObjectDisposedException>
-            (
-                () => session.AddOwnedLifetime
-                (
-                    new Lease(() => disposeCount++)
-                )
-            );
-
-            Assert.AreEqual(1, disposeCount);
-            Assert.AreEqual(0, controller.Count);
-            controller.Dispose();
-        }
-
-    #endregion
-
-    #region D-1: 드래그 시각물 직접 루트
-
-        // ----------------------------------------------------------------------
-        /// <summary>
-        /// 직접 Root Begin이 종료 시 원래 부모와 sibling을 복원하는지 검증한다.
-        /// </summary>
-        // ----------------------------------------------------------------------
-        [Test]
-        public void TEST_DragVisualHandle_직접Root_원래Hierarchy복원()
-        {
-            var originalParent = new GameObject("Original", typeof(RectTransform));
-            var sibling = new GameObject("Sibling", typeof(RectTransform));
-            var dragRoot = new GameObject("Drag Root", typeof(RectTransform));
-            var target = new GameObject("Target", typeof(RectTransform));
-            ownedObjects.Add(originalParent);
-            ownedObjects.Add(sibling);
-            ownedObjects.Add(dragRoot);
-            ownedObjects.Add(target);
-            sibling.transform.SetParent(originalParent.transform, false);
-            target.transform.SetParent(originalParent.transform, false);
-            var rect = target.GetComponent<RectTransform>();
-            var originalSibling = rect.GetSiblingIndex();
-            var controller = new DragVisualController();
-            var handle = controller.Begin
-            (
-                rect,
-                dragRoot.GetComponent<RectTransform>()
-            );
-
-            handle.Dispose();
-
-            Assert.AreSame(originalParent.transform, rect.parent);
-            Assert.AreEqual(originalSibling, rect.GetSiblingIndex());
-            controller.Dispose();
-        }
-
-    #endregion
-
-    #region V-1: UGUI 백엔드 구성
+    #region V-2: UGUI 모달 입력 구성
 
         // --------------------------------------------------------------------------------
         /// <summary>

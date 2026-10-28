@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : TEST_UIPresentation.cs
-수정일 : 2026-10-03
+수정일 : 2026-10-28
 
 # 설명
 실제 Runtime Panel과 Canvas에서 UGUI·UITK 표시와 mixed Focus의 대표 경로를 검증한다.
@@ -11,6 +11,7 @@
  U: UGUI Layer·Screen·Modal·Fade·Layout
  T: UITK Panel·Focus·Screen·Modal·Fade·Spotlight
  M: UGUI·UITK mixed Focus
+ O: UITK·UGUI Native 출력 순서
 ========================================================================= BLOCK_HEADER_END */
 
 using System;
@@ -1528,14 +1529,23 @@ namespace inonego.Xeri.UI.TEST.Core
                 );
 
                 scroll.scrollOffset = new Vector2(0f, 250f);
-                yield return null;
-                yield return null;
+                // Panel 예약은 밀리초 기준이므로 빠른 batch 프레임 수로 갱신을 가정하지 않는다.
+                var refreshDeadline = Time.realtimeSinceStartupAsDouble + 1.0;
+                while (spotlight.HoleCount != 0 && Time.realtimeSinceStartupAsDouble < refreshDeadline)
+                {
+                    yield return null;
+                }
+
                 Assert.AreEqual(0, spotlight.HoleCount);
                 Assert.AreEqual(PickingMode.Ignore, spotlight.pickingMode);
 
                 scroll.scrollOffset = Vector2.zero;
-                yield return null;
-                yield return null;
+                refreshDeadline = Time.realtimeSinceStartupAsDouble + 1.0;
+                while (spotlight.HoleCount != 1 && Time.realtimeSinceStartupAsDouble < refreshDeadline)
+                {
+                    yield return null;
+                }
+
                 Assert.AreEqual(1, spotlight.HoleCount);
                 spotlight.Hide();
                 Assert.AreEqual(0, spotlight.HoleCount);
@@ -1877,6 +1887,12 @@ namespace inonego.Xeri.UI.TEST.Core
 
     #region O-1: 백엔드 간 네이티브 정렬
 
+        // --------------------------------------------------------------------------------
+        /// <summary>
+        /// <br/> Interactive PlayMode에서 UITK·UGUI·UITK Layer를 렌더링하고 실제 픽셀 중첩
+        /// <br/> 순서를 검증한다.
+        /// </summary>
+        // --------------------------------------------------------------------------------
         [Explicit]
         [Category("Rendering")]
         [UnityTest]

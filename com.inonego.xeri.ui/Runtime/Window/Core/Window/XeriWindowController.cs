@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : XeriWindowController.cs
-수정일 : 2026-10-04
+수정일 : 2026-10-28
 
 # 설명
 Xeri 커스텀 윈도우 상태 전환, 명령, 이벤트를 관리하는 controller.
@@ -25,7 +25,7 @@ namespace inonego.Xeri.UI.Window
     public sealed class XeriWindowController
     {
 
-    #region 필드
+    #region 상태와 조회
 
         // ------------------------------------------------------------
         /// <summary>
@@ -228,11 +228,13 @@ namespace inonego.Xeri.UI.Window
 
     #region 생성자
 
-        // ------------------------------------------------------------
+        // ----------------------------------------------------------------------
         /// <summary>
-        /// 윈도우 controller를 생성한다.
+        /// <br/> Driver와 옵션으로 Window controller를 만든다.
+        /// <br/> 옵션 생략 시 기본 옵션, 전환기 생략 시 즉시 전환기를 사용한다.
+        /// <br/> 초기 Normal bounds는 인수를 우선하고 없으면 Driver bounds를 쓴다.
         /// </summary>
-        // ------------------------------------------------------------
+        // ----------------------------------------------------------------------
         public XeriWindowController
         (
             IXeriWindowDriver driver,

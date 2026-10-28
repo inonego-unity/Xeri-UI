@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명: XeriTrayButton.cs
-수정일 : 2026-10-05
+수정일 : 2026-10-28
 
 # 설명
 공통 Tray entry 하나를 표시하는 UITK VisualElement.
@@ -23,7 +23,7 @@ namespace inonego.Xeri.UI.Tray
     public sealed class XeriTrayButton : VisualElement
     {
 
-    #region 필드
+    #region Entry와 표시 요소
 
         private const string TRAY_BUTTON_UXML_PATH = "XeriUI/Tray/XeriTrayButton";
         private const string TRAY_BUTTON_USS_PATH  = "XeriUI/Tray/XeriTrayButtonStyles";
@@ -65,6 +65,11 @@ namespace inonego.Xeri.UI.Tray
 
     #region 생성자
 
+        // ------------------------------------------------------------
+        /// <summary>
+        /// 기본 Tray 버튼을 생성한다.
+        /// </summary>
+        // ------------------------------------------------------------
         public XeriTrayButton() : base()
         {
             name = "tray-button";
@@ -85,6 +90,13 @@ namespace inonego.Xeri.UI.Tray
             titleLabel  = createdTitleLabel;
             badgeLabel  = createdBadgeLabel;
             closeButton = createdCloseButton;
+
+            var closeIcon = new UICloseIcon
+            {
+                name = "entry-close-icon",
+            };
+            closeIcon.AddToClassList("xeri-tray-button__close-icon");
+            closeButton.Add(closeIcon);
 
             hierarchy.Add(stateMarker);
             hierarchy.Add(iconElement);
@@ -271,6 +283,7 @@ namespace inonego.Xeri.UI.Tray
                           entry != null && entry.CanClose;
 
             closeButton.style.display = visible ? DisplayStyle.Flex : DisplayStyle.None;
+            closeButton.tooltip = entry != null ? $"{entry.Title} 닫기" : "닫기";
         }
 
     #endregion

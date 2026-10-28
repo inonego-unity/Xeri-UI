@@ -3,13 +3,13 @@
   "version": "0.0.1",
   "displayName": "Xeri UI",
   "description": "Xeri UI runtime framework with Window, Tray and shared UI utilities.",
-  "unity": "6000.0",
+  "unity": "7000.0",
   "author": {
     "name": "inonego"
   },
   "dependencies": {
     "com.inonego.xeri": "0.0.1",
-    "com.unity.inputsystem": "1.18.0",
-    "com.unity.ugui": "2.6.0"
+    "com.unity.inputsystem": "6.7.0",
+    "com.unity.ugui": "7.0.0"
   }
 }

@@ -39,6 +39,7 @@ namespace inonego.Xeri.UI
         }
 
         private PresentationAlpha alpha = null;
+
         // ------------------------------------------------------------
         /// <summary>
         /// Fade GameObject 활성 상태에 적용되는 합성 Visibility State.

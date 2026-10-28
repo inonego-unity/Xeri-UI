@@ -122,6 +122,11 @@ namespace inonego.Xeri.UI
             return rect;
         }
 
+        // ------------------------------------------------------------
+        /// <summary>
+        /// 실행 모드에 맞는 Unity 파괴 API로 소유 GameObject를 제거한다.
+        /// </summary>
+        // ------------------------------------------------------------
         internal static void DestroyObject(GameObject gameObject)
         {
             if (gameObject == null) return;

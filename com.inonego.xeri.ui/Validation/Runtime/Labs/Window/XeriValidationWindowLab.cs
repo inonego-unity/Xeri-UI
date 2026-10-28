@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : XeriValidationWindowLab.cs
-수정일 : 2026-10-05
+수정일 : 2026-10-19
 
 # 설명
 Window state, StackLayer와 Tray projection을 한 화면에서 조작하는 instrumented Window Lab.
@@ -127,7 +127,7 @@ namespace inonego.Xeri.UI.Validation
             minimizeButton.clicked += MinimizeActive;
             maximizeButton.clicked += MaximizeActive;
             normalButton.clicked += ShowNormalActive;
-            status.text = "Taskbar: all windows · Secondary list: minimized only";
+            status.text = "작업 표시줄: 모든 창 · 아래 목록: 최소화된 창";
         }
 
     #endregion
@@ -171,10 +171,10 @@ namespace inonego.Xeri.UI.Validation
             var view = new VisualElement();
             view.AddToClassList("xeri-validation-app");
             assets.ApplyAppStyles(view);
-            view.Add(new Label(alwaysOnTop ? "Always On Top utility" : "Utility Window"));
-            var field = new TextField("Editable value")
+            view.Add(new Label(alwaysOnTop ? "항상 위에 표시하는 도구 창" : "도구 창"));
+            var field = new TextField("입력값")
             {
-                value = $"Window {spawnedWindowIndex}",
+                value = $"창 {spawnedWindowIndex}",
             };
             view.Add(field);
 
@@ -188,8 +188,8 @@ namespace inonego.Xeri.UI.Validation
             var record = new XeriWindowRecord
             {
                 ID = id,
-                Title = alwaysOnTop ? $"Top Utility {spawnedWindowIndex}" : $"Utility {spawnedWindowIndex}",
-                Tooltip = "Window Lab generated utility",
+                Title = alwaysOnTop ? $"항상 위 도구 {spawnedWindowIndex}" : $"도구 {spawnedWindowIndex}",
+                Tooltip = "창 실험실에서 연 도구 창",
                 Pos = new Vector2(300f + spawnedWindowIndex * 18f, 180f + spawnedWindowIndex * 16f),
                 Size = new Vector2(330f, 220f),
                 NormalPos = new Vector2(300f + spawnedWindowIndex * 18f, 180f + spawnedWindowIndex * 16f),
@@ -202,8 +202,8 @@ namespace inonego.Xeri.UI.Validation
 
             var session = workspace.OpenWindow(record, view, options);
             session.RegisterChild(appearance.Bind(session.Panel));
-            status.text = alwaysOnTop ? "AlwaysOnTop Window opened" : "Utility Window opened";
-            checklist?.Mark(XeriValidationChecklist.Item.WindowOpen, "Window Lab");
+            status.text = alwaysOnTop ? "항상 위 창 열림" : "도구 창 열림";
+            checklist?.Mark(XeriValidationChecklist.Item.WindowOpen, "창 실험실");
         }
 
     #endregion
@@ -223,7 +223,7 @@ namespace inonego.Xeri.UI.Validation
             }
 
             session.Controller.Minimize();
-            status.text = $"{session.Handle.ID} → Minimized";
+            status.text = "선택한 창 → 최소화";
 
         }
 
@@ -240,7 +240,7 @@ namespace inonego.Xeri.UI.Validation
             }
 
             session.Controller.Maximize();
-            status.text = $"{session.Handle.ID} → Maximized";
+            status.text = "선택한 창 → 최대화";
 
         }
 
@@ -258,7 +258,7 @@ namespace inonego.Xeri.UI.Validation
 
             session.Controller.ShowNormal();
             session.Focus();
-            status.text = $"{session.Handle.ID} → Normal";
+            status.text = "선택한 창 → 원래 크기";
 
         }
 
@@ -272,7 +272,7 @@ namespace inonego.Xeri.UI.Validation
             if (workspace.TryGetSession(registry.ActiveHandle, out session)) return true;
 
             session = null;
-            status.text = "No active window";
+            status.text = "선택한 창 없음";
             return false;
         }
 
@@ -288,7 +288,7 @@ namespace inonego.Xeri.UI.Validation
         private void OnProjectionEntrySelect(object sender, XeriTrayEventArgs e)
         {
             minimizedSource.Activate(e.Entry);
-            status.text = "Minimized projection entry activated";
+            status.text = "최소화된 창 선택됨";
             checklist?.Mark(XeriValidationChecklist.Item.TrayActivate);
         }
 

@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : UIRuntime.cs
-수정일 : 2026-10-07
+수정일 : 2026-10-21
 # 설명
 App 단위 Singleton, Root PresentationSession, PresentationHost, Main UIContext와 Context Authority 조립·역순 해제를 소유한다.
 Top-level Layer materialization과 semantic destination Layer 획득을 분리하며 Context lifetime과 Focus/Input authority를 독립적으로 관리한다.
@@ -231,7 +231,7 @@ namespace inonego.Xeri.UI
 
     #endregion
 
-    #region Unity 생명주기
+    #region 유니티 생명주기
 
         // ------------------------------------------------------------
         /// <summary>
@@ -376,6 +376,7 @@ namespace inonego.Xeri.UI
                     );
                 }
 
+                UIPresentationOutputPolicy.Bind(settings);
                 InvokeInitializedSubscribers();
 
                 // 완료 알림 중 명시적으로 종료된 Runtime을 초기화 성공 상태로 반환하지 않는다.
@@ -401,6 +402,10 @@ namespace inonego.Xeri.UI
                 throw new AggregateException("UI Runtime 초기화와 롤백이 실패했습니다.", errors);
             }
         }
+
+    #endregion
+
+    #region 초기화 구성 검증
 
         // --------------------------------------------------------------------------------
         /// <summary>
@@ -750,6 +755,10 @@ namespace inonego.Xeri.UI
             }
         }
 
+    #endregion
+
+    #region 씬 구성과 감시
+
         // ------------------------------------------------------------
         /// <summary>
         /// 현재 Runtime backend 요구에 맞는 Scene 단일 구성을 검증한다.
@@ -932,6 +941,7 @@ namespace inonego.Xeri.UI
 
             IsInitialized = false;
             IsReleasing = true;
+            UIPresentationOutputPolicy.Unbind(Settings);
             Unregister(this);
             var main = Main;
             var sceneFader = SceneFader;
@@ -993,6 +1003,10 @@ namespace inonego.Xeri.UI
             return errors;
         }
 
+    #endregion
+
+    #region 수명 이벤트 전달
+
         // ----------------------------------------------------------------------
         /// <summary>
         /// <br/> Runtime 초기화 observer를 독립적으로 호출해 한 observer 실패가
@@ -1042,6 +1056,10 @@ namespace inonego.Xeri.UI
                 errors
             );
         }
+
+    #endregion
+
+    #region 소유 자원 해제
 
         // ----------------------------------------------------------------------
         /// <summary>
@@ -1146,15 +1164,9 @@ namespace inonego.Xeri.UI
             }
         }
 
-        // ------------------------------------------------------------
-        /// <summary>
-        /// Child Context를 생성할 수 있는 Runtime 상태인지 확인한다.
-        /// </summary>
-        // ------------------------------------------------------------
-        internal void ThrowIfContextCreationUnavailable()
-        {
-            ThrowIfUnavailable();
-        }
+    #endregion
+
+    #region 컨텍스트 권한과 입력 정책
 
         // ------------------------------------------------------------
         /// <summary>
@@ -1442,6 +1454,20 @@ namespace inonego.Xeri.UI
             }
 
             return null;
+        }
+
+    #endregion
+
+    #region 사용 가능 상태 검증
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// Child Context를 생성할 수 있는 Runtime 상태인지 확인한다.
+        /// </summary>
+        // ------------------------------------------------------------
+        internal void ThrowIfContextCreationUnavailable()
+        {
+            ThrowIfUnavailable();
         }
 
         // --------------------------------------------------------------------------------

@@ -12,7 +12,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: b3c27979b9939f3c5a4561ef9747140a, type: 3}
   m_Name: XeriUIValidationAssets
   m_EditorClassIdentifier: inonego.Xeri.UI.Validation::inonego.Xeri.UI.Validation.XeriValidationAssets
-  panelSettings: {fileID: 11400000, guid: b04eb6c13eb14bc49d40f9216e5a91cb, type: 2}
+  panelSettings: {fileID: 11400000, guid: 371cbaf937794a44b88181df6ed0bbde, type: 2}
   desktopTemplate: {fileID: 9197481963319205126, guid: 50a2d8564bc85f79bd794ef6ce837224, type: 3}
   checklistTemplate: {fileID: 9197481963319205126, guid: e7548b9acd35034db65efc8440958442, type: 3}
   coreLabTemplate: {fileID: 9197481963319205126, guid: 47db10d26405eed0910abdc32f3d7a37, type: 3}

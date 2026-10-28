@@ -31,7 +31,7 @@ namespace inonego.Xeri.UI.Window.Editor
     public sealed class XeriUnityToolbarTray : IDisposable
     {
 
-    #region 필드
+    #region Tray 연결 상태
 
         private const string TRAY_ROOT_NAME = "xeri-unity-toolbar-tray";
         private const string TRAY_USS_CLASS = "xeri-tray--unity-toolbar";
