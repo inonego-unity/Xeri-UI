@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : TEST_ScreenController.cs
-수정일 : 2026-10-28
+수정일 : 2026-11-02
 
 # 설명
 Screen 수명·상태 훅 정리, Focus 복원과 닫기 입력 장벽 계약을 검증한다.
@@ -1814,6 +1814,43 @@ namespace inonego.Xeri.UI.TEST.Core
                 },
                 childHandler.Calls
             );
+        }
+
+        // ----------------------------------------------------------------------
+        /// <summary>
+        /// Screen 전체 종료가 Context 소유 Primary와 Override Focus 수명을 보존한다.
+        /// </summary>
+        // ----------------------------------------------------------------------
+        [Test]
+        public void TEST_ScreenController_Clear_독립FocusScope와Override보존()
+        {
+            var primaryTarget = new object();
+            var overrideTarget = new object();
+            using var primary = focusController.RegisterScope
+            (
+                new TestFocusScope(primaryTarget)
+            );
+            using var overrideScope = focusController.RegisterScope
+            (
+                new TestFocusScope(overrideTarget)
+            );
+            focusController.SetPrimary(primary);
+            using var overrideLifetime = focusController.PushOverride(overrideScope);
+            Register("Screen", new TestScreenSource(new object()));
+            var session = controller.Open("Screen").Session;
+
+            Assert.AreSame(overrideTarget, focusDriver.Current);
+
+            controller.Clear();
+
+            Assert.AreEqual(ScreenState.Closed, session.State);
+            Assert.AreEqual(0, controller.Count);
+            Assert.IsFalse(primary.IsDisposed);
+            Assert.IsFalse(overrideScope.IsDisposed);
+            Assert.AreSame(overrideTarget, focusDriver.Current);
+
+            overrideLifetime.Dispose();
+            Assert.AreSame(primaryTarget, focusDriver.Current);
         }
 
     #endregion

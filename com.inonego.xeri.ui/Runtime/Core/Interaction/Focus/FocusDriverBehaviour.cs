@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : FocusDriverBehaviour.cs
-수정일 : 2026-10-03
+수정일 : 2026-11-02
 # 설명
 Unity Focus backend이 공통 Driver에 참여하고 Layer registration을 대칭 해제하기 위한 Component 계약을 정의한다.
 ========================================================================= BLOCK_HEADER_END */

@@ -78,12 +78,9 @@ namespace inonego.Xeri.UI.Window
             }
             catch (Exception exception)
             {
-                var errors = new List<Exception>
-                {
-                    exception,
-                };
-                UnregisterAllHandles(errors);
-                TryCleanup(cursorProvider.Reset, errors);
+                var errors = new ExceptionBuffer(exception);
+                UnregisterAllHandles(ref errors);
+                TryCleanup(cursorProvider.Reset, ref errors);
                 ThrowErrors("Window resize callback 연결 rollback", errors);
             }
         }
@@ -98,7 +95,7 @@ namespace inonego.Xeri.UI.Window
             if (!isAttached) return;
 
             isAttached = false;
-            var errors = new List<Exception>();
+            var errors = new ExceptionBuffer();
 
             try
             {
@@ -109,7 +106,7 @@ namespace inonego.Xeri.UI.Window
                 errors.Add(exception);
             }
 
-            UnregisterAllHandles(errors);
+            UnregisterAllHandles(ref errors);
             ThrowErrors("Window resize callback 해제", errors);
         }
 
@@ -139,16 +136,16 @@ namespace inonego.Xeri.UI.Window
         /// 모든 resize handle callback을 해제한다.
         /// </summary>
         // ------------------------------------------------------------
-        private void UnregisterAllHandles(List<Exception> errors)
+        private void UnregisterAllHandles(ref ExceptionBuffer errors)
         {
-            UnregisterHandle(panel.ResizeLeft, errors);
-            UnregisterHandle(panel.ResizeTop, errors);
-            UnregisterHandle(panel.ResizeRight, errors);
-            UnregisterHandle(panel.ResizeBottom, errors);
-            UnregisterHandle(panel.ResizeTopLeft, errors);
-            UnregisterHandle(panel.ResizeTopRight, errors);
-            UnregisterHandle(panel.ResizeBottomLeft, errors);
-            UnregisterHandle(panel.ResizeBottomRight, errors);
+            UnregisterHandle(panel.ResizeLeft, ref errors);
+            UnregisterHandle(panel.ResizeTop, ref errors);
+            UnregisterHandle(panel.ResizeRight, ref errors);
+            UnregisterHandle(panel.ResizeBottom, ref errors);
+            UnregisterHandle(panel.ResizeTopLeft, ref errors);
+            UnregisterHandle(panel.ResizeTopRight, ref errors);
+            UnregisterHandle(panel.ResizeBottomLeft, ref errors);
+            UnregisterHandle(panel.ResizeBottomRight, ref errors);
         }
 
         // ------------------------------------------------------------
@@ -175,45 +172,45 @@ namespace inonego.Xeri.UI.Window
         private void UnregisterHandle
         (
             VisualElement handle,
-            List<Exception> errors
+            ref ExceptionBuffer errors
         )
         {
             TryCleanup
             (
                 () => handle.UnregisterCallback<PointerEnterEvent>(OnPointerEnter),
-                errors
+                ref errors
             );
             TryCleanup
             (
                 () => handle.UnregisterCallback<PointerLeaveEvent>(OnPointerLeave),
-                errors
+                ref errors
             );
             TryCleanup
             (
                 () => handle.UnregisterCallback<PointerDownEvent>(OnPointerDown),
-                errors
+                ref errors
             );
             TryCleanup
             (
                 () => handle.UnregisterCallback<PointerMoveEvent>(OnPointerMove),
-                errors
+                ref errors
             );
             TryCleanup
             (
                 () => handle.UnregisterCallback<PointerUpEvent>(OnPointerUp),
-                errors
+                ref errors
             );
             TryCleanup
             (
                 () => handle.UnregisterCallback<PointerCancelEvent>(OnPointerCancel),
-                errors
+                ref errors
             );
         }
 
         private static void TryCleanup
         (
             Action cleanup,
-            List<Exception> errors
+            ref ExceptionBuffer errors
         )
         {
             try
@@ -229,7 +226,7 @@ namespace inonego.Xeri.UI.Window
         private static void ThrowErrors
         (
             string message,
-            List<Exception> errors
+            ExceptionBuffer errors
         )
         {
             if (errors.Count == 0) return;
@@ -239,7 +236,7 @@ namespace inonego.Xeri.UI.Window
                 throw errors[0];
             }
 
-            throw new AggregateException(message, errors);
+            throw errors.CreateAggregateException(message);
         }
 
         // ------------------------------------------------------------
@@ -300,7 +297,7 @@ namespace inonego.Xeri.UI.Window
         {
             var currentHandle = handle ?? activeHandle;
             var currentID = activeID;
-            var errors = new List<Exception>();
+            var errors = new ExceptionBuffer();
 
             // 외부 cleanup 전에 logical pointer ownership을 먼저 terminalize한다.
             activeID = -1;
@@ -318,11 +315,11 @@ namespace inonego.Xeri.UI.Window
                             currentHandle.ReleasePointer(currentID);
                         }
                     },
-                    errors
+                    ref errors
                 );
             }
 
-            TryCleanup(cursorProvider.Reset, errors);
+            TryCleanup(cursorProvider.Reset, ref errors);
             ThrowErrors("Window resize pointer 정리", errors);
         }
 
@@ -443,10 +440,7 @@ namespace inonego.Xeri.UI.Window
             }
             catch (Exception exception)
             {
-                var errors = new List<Exception>
-                {
-                    exception,
-                };
+                var errors = new ExceptionBuffer(exception);
 
                 try
                 {

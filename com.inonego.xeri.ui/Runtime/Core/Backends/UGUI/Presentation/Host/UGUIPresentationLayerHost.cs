@@ -129,7 +129,7 @@ namespace inonego.Xeri.UI
             bool originalActive
         )
         {
-            var errors = new List<Exception>();
+            var errors = new ExceptionBuffer();
 
             try
             {
@@ -159,10 +159,9 @@ namespace inonego.Xeri.UI
                 throw errors[0];
             }
 
-            throw new AggregateException
+            throw errors.CreateAggregateException
             (
-                $"UGUI Layer Host '{LayerID}' borrowed state 복원이 실패했습니다.",
-                errors
+                $"UGUI Layer Host '{LayerID}' borrowed state 복원이 실패했습니다."
             );
         }
 

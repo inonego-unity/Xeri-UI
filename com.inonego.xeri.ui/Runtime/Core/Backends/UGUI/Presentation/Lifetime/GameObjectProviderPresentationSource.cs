@@ -110,7 +110,7 @@ namespace inonego.Xeri.UI
 
             var previousParent = provider.Parent;
             GameObject instance = null;
-            var acquisitionErrors = new List<Exception>();
+            var acquisitionErrors = new ExceptionBuffer();
 
             try
             {
@@ -150,10 +150,9 @@ namespace inonego.Xeri.UI
                     throw acquisitionErrors[0];
                 }
 
-                throw new AggregateException
+                throw acquisitionErrors.CreateAggregateException
                 (
-                    "Presentation View 획득과 Provider Parent 복원이 실패했습니다.",
-                    acquisitionErrors
+                    "Presentation View 획득과 Provider Parent 복원이 실패했습니다."
                 );
             }
 
@@ -297,7 +296,7 @@ namespace inonego.Xeri.UI
             if (isDisposed) return;
 
             isDisposed = true;
-            var errors = new List<Exception>();
+            var errors = new ExceptionBuffer();
 
             // Source가 소유한 각 인스턴스를 목록에서 먼저 제거해 반환 실패도 Terminal로 확정한다.
             for (var i = ownedViews.Count - 1; i >= 0; i--)
@@ -317,7 +316,7 @@ namespace inonego.Xeri.UI
 
             if (errors.Count > 0)
             {
-                throw new AggregateException("Presentation Source 해제가 실패했습니다.", errors);
+                throw errors.CreateAggregateException("Presentation Source 해제가 실패했습니다.");
             }
         }
 

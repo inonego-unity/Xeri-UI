@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : PresentationLayerMaterializer.cs
-수정일 : 2026-10-17
+수정일 : 2026-11-02
 
 # 설명
 Top-level Presentation Layer를 Unity Native Output, LayerRoot와 ManagedRoot로 materialize하는 구현 경계다.
@@ -253,7 +253,7 @@ namespace inonego.Xeri.UI
             Action releaseNativeState
         )
         {
-            var errors = new List<Exception>();
+            var errors = new ExceptionBuffer();
 
             try
             {
@@ -280,10 +280,9 @@ namespace inonego.Xeri.UI
                 throw errors[0];
             }
 
-            throw new AggregateException
+            throw errors.CreateAggregateException
             (
-                "Generated Presentation Output 해제가 실패했습니다.",
-                errors
+                "Generated Presentation Output 해제가 실패했습니다."
             );
         }
 

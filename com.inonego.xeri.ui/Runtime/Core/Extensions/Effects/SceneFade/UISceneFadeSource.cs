@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : UISceneFadeSource.cs
-수정일 : 2026-07-31
+수정일 : 2026-11-02
 
 # 설명
 UIRuntime이 직렬화하고 초기화할 Scene Fade Source의 최소 Unity 조립 경계를 정의한다.

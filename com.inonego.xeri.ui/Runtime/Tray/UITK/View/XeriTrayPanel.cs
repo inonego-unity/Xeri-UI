@@ -432,7 +432,7 @@ namespace inonego.Xeri.UI.Tray
         {
             if (handlers == null) return;
 
-            var errors = new List<Exception>();
+            var errors = new ExceptionBuffer();
 
             foreach (EventHandler<TEventArgs> handler in handlers.GetInvocationList())
             {
@@ -453,10 +453,9 @@ namespace inonego.Xeri.UI.Tray
                 throw errors[0];
             }
 
-            throw new AggregateException
+            throw errors.CreateAggregateException
             (
-                "Tray Panel 이벤트 처리 중 하나 이상의 observer가 실패했습니다.",
-                errors
+                "Tray Panel 이벤트 처리 중 하나 이상의 observer가 실패했습니다."
             );
         }
 

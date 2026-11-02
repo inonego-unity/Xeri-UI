@@ -89,21 +89,17 @@ namespace inonego.Xeri.UI.Tray
             }
             catch (Exception exception)
             {
-                var errors = new List<Exception>
-                {
-                    exception,
-                };
-                Unbind(errors);
+                var errors = new ExceptionBuffer(exception);
+                Unbind(ref errors);
 
                 if (errors.Count == 1)
                 {
                     throw;
                 }
 
-                throw new AggregateException
+                throw errors.CreateAggregateException
                 (
-                    "Tray Controller 이벤트 연결과 롤백이 실패했습니다.",
-                    errors
+                    "Tray Controller 이벤트 연결과 롤백이 실패했습니다."
                 );
             }
         }
@@ -158,7 +154,7 @@ namespace inonego.Xeri.UI.Tray
         /// Source와 renderer 이벤트 연결을 독립적으로 한 번씩 해제한다.
         /// </summary>
         // ------------------------------------------------------------
-        private void Unbind(List<Exception> errors)
+        private void Unbind(ref ExceptionBuffer errors)
         {
             if (isCloseBound)
             {
@@ -212,7 +208,7 @@ namespace inonego.Xeri.UI.Tray
         (
             EventHandler handlers,
             EventArgs eventArgs,
-            List<Exception> errors
+            ref ExceptionBuffer errors
         )
         {
             if (handlers == null) return;
@@ -239,7 +235,7 @@ namespace inonego.Xeri.UI.Tray
         (
             EventHandler<TEventArgs> handlers,
             TEventArgs eventArgs,
-            List<Exception> errors
+            ref ExceptionBuffer errors
         )
         where TEventArgs : EventArgs
         {
@@ -266,7 +262,7 @@ namespace inonego.Xeri.UI.Tray
         private static void ThrowEventErrors
         (
             string message,
-            List<Exception> errors
+            ExceptionBuffer errors
         )
         {
             if (errors.Count == 0) return;
@@ -276,7 +272,7 @@ namespace inonego.Xeri.UI.Tray
                 throw errors[0];
             }
 
-            throw new AggregateException(message, errors);
+            throw errors.CreateAggregateException(message);
         }
 
     #endregion
@@ -292,8 +288,8 @@ namespace inonego.Xeri.UI.Tray
         {
             if (isDisposed) return;
 
-            var errors = new List<Exception>();
-            InvokeHandlers(OnReloadRequired, EventArgs.Empty, errors);
+            var errors = new ExceptionBuffer();
+            InvokeHandlers(OnReloadRequired, EventArgs.Empty, ref errors);
 
             if (!isDisposed)
             {
@@ -319,8 +315,8 @@ namespace inonego.Xeri.UI.Tray
         {
             if (isDisposed) return;
 
-            var errors = new List<Exception>();
-            InvokeHandlers(OnEntrySelect, e, errors);
+            var errors = new ExceptionBuffer();
+            InvokeHandlers(OnEntrySelect, e, ref errors);
             ThrowEventErrors("Tray select 이벤트 처리", errors);
         }
 
@@ -335,8 +331,8 @@ namespace inonego.Xeri.UI.Tray
             if (e?.Entry == null || !e.Entry.CanClose) return;
 
             var cancelEventArgs = new XeriTrayCancelEventArgs(e.Entry);
-            var errors = new List<Exception>();
-            InvokeHandlers(OnPreEntryClose, cancelEventArgs, errors);
+            var errors = new ExceptionBuffer();
+            InvokeHandlers(OnPreEntryClose, cancelEventArgs, ref errors);
 
             if (errors.Count > 0)
             {
@@ -346,7 +342,7 @@ namespace inonego.Xeri.UI.Tray
 
             if (isDisposed || cancelEventArgs.Cancel) return;
 
-            InvokeHandlers(OnEntryClose, e, errors);
+            InvokeHandlers(OnEntryClose, e, ref errors);
             ThrowEventErrors("Tray close 이벤트 처리", errors);
         }
 
@@ -365,15 +361,14 @@ namespace inonego.Xeri.UI.Tray
             if (isDisposed) return;
 
             isDisposed = true;
-            var errors = new List<Exception>();
-            Unbind(errors);
+            var errors = new ExceptionBuffer();
+            Unbind(ref errors);
 
             if (errors.Count > 0)
             {
-                throw new AggregateException
+                throw errors.CreateAggregateException
                 (
-                    "Tray Controller 이벤트 해제가 실패했습니다.",
-                    errors
+                    "Tray Controller 이벤트 해제가 실패했습니다."
                 );
             }
         }

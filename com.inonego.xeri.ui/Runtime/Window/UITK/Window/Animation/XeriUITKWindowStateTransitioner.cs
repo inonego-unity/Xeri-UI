@@ -145,7 +145,7 @@ namespace inonego.Xeri.UI.Window
 
             var request = currentRequest;
             var context = currentContext;
-            var errors = new List<Exception>();
+            var errors = new ExceptionBuffer();
 
             try
             {
@@ -341,20 +341,20 @@ namespace inonego.Xeri.UI.Window
             if (request?.Driver == null) return;
 
             var driver = request.Driver;
-            var errors = new List<Exception>();
+            var errors = new ExceptionBuffer();
 
-            TryRollback(() => driver.Alpha.Set(1f), errors);
+            TryRollback(() => driver.Alpha.Set(1f), ref errors);
 
             if (request.PreviousState == XeriWindowState.Maximized)
             {
-                TryRollback(driver.ApplyMaximizedBounds, errors);
+                TryRollback(driver.ApplyMaximizedBounds, ref errors);
             }
             else
             {
-                TryRollback(() => driver.ApplyBounds(context.PreviousBounds), errors);
+                TryRollback(() => driver.ApplyBounds(context.PreviousBounds), ref errors);
             }
 
-            TryRollback(() => driver.CommitState(request.PreviousState), errors);
+            TryRollback(() => driver.CommitState(request.PreviousState), ref errors);
             TryRollback
             (
                 () => driver.Visibility.Set
@@ -362,7 +362,7 @@ namespace inonego.Xeri.UI.Window
                     request.PreviousState != XeriWindowState.Minimized &&
                     request.PreviousState != XeriWindowState.Closed
                 ),
-                errors
+                ref errors
             );
 
             ThrowErrors("Window 상태 전환 롤백", errors);
@@ -376,7 +376,7 @@ namespace inonego.Xeri.UI.Window
         private static void TryRollback
         (
             Action rollback,
-            List<Exception> errors
+            ref ExceptionBuffer errors
         )
         {
             try
@@ -411,7 +411,7 @@ namespace inonego.Xeri.UI.Window
         private static void ThrowErrors
         (
             string message,
-            List<Exception> errors
+            ExceptionBuffer errors
         )
         {
             if (errors.Count == 0) return;
@@ -421,7 +421,7 @@ namespace inonego.Xeri.UI.Window
                 throw errors[0];
             }
 
-            throw new AggregateException(message, errors);
+            throw errors.CreateAggregateException(message);
         }
 
     #endregion

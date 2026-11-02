@@ -100,11 +100,8 @@ namespace inonego.Xeri.UI.Window
             }
             catch (Exception exception)
             {
-                var errors = new List<Exception>
-                {
-                    exception,
-                };
-                UnregisterCallbacks(errors);
+                var errors = new ExceptionBuffer(exception);
+                UnregisterCallbacks(ref errors);
                 ResetTitleBarClickState();
                 ThrowErrors("Window titlebar callback 연결 rollback", errors);
             }
@@ -120,8 +117,8 @@ namespace inonego.Xeri.UI.Window
             if (!isAttached) return;
 
             isAttached = false;
-            var errors = new List<Exception>();
-            UnregisterCallbacks(errors);
+            var errors = new ExceptionBuffer();
+            UnregisterCallbacks(ref errors);
             ResetTitleBarClickState();
             ThrowErrors("Window titlebar callback 해제", errors);
         }
@@ -149,7 +146,7 @@ namespace inonego.Xeri.UI.Window
         /// Titlebar drag와 click callback 전체를 해제한다.
         /// </summary>
         // ------------------------------------------------------------
-        private void UnregisterCallbacks(List<Exception> errors)
+        private void UnregisterCallbacks(ref ExceptionBuffer errors)
         {
             TryCleanup
             (
@@ -157,7 +154,7 @@ namespace inonego.Xeri.UI.Window
                 (
                     OnTitleBarMouseDown
                 ),
-                errors
+                ref errors
             );
             TryCleanup
             (
@@ -165,17 +162,17 @@ namespace inonego.Xeri.UI.Window
                 (
                     OnTitleBarMouseUp
                 ),
-                errors
+                ref errors
             );
-            TryCleanup(() => dragManipulator.OnDragBegin -= OnDragBegin, errors);
-            TryCleanup(() => dragManipulator.OnDrag -= OnDrag, errors);
-            TryCleanup(() => panel.TitleBar.RemoveManipulator(dragManipulator), errors);
+            TryCleanup(() => dragManipulator.OnDragBegin -= OnDragBegin, ref errors);
+            TryCleanup(() => dragManipulator.OnDrag -= OnDrag, ref errors);
+            TryCleanup(() => panel.TitleBar.RemoveManipulator(dragManipulator), ref errors);
         }
 
         private static void TryCleanup
         (
             Action cleanup,
-            List<Exception> errors
+            ref ExceptionBuffer errors
         )
         {
             try
@@ -252,7 +249,7 @@ namespace inonego.Xeri.UI.Window
                 GetTitleBarHeight()
             );
 
-            var errors = new List<Exception>();
+            var errors = new ExceptionBuffer();
 
             try
             {
@@ -473,7 +470,7 @@ namespace inonego.Xeri.UI.Window
         private static void ThrowErrors
         (
             string message,
-            List<Exception> errors
+            ExceptionBuffer errors
         )
         {
             if (errors.Count == 0) return;
@@ -483,7 +480,7 @@ namespace inonego.Xeri.UI.Window
                 throw errors[0];
             }
 
-            throw new AggregateException(message, errors);
+            throw errors.CreateAggregateException(message);
         }
 
         // ------------------------------------------------------------

@@ -1,6 +1,6 @@
 ﻿/* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : PresentationLayerHandle.cs
-수정일 : 2026-09-23
+수정일 : 2026-11-02
 
 # 설명
 PresentationSession Registry의 Layer 등록 소유권과 활성 소비자 수명을 연결한다.

@@ -738,7 +738,7 @@ namespace inonego.Xeri.UI.Validation
         {
             if (isDisposed) return;
             isDisposed = true;
-            var errors = new List<Exception>();
+            List<Exception> errors = null;
 
             // 입력 구독부터 끊고 Window의 콘텐츠를 Context와 함께 반환한다.
             try
@@ -747,7 +747,7 @@ namespace inonego.Xeri.UI.Validation
             }
             catch (Exception exception)
             {
-                errors.Add(exception);
+                (errors ??= new List<Exception>()).Add(exception);
             }
 
             // 종료 중인 Runtime을 읽지 않도록 상태 관찰부터 끊는다.
@@ -764,7 +764,7 @@ namespace inonego.Xeri.UI.Validation
                 }
                 catch (Exception exception)
                 {
-                    errors.Add(exception);
+                    (errors ??= new List<Exception>()).Add(exception);
                 }
             }
 
@@ -776,7 +776,7 @@ namespace inonego.Xeri.UI.Validation
                 }
                 catch (Exception exception)
                 {
-                    errors.Add(exception);
+                    (errors ??= new List<Exception>()).Add(exception);
                 }
             }
 
@@ -789,7 +789,7 @@ namespace inonego.Xeri.UI.Validation
 
             appearance = null;
             desktopRoot = null;
-            if (errors.Count > 0)
+            if (errors != null)
             {
                 throw new AggregateException("Validation Shell 해제가 실패했습니다.", errors);
             }

@@ -69,11 +69,8 @@ namespace inonego.Xeri.UI.Window
             }
             catch (Exception exception)
             {
-                var errors = new List<Exception>
-                {
-                    exception,
-                };
-                UnregisterCallbacks(errors);
+                var errors = new ExceptionBuffer(exception);
+                UnregisterCallbacks(ref errors);
                 ThrowErrors("Window control callback 연결 rollback", errors);
             }
         }
@@ -89,8 +86,8 @@ namespace inonego.Xeri.UI.Window
 
             // Session이 참조를 버리기 전에 logical binding을 먼저 terminalize한다.
             isAttached = false;
-            var errors = new List<Exception>();
-            UnregisterCallbacks(errors);
+            var errors = new ExceptionBuffer();
+            UnregisterCallbacks(ref errors);
             ThrowErrors("Window control callback 해제", errors);
         }
 
@@ -116,25 +113,25 @@ namespace inonego.Xeri.UI.Window
         /// Control callback 전체를 해제한다.
         /// </summary>
         // ------------------------------------------------------------
-        private void UnregisterCallbacks(List<Exception> errors)
+        private void UnregisterCallbacks(ref ExceptionBuffer errors)
         {
-            TryCleanup(() => panel.MinimizeButton.clicked -= OnMinimizeClick, errors);
-            TryCleanup(() => panel.MaximizeButton.clicked -= OnMaximizeClick, errors);
-            TryCleanup(() => panel.CloseButton.clicked -= OnCloseClick, errors);
+            TryCleanup(() => panel.MinimizeButton.clicked -= OnMinimizeClick, ref errors);
+            TryCleanup(() => panel.MaximizeButton.clicked -= OnMaximizeClick, ref errors);
+            TryCleanup(() => panel.CloseButton.clicked -= OnCloseClick, ref errors);
             TryCleanup
             (
                 () => panel.TitleActions.UnregisterCallback<PointerDownEvent>
                 (
                     OnTitleActionsPointerDown
                 ),
-                errors
+                ref errors
             );
         }
 
         private static void TryCleanup
         (
             Action cleanup,
-            List<Exception> errors
+            ref ExceptionBuffer errors
         )
         {
             try
@@ -150,7 +147,7 @@ namespace inonego.Xeri.UI.Window
         private static void ThrowErrors
         (
             string message,
-            List<Exception> errors
+            ExceptionBuffer errors
         )
         {
             if (errors.Count == 0) return;
@@ -160,7 +157,7 @@ namespace inonego.Xeri.UI.Window
                 throw errors[0];
             }
 
-            throw new AggregateException(message, errors);
+            throw errors.CreateAggregateException(message);
         }
 
     #endregion

@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : ScreenController.cs
-수정일 : 2026-10-28
+수정일 : 2026-11-02
 # 설명
 Screen Open·Close·Replace·Clear 명령과 Stack, 상태 훅, Transition과 대칭 수명을 중재한다.
 Screen lifecycle Alpha는 PresentationAlpha Base로 전환해 외부 Modifier와 독립적으로 합성한다.
@@ -178,10 +178,7 @@ namespace inonego.Xeri.UI
             }
             catch (Exception exception)
             {
-                var errors = new List<Exception>
-                {
-                    exception,
-                };
+                var errors = new ExceptionBuffer(exception);
 
                 for (var index = changedSessions.Count - 1; index >= 0; index--)
                 {
@@ -200,10 +197,9 @@ namespace inonego.Xeri.UI
                     throw;
                 }
 
-                throw new AggregateException
+                throw errors.CreateAggregateException
                 (
-                    "Screen input contribution 적용과 롤백이 모두 실패했습니다.",
-                    errors
+                    "Screen input contribution 적용과 롤백이 모두 실패했습니다."
                 );
             }
         }
@@ -267,10 +263,7 @@ namespace inonego.Xeri.UI
             }
             catch (Exception exception)
             {
-                var errors = new List<Exception>
-                {
-                    exception,
-                };
+                var errors = new ExceptionBuffer(exception);
 
                 for (var index = changedSessions.Count - 1; index >= 0; index--)
                 {
@@ -290,10 +283,9 @@ namespace inonego.Xeri.UI
                     throw;
                 }
 
-                throw new AggregateException
+                throw errors.CreateAggregateException
                 (
-                    "Screen Cursor policy 적용과 롤백이 모두 실패했습니다.",
-                    errors
+                    "Screen Cursor policy 적용과 롤백이 모두 실패했습니다."
                 );
             }
         }
@@ -332,7 +324,7 @@ namespace inonego.Xeri.UI
         // --------------------------------------------------------------------------------
         private void NotifyStackChanged()
         {
-            var errors = new List<Exception>();
+            var errors = new ExceptionBuffer();
 
             try
             {
@@ -367,7 +359,7 @@ namespace inonego.Xeri.UI
 
             if (errors.Count > 1)
             {
-                throw new AggregateException("Screen Stack 정책 적용이 실패했습니다.", errors);
+                throw errors.CreateAggregateException("Screen Stack 정책 적용이 실패했습니다.");
             }
 
             // 완료 알림은 정책 적용의 rollback 원인이 아니다.
@@ -472,7 +464,7 @@ namespace inonego.Xeri.UI
 
             // 전체 정리 중 새 Screen 명령이 Live 목록을 변경하지 않도록 Controller를 일시적으로 닫는다.
             isReleasing = true;
-            List<Exception> errors;
+            IReadOnlyList<Exception> errors;
 
             try
             {
@@ -494,11 +486,11 @@ namespace inonego.Xeri.UI
         /// 공개 명령을 중지하고 모든 Screen Source 반환을 강제 완료한다.
         /// </summary>
         // ------------------------------------------------------------
-        internal List<Exception> Shutdown()
+        internal IReadOnlyList<Exception> Shutdown()
         {
-            var errors = new List<Exception>();
+            var errors = new ExceptionBuffer();
 
-            if (isReleased || isReleasing) return errors;
+            if (isReleased || isReleasing) return errors.AsReadOnlyList();
 
             isReleasing = true;
             errors.AddRange(ForceClear());
@@ -506,7 +498,7 @@ namespace inonego.Xeri.UI
             isActive = false;
             isReleasing = false;
             isReleased = true;
-            return errors;
+            return errors.AsReadOnlyList();
         }
 
     #endregion
@@ -628,7 +620,7 @@ namespace inonego.Xeri.UI
                 // 외부 Source와 훅이 EventSystem 선택을 바꾸기 전에 이전 화면의 실제 선택을 기록한다.
                 if (previous != null)
                 {
-                    focusController.CaptureCurrent(previous);
+                    focusController.CaptureCurrent();
 
                     if (IsOpenInterrupted(session))
                     {
@@ -1169,14 +1161,7 @@ namespace inonego.Xeri.UI
                     Debug.LogException(exception);
                 }
 
-                FinishClose
-                (
-                    session,
-                    restorePrevious,
-                    true,
-                    retainCursorWhileAwaitingRelease,
-                    null
-                );
+                ReportErrors(FinishClose(session, restorePrevious, true, retainCursorWhileAwaitingRelease));
                 return true;
             }
 
@@ -1198,14 +1183,7 @@ namespace inonego.Xeri.UI
                     Debug.LogException(applyException);
                 }
 
-                FinishClose
-                (
-                    session,
-                    restorePrevious,
-                    true,
-                    retainCursorWhileAwaitingRelease,
-                    null
-                );
+                ReportErrors(FinishClose(session, restorePrevious, true, retainCursorWhileAwaitingRelease));
             }
 
             return true;
@@ -1271,14 +1249,7 @@ namespace inonego.Xeri.UI
             if (!IsExpected(session, generation, ScreenState.Closing)) return;
 
             session.Transition = null;
-            FinishClose
-            (
-                session,
-                session.RestorePreviousOnClose,
-                true,
-                session.RetainCursorOnClose,
-                null
-            );
+            ReportErrors(FinishClose(session, session.RestorePreviousOnClose, true, session.RetainCursorOnClose));
         }
 
         // --------------------------------------------------------------------------------
@@ -1287,22 +1258,21 @@ namespace inonego.Xeri.UI
         /// <br/> 실패한 소유권은 다시 보관하지 않고 Session을 Terminal 상태로 확정한다.
         /// </summary>
         // --------------------------------------------------------------------------------
-        private bool FinishClose
+        private ExceptionBuffer FinishClose
         (
             ScreenSession session,
             bool restorePrevious,
             bool waitForInputRelease,
             bool retainCursorWhileAwaitingRelease,
-            List<Exception> collectedErrors,
             bool removeFromLiveSessions = true
         )
         {
-            var errors = new List<Exception>();
+            var errors = new ExceptionBuffer();
             var resources = session.Resources;
 
             // 늦게 도착한 외부 획득 결과가 종료 Session에 다시 연결되지 않게 먼저 닫는다.
             resources.BeginRelease();
-            resources.ReleaseChildren(errors);
+            resources.ReleaseChildren(ref errors);
 
             if (session.Resources.Instance != null)
             {
@@ -1322,11 +1292,11 @@ namespace inonego.Xeri.UI
                 InvokeNonCancellingHook(session, ScreenState.Closing, HookKind.Closed);
             }
 
-            resources.ReleaseSource(errors);
+            resources.ReleaseSource(ref errors);
 
             // Source 반환 뒤에는 닫힌 Session이 표시 backend를 더 이상 보유하지 않게 Alpha 연결도 종료한다.
             session.Alpha = null;
-            resources.ReleaseLayerLease(errors);
+            resources.ReleaseLayerLease(ref errors);
 
             var detached = stack.Remove(session);
             var inputSession = resources.TakeInputSession();
@@ -1408,8 +1378,7 @@ namespace inonego.Xeri.UI
                 errors.Add(exception);
             }
 
-            ReportErrors(errors, collectedErrors);
-            return errors.Count == 0;
+            return errors;
         }
 
     #endregion
@@ -1421,9 +1390,9 @@ namespace inonego.Xeri.UI
         /// 모든 생존 Session을 최신 획득부터 즉시 강제 종료한다.
         /// </summary>
         // ------------------------------------------------------------
-        private List<Exception> ForceClear()
+        private IReadOnlyList<Exception> ForceClear()
         {
-            var errors = new List<Exception>();
+            var errors = new ExceptionBuffer();
             var batchStarted = false;
 
             try
@@ -1446,7 +1415,7 @@ namespace inonego.Xeri.UI
                         ForceCloseImmediate
                         (
                             liveSessions[i],
-                            errors,
+                            ref errors,
                             removeFromLiveSessions: false
                         );
                     }
@@ -1483,16 +1452,8 @@ namespace inonego.Xeri.UI
                 }
             }
 
-            try
-            {
-                focusController.Clear();
-            }
-            catch (Exception exception)
-            {
-                errors.Add(exception);
-            }
-
-            return errors;
+            // Screen별 Focus 기록은 FinishClose에서 반환한다. Context의 독립 Scope는 유지한다.
+            return errors.AsReadOnlyList();
         }
 
         // --------------------------------------------------------------------------------
@@ -1504,7 +1465,7 @@ namespace inonego.Xeri.UI
         {
             if (!IsAvailable || !ReferenceEquals(Top, previous)) return;
 
-            var errors = new List<Exception>();
+            var errors = new ExceptionBuffer();
 
             if (previous != null && previous.State == ScreenState.Covered)
             {
@@ -1542,7 +1503,7 @@ namespace inonego.Xeri.UI
                 }
             }
 
-            ReportErrors(errors, null);
+            ReportErrors(errors);
         }
 
         // ----------------------------------------------------------------------
@@ -1553,7 +1514,7 @@ namespace inonego.Xeri.UI
         private void ForceCloseImmediate
         (
             ScreenSession session,
-            List<Exception> errors,
+            ref ExceptionBuffer errors,
             bool removeFromLiveSessions = true
         )
         {
@@ -1561,15 +1522,7 @@ namespace inonego.Xeri.UI
 
             if (session.State == ScreenState.Closed)
             {
-                FinishClose
-                (
-                    session,
-                    false,
-                    true,
-                    true,
-                    errors,
-                    removeFromLiveSessions
-                );
+                errors.AddRange(FinishClose(session, false, true, true, removeFromLiveSessions));
                 return;
             }
 
@@ -1631,15 +1584,7 @@ namespace inonego.Xeri.UI
                 errors.Add(exception);
             }
 
-            FinishClose
-            (
-                session,
-                false,
-                true,
-                true,
-                errors,
-                removeFromLiveSessions
-            );
+            errors.AddRange(FinishClose(session, false, true, true, removeFromLiveSessions));
         }
 
         // ----------------------------------------------------------------------
@@ -1653,7 +1598,7 @@ namespace inonego.Xeri.UI
             ScreenSession previous
         )
         {
-            var errors = new List<Exception>();
+            var errors = new ExceptionBuffer();
 
             try
             {
@@ -1721,7 +1666,7 @@ namespace inonego.Xeri.UI
 
             if (errors.Count > 0)
             {
-                throw new AggregateException("Screen Open 롤백이 실패했습니다.", errors);
+                throw errors.CreateAggregateException("Screen Open 롤백이 실패했습니다.");
             }
         }
 
@@ -1736,13 +1681,13 @@ namespace inonego.Xeri.UI
             bool removeFromLiveSessions = true
         )
         {
-            var errors = new List<Exception>();
+            var errors = new ExceptionBuffer();
             var resources = session.Resources;
 
             // 하위 Handle 해제 콜백이 새 자식을 등록하지 못하도록 먼저 종료 상태를 공개한다.
             session.State = ScreenState.Closing;
             resources.BeginRelease();
-            resources.ReleaseChildren(errors);
+            resources.ReleaseChildren(ref errors);
 
             if (session.Resources.Instance != null)
             {
@@ -1756,11 +1701,11 @@ namespace inonego.Xeri.UI
                 }
             }
 
-            resources.ReleaseSource(errors);
+            resources.ReleaseSource(ref errors);
 
             // Source 반환 뒤에는 닫힌 Session이 표시 backend를 더 이상 보유하지 않게 Alpha 연결도 종료한다.
             session.Alpha = null;
-            resources.ReleaseLayerLease(errors);
+            resources.ReleaseLayerLease(ref errors);
 
             var inputSession = resources.TakeInputSession();
 
@@ -1782,7 +1727,7 @@ namespace inonego.Xeri.UI
 
             if (errors.Count > 0)
             {
-                throw new AggregateException("수락되지 않은 Screen 정리가 실패했습니다.", errors);
+                throw errors.CreateAggregateException("수락되지 않은 Screen 정리가 실패했습니다.");
             }
         }
 
@@ -1821,7 +1766,7 @@ namespace inonego.Xeri.UI
             ScreenSession previous
         )
         {
-            var errors = new List<Exception>();
+            var errors = new ExceptionBuffer();
 
             try
             {
@@ -1844,7 +1789,7 @@ namespace inonego.Xeri.UI
 
             if (errors.Count > 0)
             {
-                throw new AggregateException("수락되지 않은 Screen 정리와 이전 Focus 복원이 실패했습니다.", errors);
+                throw errors.CreateAggregateException("수락되지 않은 Screen 정리와 이전 Focus 복원이 실패했습니다.");
             }
         }
 
@@ -1987,39 +1932,14 @@ namespace inonego.Xeri.UI
 
         // ------------------------------------------------------------
         /// <summary>
-        /// 한 정리 예외를 수집하거나 즉시 기록한다.
+        /// 개별 Screen 종료에서 수집한 실패만 로그로 전달한다.
         /// </summary>
         // ------------------------------------------------------------
-        private void ReportError
-        (
-            Exception exception,
-            List<Exception> collectedErrors
-        )
+        private static void ReportErrors(ExceptionBuffer errors)
         {
-            if (collectedErrors != null)
+            for (var index = 0; index < errors.Count; index++)
             {
-                collectedErrors.Add(exception);
-            }
-            else
-            {
-                Debug.LogException(exception);
-            }
-        }
-
-        // ------------------------------------------------------------
-        /// <summary>
-        /// 여러 정리 예외를 수집하거나 즉시 기록한다.
-        /// </summary>
-        // ------------------------------------------------------------
-        private void ReportErrors
-        (
-            List<Exception> errors,
-            List<Exception> collectedErrors
-        )
-        {
-            for (var i = 0; i < errors.Count; i++)
-            {
-                ReportError(errors[i], collectedErrors);
+                Debug.LogException(errors[index]);
             }
         }
 

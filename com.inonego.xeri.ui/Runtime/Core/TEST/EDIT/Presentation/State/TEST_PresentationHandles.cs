@@ -1550,6 +1550,57 @@ namespace inonego.Xeri.UI.TEST.Core
             Assert.IsFalse(target.IsVisible);
         }
 
+        // ----------------------------------------------------------------------
+        /// <summary>
+        /// <br/> 재진입 Apply는 독립 계획을 사용해 외부 Apply 결과를 변경하지 않는다.
+        /// <br/> 이후 다시 적용할 때 최신 값을 사용한다.
+        /// </summary>
+        // ----------------------------------------------------------------------
+        [Test]
+        public void TEST_PresentationGroup_재진입Apply_확정계획분리와다음적용재사용()
+        {
+            var firstTarget = new TestAlphaTarget(1.0f);
+            var secondTarget = new TestAlphaTarget(1.0f);
+            var first = new Presentation(alphaTarget: firstTarget);
+            var second = new Presentation(alphaTarget: secondTarget);
+            var group = new PresentationGroup
+            (
+                new[]
+                {
+                    first,
+                    second,
+                }
+            );
+            group.Alpha.Set(0.5f);
+            var beforeFirst = firstTarget.SetCount;
+            var beforeSecond = secondTarget.SetCount;
+            var entered = false;
+
+            firstTarget.Applying = _ =>
+            {
+                if (entered) return;
+
+                entered = true;
+                group.Remove(first);
+                group.Alpha.Set(0.25f);
+                group.Apply();
+            };
+
+            group.Apply();
+
+            Assert.IsTrue(entered);
+            Assert.AreEqual(1, firstTarget.SetCount - beforeFirst);
+            Assert.AreEqual(2, secondTarget.SetCount - beforeSecond);
+            Assert.AreEqual(0.5f, firstTarget.Alpha);
+            Assert.AreEqual(0.5f, secondTarget.Alpha);
+
+            group.Apply();
+
+            Assert.AreEqual(1, group.Count);
+            Assert.AreEqual(0.5f, firstTarget.Alpha);
+            Assert.AreEqual(0.25f, secondTarget.Alpha);
+        }
+
         // ------------------------------------------------------------
         /// <summary>
         /// 적용 중 topology와 값 변경은 다음 적용 계획에 반영한다.

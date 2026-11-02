@@ -186,7 +186,7 @@ namespace inonego.Xeri.UI
         // ------------------------------------------------------------
         private static void ReleaseLifetimes(List<IDisposable> lifetimes)
         {
-            var errors = new List<Exception>();
+            var errors = new ExceptionBuffer();
 
             // 해제 실패도 terminal이므로 호출 전에 소유 목록에서 제거한다.
             for (var index = lifetimes.Count - 1; index >= 0; index--)
@@ -206,10 +206,9 @@ namespace inonego.Xeri.UI
 
             if (errors.Count > 0)
             {
-                throw new AggregateException
+                throw errors.CreateAggregateException
                 (
-                    "Modal Session 소유 lifetime 해제가 실패했습니다.",
-                    errors
+                    "Modal Session 소유 lifetime 해제가 실패했습니다."
                 );
             }
         }

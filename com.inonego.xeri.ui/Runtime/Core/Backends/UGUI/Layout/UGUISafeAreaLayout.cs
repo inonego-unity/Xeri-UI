@@ -96,7 +96,7 @@ namespace inonego.Xeri.UI
             var handlers = OnLayoutChanged;
             if (handlers == null) return;
 
-            var errors = new List<Exception>();
+            var errors = new ExceptionBuffer();
 
             foreach (Action handler in handlers.GetInvocationList())
             {
@@ -117,10 +117,9 @@ namespace inonego.Xeri.UI
                 throw errors[0];
             }
 
-            throw new AggregateException
+            throw errors.CreateAggregateException
             (
-                "Safe Area Layout 변경 observer 처리 중 오류가 발생했습니다.",
-                errors
+                "Safe Area Layout 변경 observer 처리 중 오류가 발생했습니다."
             );
         }
 

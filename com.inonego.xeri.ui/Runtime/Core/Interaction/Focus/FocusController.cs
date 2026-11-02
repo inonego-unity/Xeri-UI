@@ -1,6 +1,6 @@
 ﻿/* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : FocusController.cs
-수정일 : 2026-10-28
+수정일 : 2026-11-02
 
 # 설명
 Screen과 Focus Scope의 persistent Focus record를 통합해 Base, Primary와 Override 선택을 관리한다.
@@ -405,7 +405,7 @@ namespace inonego.Xeri.UI
             if (index < 0) return;
 
             var wasTop = index == overrides.Count - 1;
-            var errors = new List<Exception>();
+            var errors = new ExceptionBuffer();
 
             if (wasTop)
             {
@@ -448,7 +448,7 @@ namespace inonego.Xeri.UI
             if (!ReferenceEquals(record, current)) return;
 
             var wasEffective = ReferenceEquals(GetEffectiveRecord(), record);
-            var errors = new List<Exception>();
+            var errors = new ExceptionBuffer();
 
             if (wasEffective)
             {
@@ -576,17 +576,12 @@ namespace inonego.Xeri.UI
             }
         }
 
-        internal void CaptureCurrent(ScreenSession session = null)
-        {
-            CaptureCurrent();
-        }
-
         // ----------------------------------------------------------------------
         /// <summary>
         /// 현재 선택이 effective 범위 안에 있으면 그 범위의 기억값으로 저장한다.
         /// </summary>
         // ----------------------------------------------------------------------
-        private void CaptureCurrent()
+        internal void CaptureCurrent()
         {
             if (!hasAuthority) return;
 
@@ -602,11 +597,6 @@ namespace inonego.Xeri.UI
             {
                 record.Last = current;
             }
-        }
-
-        internal void RecordCurrentFocus(ScreenSession session, object target)
-        {
-            HandleNativeFocusChanged(target);
         }
 
         // ------------------------------------------------------------
@@ -694,7 +684,7 @@ namespace inonego.Xeri.UI
         // ----------------------------------------------------------------------
         public void Clear()
         {
-            var errors = new List<Exception>();
+            var errors = new ExceptionBuffer();
 
             try
             {
@@ -739,7 +729,7 @@ namespace inonego.Xeri.UI
         private static void ThrowErrors
         (
             string message,
-            List<Exception> errors
+            ExceptionBuffer errors
         )
         {
             if (errors.Count == 0) return;
@@ -749,7 +739,7 @@ namespace inonego.Xeri.UI
                 throw errors[0];
             }
 
-            throw new AggregateException(message, errors);
+            throw errors.CreateAggregateException(message);
         }
 
     #endregion

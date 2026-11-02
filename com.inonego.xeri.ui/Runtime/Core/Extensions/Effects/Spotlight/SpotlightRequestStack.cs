@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : SpotlightRequestStack.cs
-수정일 : 2026-10-03
+수정일 : 2026-11-02
 # 설명
 backend별 중첩 Spotlight 요청을 최신 표시 우선으로 합성하고 해제 시 이전 요청을 복원한다.
 ========================================================================= BLOCK_HEADER_END */
@@ -228,7 +228,7 @@ namespace inonego.Xeri.UI
             if (isDisposed) return;
 
             isDisposed = true;
-            var errors = new List<Exception>();
+            var errors = new ExceptionBuffer();
 
             try
             {
@@ -252,7 +252,7 @@ namespace inonego.Xeri.UI
 
             if (errors.Count > 0)
             {
-                throw new AggregateException("Spotlight 해제가 실패했습니다.", errors);
+                throw errors.CreateAggregateException("Spotlight 해제가 실패했습니다.");
             }
         }
 

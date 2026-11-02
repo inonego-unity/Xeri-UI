@@ -132,7 +132,7 @@ namespace inonego.Xeri.UI
             bool originalActive
         )
         {
-            var errors = new List<Exception>();
+            var errors = new ExceptionBuffer();
 
             try
             {
@@ -174,10 +174,9 @@ namespace inonego.Xeri.UI
                 throw errors[0];
             }
 
-            throw new AggregateException
+            throw errors.CreateAggregateException
             (
-                $"UITK Layer Host '{LayerID}' borrowed state 복원이 실패했습니다.",
-                errors
+                $"UITK Layer Host '{LayerID}' borrowed state 복원이 실패했습니다."
             );
         }
 
@@ -218,7 +217,7 @@ namespace inonego.Xeri.UI
         {
             if (resolvedCallbackRegistered && unloadedCallbackRegistered) return;
 
-            var errors = new List<Exception>();
+            var errors = new ExceptionBuffer();
 
             try
             {
@@ -262,10 +261,9 @@ namespace inonego.Xeri.UI
                 throw errors[0];
             }
 
-            throw new AggregateException
+            throw errors.CreateAggregateException
             (
-                "UITK Layer Host reference callback 등록과 롤백이 모두 실패했습니다.",
-                errors
+                "UITK Layer Host reference callback 등록과 롤백이 모두 실패했습니다."
             );
         }
 
@@ -276,7 +274,7 @@ namespace inonego.Xeri.UI
         // --------------------------------------------------------------------------------
         private void UnregisterReferenceCallbacks()
         {
-            var errors = new List<Exception>();
+            var errors = new ExceptionBuffer();
 
             if (!ReferenceEquals(boundOutput, null))
             {
@@ -338,10 +336,9 @@ namespace inonego.Xeri.UI
                 throw errors[0];
             }
 
-            throw new AggregateException
+            throw errors.CreateAggregateException
             (
-                "UITK Layer Host reference callback 해제가 실패했습니다.",
-                errors
+                "UITK Layer Host reference callback 해제가 실패했습니다."
             );
         }
 

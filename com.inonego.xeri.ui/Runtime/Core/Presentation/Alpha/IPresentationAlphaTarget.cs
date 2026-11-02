@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : IPresentationAlphaTarget.cs
-수정일 : 2026-09-15
+수정일 : 2026-11-02
 
 # 설명
 Presentation Alpha State가 실제 UI backend에 최종 Alpha를 기록하기 위한 최소 Target 계약을 정의한다.

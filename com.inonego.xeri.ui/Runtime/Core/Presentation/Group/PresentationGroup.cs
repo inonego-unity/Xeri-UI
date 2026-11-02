@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : PresentationGroup.cs
-수정일 : 2026-10-06
+수정일 : 2026-11-02
 
 # 설명
 여러 IPresentation을 재사용 가능한 Composite Tree로 묶는다.
@@ -36,13 +36,22 @@ namespace inonego.Xeri.UI
 
     #region 내부 데이터
 
-        private sealed class ApplyTarget
+        private struct ApplyTarget
         {
             public IPresentation Presentation;
             public PresentationAlpha AlphaState;
             public PresentationVisibility VisibilityState;
             public float AlphaOutput;
             public bool VisibilityOutput;
+        }
+
+        private sealed class ApplyWorkspace
+        {
+            public readonly List<ApplyTarget> Targets = new();
+            public readonly HashSet<IPresentation> Visited = new
+            (
+                ReferenceEqualityComparer<IPresentation>.Instance
+            );
         }
 
     #endregion
@@ -80,6 +89,7 @@ namespace inonego.Xeri.UI
         public PresentationVisibility Visibility { get; } = new();
 
         private readonly List<IPresentation> members = new();
+        private readonly Stack<ApplyWorkspace> availableApplyWorkspaces = new();
 
     #endregion
 
@@ -192,40 +202,54 @@ namespace inonego.Xeri.UI
         // ------------------------------------------------------------
         public void Apply()
         {
-            // 외부 backend 호출 전에 topology와 출력 값을 하나의 적용 계획으로 확정한다.
-            var targets = BuildApplyPlan();
-            List<Exception> errors = null;
+            // 적용 중 callback이 다시 Apply를 호출해도 서로의 작업 목록을 변경하지 않게 분리한다.
+            var workspace = availableApplyWorkspaces.Count > 0
+                ? availableApplyWorkspaces.Pop()
+                : new ApplyWorkspace();
 
-            foreach (var target in targets)
+            try
             {
-                if (target.AlphaState != null)
+                // 외부 backend 호출 전에 topology와 출력 값을 하나의 적용 계획으로 확정한다.
+                BuildApplyPlan(workspace);
+                var errors = new ExceptionBuffer();
+
+                foreach (var target in workspace.Targets)
                 {
-                    try
+                    if (target.AlphaState != null)
                     {
-                        target.AlphaState.ApplyComposite(target.AlphaOutput);
+                        try
+                        {
+                            target.AlphaState.ApplyComposite(target.AlphaOutput);
+                        }
+                        catch (Exception exception)
+                        {
+                            errors.Add(exception);
+                        }
                     }
-                    catch (Exception exception)
+
+                    if (target.VisibilityState != null)
                     {
-                        (errors ??= new List<Exception>()).Add(exception);
+                        try
+                        {
+                            target.VisibilityState.ApplyComposite(target.VisibilityOutput);
+                        }
+                        catch (Exception exception)
+                        {
+                            errors.Add(exception);
+                        }
                     }
                 }
 
-                if (target.VisibilityState != null)
+                if (errors.Count > 0)
                 {
-                    try
-                    {
-                        target.VisibilityState.ApplyComposite(target.VisibilityOutput);
-                    }
-                    catch (Exception exception)
-                    {
-                        (errors ??= new List<Exception>()).Add(exception);
-                    }
+                    throw errors.CreateAggregateException("Presentation Tree 적용이 실패했습니다.");
                 }
             }
-
-            if (errors != null)
+            finally
             {
-                throw new AggregateException("Presentation Tree 적용이 실패했습니다.", errors);
+                workspace.Targets.Clear();
+                workspace.Visited.Clear();
+                availableApplyWorkspaces.Push(workspace);
             }
         }
 
@@ -234,18 +258,15 @@ namespace inonego.Xeri.UI
         /// 대상과 합성 출력을 확정하고 모든 Target을 적용 전에 검증한다.
         /// </summary>
         // ------------------------------------------------------------
-        private List<ApplyTarget> BuildApplyPlan()
+        private void BuildApplyPlan(ApplyWorkspace workspace)
         {
-            var targets = new List<ApplyTarget>();
-            var visited = new HashSet<IPresentation>
-            (
-                ReferenceEqualityComparer<IPresentation>.Instance
-            );
-            CollectApplyTargets(this, 1.0f, true, visited, targets);
+            var targets = workspace.Targets;
+            CollectApplyTargets(this, 1.0f, true, workspace.Visited, targets);
 
             // 사용자 구현의 State·Target 조회도 확정된 대상 목록 안에서 처리한다.
-            foreach (var target in targets)
+            for (var index = 0; index < targets.Count; index++)
             {
+                var target = targets[index];
                 var alpha = target.Presentation.Alpha;
                 var visibility = target.Presentation.Visibility;
                 target.AlphaState = alpha;
@@ -278,9 +299,9 @@ namespace inonego.Xeri.UI
 
                     target.VisibilityOutput &= visibility.Modified;
                 }
-            }
 
-            return targets;
+                targets[index] = target;
+            }
         }
 
         // ------------------------------------------------------------

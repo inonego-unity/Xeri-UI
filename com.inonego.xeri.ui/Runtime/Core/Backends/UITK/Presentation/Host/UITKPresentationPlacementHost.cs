@@ -94,10 +94,7 @@ namespace inonego.Xeri.UI
             }
             catch (Exception exception)
             {
-                var errors = new System.Collections.Generic.List<Exception>
-                {
-                    exception,
-                };
+                var errors = new ExceptionBuffer(exception);
 
                 try
                 {
@@ -113,10 +110,9 @@ namespace inonego.Xeri.UI
                     throw;
                 }
 
-                throw new AggregateException
+                throw errors.CreateAggregateException
                 (
-                    $"UITK Placement Host '{PresentationID}' 획득과 rollback이 실패했습니다.",
-                    errors
+                    $"UITK Placement Host '{PresentationID}' 획득과 rollback이 실패했습니다."
                 );
             }
         }
@@ -128,7 +124,7 @@ namespace inonego.Xeri.UI
         // --------------------------------------------------------------------------------
         private void ReleaseBorrowedState()
         {
-            var errors = new List<Exception>();
+            var errors = new ExceptionBuffer();
 
             if (parentLayer is UITKPresentationLayer observed)
             {
@@ -162,10 +158,9 @@ namespace inonego.Xeri.UI
                 throw errors[0];
             }
 
-            throw new AggregateException
+            throw errors.CreateAggregateException
             (
-                "UITK Placement Host borrowed state 복원이 실패했습니다.",
-                errors
+                "UITK Placement Host borrowed state 복원이 실패했습니다."
             );
         }
 
@@ -254,7 +249,7 @@ namespace inonego.Xeri.UI
         {
             if (resolvedCallbackRegistered && unloadedCallbackRegistered) return;
 
-            var errors = new System.Collections.Generic.List<Exception>();
+            var errors = new ExceptionBuffer();
 
             try
             {
@@ -291,10 +286,9 @@ namespace inonego.Xeri.UI
                 throw errors[0];
             }
 
-            throw new AggregateException
+            throw errors.CreateAggregateException
             (
-                "UITK Placement Host reference callback 등록과 롤백이 모두 실패했습니다.",
-                errors
+                "UITK Placement Host reference callback 등록과 롤백이 모두 실패했습니다."
             );
         }
 
@@ -305,7 +299,7 @@ namespace inonego.Xeri.UI
         // --------------------------------------------------------------------------------
         private void UnregisterReferenceCallbacks()
         {
-            var errors = new System.Collections.Generic.List<Exception>();
+            var errors = new ExceptionBuffer();
 
             if (unloadedCallbackRegistered)
             {
@@ -344,10 +338,9 @@ namespace inonego.Xeri.UI
                 throw errors[0];
             }
 
-            throw new AggregateException
+            throw errors.CreateAggregateException
             (
-                "UITK Placement Host reference callback 해제가 실패했습니다.",
-                errors
+                "UITK Placement Host reference callback 해제가 실패했습니다."
             );
         }
 

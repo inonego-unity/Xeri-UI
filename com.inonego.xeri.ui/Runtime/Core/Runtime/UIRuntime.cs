@@ -391,15 +391,17 @@ namespace inonego.Xeri.UI
             catch (Exception exception)
             {
                 IsInitialized = false;
-                var errors = Release(coreReady);
+                var cleanupErrors = Release(coreReady);
 
-                if (errors.Count == 0)
+                if (cleanupErrors.Count == 0)
                 {
                     throw;
                 }
 
-                errors.Insert(0, exception);
-                throw new AggregateException("UI Runtime 초기화와 롤백이 실패했습니다.", errors);
+                var errors = new ExceptionBuffer();
+                errors.Add(exception);
+                errors.AddRange(cleanupErrors);
+                throw errors.CreateAggregateException("UI Runtime 초기화와 롤백이 실패했습니다.");
             }
         }
 
@@ -918,17 +920,17 @@ namespace inonego.Xeri.UI
         /// 현재까지 생성된 Runtime 소유 리소스를 해제하고 오류를 수집한다.
         /// </summary>
         // ------------------------------------------------------------
-        private List<Exception> Release(bool invokeReleasingEvent)
+        private IReadOnlyList<Exception> Release(bool invokeReleasingEvent)
         {
-            var errors = new List<Exception>();
+            var errors = new ExceptionBuffer();
 
-            if (IsReleasing) return errors;
+            if (IsReleasing) return errors.AsReadOnlyList();
 
             if (IsReleased)
             {
                 if (RootPresentation != null && !RootPresentation.IsDisposed)
                 {
-                    DisposePresentationSession(RootPresentation, errors);
+                    DisposePresentationSession(RootPresentation, ref errors);
 
                     if (RootPresentation.IsDisposed)
                     {
@@ -936,7 +938,7 @@ namespace inonego.Xeri.UI
                     }
                 }
 
-                return errors;
+                return errors.AsReadOnlyList();
             }
 
             IsInitialized = false;
@@ -971,14 +973,14 @@ namespace inonego.Xeri.UI
                 }
             }
 
-            InvokeReleasingSubscribers(releasingSubscribers, errors);
+            InvokeReleasingSubscribers(releasingSubscribers, ref errors);
 
-            DisposeSceneFader(sceneFader, errors);
-            DisposeOwned(currentSceneFadeSource, errors);
-            DisposeOwned(input, errors);
-            DisposeOwned(currentTransitioner, errors);
-            ReleasePresentationHost(presentationHost, errors);
-            DisposePresentationSession(rootPresentation, errors);
+            DisposeSceneFader(sceneFader, ref errors);
+            DisposeOwned(currentSceneFadeSource, ref errors);
+            DisposeOwned(input, ref errors);
+            DisposeOwned(currentTransitioner, ref errors);
+            ReleasePresentationHost(presentationHost, ref errors);
+            DisposePresentationSession(rootPresentation, ref errors);
 
             Main = null;
             SceneFader = null;
@@ -1000,7 +1002,7 @@ namespace inonego.Xeri.UI
 
             IsReleasing = false;
             IsReleased = true;
-            return errors;
+            return errors.AsReadOnlyList();
         }
 
     #endregion
@@ -1018,7 +1020,7 @@ namespace inonego.Xeri.UI
             var subscribers = OnInitialized;
             if (subscribers == null) return;
 
-            var errors = new List<Exception>();
+            var errors = new ExceptionBuffer();
 
             foreach (Action<UIRuntime> subscriber in subscribers.GetInvocationList())
             {
@@ -1050,10 +1052,9 @@ namespace inonego.Xeri.UI
                 throw errors[0];
             }
 
-            throw new AggregateException
+            throw errors.CreateAggregateException
             (
-                "UI Runtime 초기화 observer 처리 중 오류가 발생했습니다.",
-                errors
+                "UI Runtime 초기화 observer 처리 중 오류가 발생했습니다."
             );
         }
 
@@ -1070,7 +1071,7 @@ namespace inonego.Xeri.UI
         private void InvokeReleasingSubscribers
         (
             Action<UIRuntime> subscribers,
-            List<Exception> errors
+            ref ExceptionBuffer errors
         )
         {
             if (subscribers == null) return;
@@ -1092,7 +1093,7 @@ namespace inonego.Xeri.UI
         private static void ReleasePresentationHost
         (
             PresentationHost host,
-            List<Exception> errors
+            ref ExceptionBuffer errors
         )
         {
             if (host == null) return;
@@ -1111,7 +1112,7 @@ namespace inonego.Xeri.UI
         private static void DisposeSceneFader
         (
             SceneFader sceneFader,
-            List<Exception> errors
+            ref ExceptionBuffer errors
         )
         {
             if (sceneFader == null) return;
@@ -1130,7 +1131,7 @@ namespace inonego.Xeri.UI
         private static void DisposePresentationSession
         (
             PresentationSession session,
-            List<Exception> errors
+            ref ExceptionBuffer errors
         )
         {
             if (session == null) return;
@@ -1149,7 +1150,7 @@ namespace inonego.Xeri.UI
         private static void DisposeOwned
         (
             IDisposable owned,
-            List<Exception> errors
+            ref ExceptionBuffer errors
         )
         {
             if (owned == null) return;
@@ -1305,7 +1306,7 @@ namespace inonego.Xeri.UI
 
         internal void RefreshContextAuthority()
         {
-            var errors = new List<Exception>();
+            var errors = new ExceptionBuffer();
             var nextPath = new List<UIContext>();
             var effective = GetEffectiveContext();
             effective?.AppendPathTo(nextPath);
@@ -1367,10 +1368,9 @@ namespace inonego.Xeri.UI
                 throw errors[0];
             }
 
-            throw new AggregateException
+            throw errors.CreateAggregateException
             (
-                "UI Runtime Context authority 갱신 중 하나 이상의 적용이 실패했습니다.",
-                errors
+                "UI Runtime Context authority 갱신 중 하나 이상의 적용이 실패했습니다."
             );
         }
 

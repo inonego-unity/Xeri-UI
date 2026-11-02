@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : PresentationSession.cs
-수정일 : 2026-10-28
+수정일 : 2026-11-02
 
 # 설명
 Immutable PresentationPlan을 실제 Layer Output, Layer roots와 placement roots로 materialize한다.
@@ -296,10 +296,7 @@ namespace inonego.Xeri.UI
         // --------------------------------------------------------------------------------
         private void ValidateChildCreationOwnership(VisualElement parentRoot)
         {
-            if (IsDisposed)
-            {
-                throw new ObjectDisposedException(nameof(PresentationSession));
-            }
+            ThrowIfDisposed();
 
             if (!OwnsChildRoot(parentRoot))
             {
@@ -355,10 +352,7 @@ namespace inonego.Xeri.UI
         // --------------------------------------------------------------------------------
         private void ValidateChildCreationOwnership(RectTransform parentRoot)
         {
-            if (IsDisposed)
-            {
-                throw new ObjectDisposedException(nameof(PresentationSession));
-            }
+            ThrowIfDisposed();
 
             if (!OwnsChildRoot(parentRoot))
             {
@@ -622,23 +616,19 @@ namespace inonego.Xeri.UI
             }
             catch (Exception exception)
             {
-                var errors = new List<Exception>
-                {
-                    exception,
-                };
-                TryDispose(runtime.FocusBinding, errors);
-                TryDispose(runtime.Handle, errors);
-                TryAction(releaseMaterialization, errors);
+                var errors = new ExceptionBuffer(exception);
+                TryDispose(runtime.FocusBinding, ref errors);
+                TryDispose(runtime.Handle, ref errors);
+                TryAction(releaseMaterialization, ref errors);
 
                 if (errors.Count == 1)
                 {
                     throw;
                 }
 
-                throw new AggregateException
+                throw errors.CreateAggregateException
                 (
-                    $"Presentation Layer '{plan.LayerID}' 조립과 롤백이 실패했습니다.",
-                    errors
+                    $"Presentation Layer '{plan.LayerID}' 조립과 롤백이 실패했습니다."
                 );
             }
         }
@@ -831,7 +821,7 @@ namespace inonego.Xeri.UI
         public bool ContainsPresentation(string presentationID)
         {
             return
-                !IsDisposed &&
+                !IsUnavailable &&
                 !string.IsNullOrWhiteSpace(presentationID) &&
                 placements.ContainsKey(presentationID);
         }
@@ -863,9 +853,11 @@ namespace inonego.Xeri.UI
             }
         }
 
+        private bool IsUnavailable => IsDisposed || (parent != null && parent.IsUnavailable);
+
         private void ThrowIfDisposed()
         {
-            if (IsDisposed)
+            if (IsUnavailable)
             {
                 throw new ObjectDisposedException(nameof(PresentationSession));
             }
@@ -927,14 +919,16 @@ namespace inonego.Xeri.UI
             IsDisposed = true;
             parent?.children.Remove(this);
             parent = null;
-            var errors = new List<Exception>();
+            var errors = new ExceptionBuffer();
 
-            for (var index = children.Count - 1; index >= 0; index--)
+            // 반환 대상부터 소유 목록에서 분리해 해제 callback의 형제 변경과 순회를 격리한다.
+            while (children.Count > 0)
             {
-                TryDisposeChild(children[index], errors);
+                var index = children.Count - 1;
+                var child = children[index];
+                children.RemoveAt(index);
+                TryDisposeChild(child, ref errors);
             }
-
-            children.Clear();
 
             for (var index = Plan.Placements.Count - 1; index >= 0; index--)
             {
@@ -942,7 +936,7 @@ namespace inonego.Xeri.UI
 
                 if (placements.TryGetValue(presentationID, out var placement))
                 {
-                    TryAction(placement.ReleaseRoot, errors);
+                    TryAction(placement.ReleaseRoot, ref errors);
                 }
             }
 
@@ -951,28 +945,28 @@ namespace inonego.Xeri.UI
             for (var index = layers.Count - 1; index >= 0; index--)
             {
                 var layer = layers[index];
-                TryDispose(layer.FocusBinding, errors);
-                TryDispose(layer.Handle, errors);
+                TryDispose(layer.FocusBinding, ref errors);
+                TryDispose(layer.Handle, ref errors);
             }
 
-            TryDispose(embeddedSurface, errors);
+            TryDispose(embeddedSurface, ref errors);
             embeddedSurface = null;
 
             if (!LayerRegistry.IsDisposed)
             {
-                TryDispose(LayerRegistry, errors);
+                TryDispose(LayerRegistry, ref errors);
             }
 
             for (var index = layers.Count - 1; index >= 0; index--)
             {
-                TryAction(layers[index].ReleaseMaterialization, errors);
+                TryAction(layers[index].ReleaseMaterialization, ref errors);
             }
 
             layers.Clear();
 
             if (errors.Count > 0)
             {
-                throw new AggregateException("Presentation Session 해제가 실패했습니다.", errors);
+                throw errors.CreateAggregateException("Presentation Session 해제가 실패했습니다.");
             }
         }
 
@@ -1000,7 +994,7 @@ namespace inonego.Xeri.UI
         private static void TryDisposeChild
         (
             PresentationSession child,
-            ICollection<Exception> errors
+            ref ExceptionBuffer errors
         )
         {
             if (child == null) return;
@@ -1015,7 +1009,7 @@ namespace inonego.Xeri.UI
             }
         }
 
-        private static void TryDispose(IDisposable target, ICollection<Exception> errors)
+        private static void TryDispose(IDisposable target, ref ExceptionBuffer errors)
         {
             if (target == null) return;
 
@@ -1029,7 +1023,7 @@ namespace inonego.Xeri.UI
             }
         }
 
-        private static void TryAction(Action action, ICollection<Exception> errors)
+        private static void TryAction(Action action, ref ExceptionBuffer errors)
         {
             if (action == null) return;
 

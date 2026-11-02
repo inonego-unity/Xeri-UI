@@ -79,21 +79,17 @@ namespace inonego.Xeri.UI.Window
             }
             catch (Exception exception)
             {
-                var errors = new List<Exception>
-                {
-                    exception,
-                };
-                UnbindRegistry(errors);
+                var errors = new ExceptionBuffer(exception);
+                UnbindRegistry(ref errors);
 
                 if (errors.Count == 1)
                 {
                     throw;
                 }
 
-                throw new AggregateException
+                throw errors.CreateAggregateException
                 (
-                    "Window Container Registry 연결과 롤백이 실패했습니다.",
-                    errors
+                    "Window Container Registry 연결과 롤백이 실패했습니다."
                 );
             }
         }
@@ -320,7 +316,7 @@ namespace inonego.Xeri.UI.Window
         /// Registry 표시 순서 구독을 한 번 해제한다.
         /// </summary>
         // ------------------------------------------------------------
-        private void UnbindRegistry(List<Exception> errors)
+        private void UnbindRegistry(ref ExceptionBuffer errors)
         {
             if (!isRegistryBound) return;
 
@@ -403,8 +399,8 @@ namespace inonego.Xeri.UI.Window
             if (isDisposed) return;
 
             isDisposed = true;
-            var errors = new List<Exception>();
-            UnbindRegistry(errors);
+            var errors = new ExceptionBuffer();
+            UnbindRegistry(ref errors);
 
             foreach (var panel in panels.Values)
             {
@@ -422,10 +418,9 @@ namespace inonego.Xeri.UI.Window
 
             if (errors.Count > 0)
             {
-                throw new AggregateException
+                throw errors.CreateAggregateException
                 (
-                    "Window Container 해제가 실패했습니다.",
-                    errors
+                    "Window Container 해제가 실패했습니다."
                 );
             }
         }

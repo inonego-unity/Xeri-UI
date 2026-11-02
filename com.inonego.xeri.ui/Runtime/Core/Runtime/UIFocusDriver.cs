@@ -36,7 +36,7 @@ namespace inonego.Xeri.UI
 
             public void Dispose()
             {
-                var errors = new List<Exception>();
+                var errors = new ExceptionBuffer();
 
                 for (var index = handles.Count - 1; index >= 0; index--)
                 {
@@ -54,7 +54,7 @@ namespace inonego.Xeri.UI
 
                 if (errors.Count > 0)
                 {
-                    throw new AggregateException("Focus Layer binding 해제가 실패했습니다.", errors);
+                    throw errors.CreateAggregateException("Focus Layer binding 해제가 실패했습니다.");
                 }
             }
         }
@@ -185,10 +185,7 @@ namespace inonego.Xeri.UI
             }
             catch (Exception exception)
             {
-                var errors = new List<Exception>
-                {
-                    exception,
-                };
+                var errors = new ExceptionBuffer(exception);
 
                 for (var index = handles.Count - 1; index >= 0; index--)
                 {
@@ -207,10 +204,9 @@ namespace inonego.Xeri.UI
                     throw;
                 }
 
-                throw new AggregateException
+                throw errors.CreateAggregateException
                 (
-                    "Focus Layer binding과 등록 롤백이 모두 실패했습니다.",
-                    errors
+                    "Focus Layer binding과 등록 롤백이 모두 실패했습니다."
                 );
             }
         }
@@ -251,10 +247,7 @@ namespace inonego.Xeri.UI
             }
             catch (Exception exception)
             {
-                var errors = new List<Exception>
-                {
-                    exception,
-                };
+                var errors = new ExceptionBuffer(exception);
 
                 currentDriver = previous;
                 focusLossEvaluationRequested = false;
@@ -273,10 +266,9 @@ namespace inonego.Xeri.UI
                     throw;
                 }
 
-                throw new AggregateException
+                throw errors.CreateAggregateException
                 (
-                    "공통 Focus 적용과 native rollback이 모두 실패했습니다.",
-                    errors
+                    "공통 Focus 적용과 native rollback이 모두 실패했습니다."
                 );
             }
         }
@@ -345,7 +337,7 @@ namespace inonego.Xeri.UI
             object target
         )
         {
-            var errors = new List<Exception>();
+            var errors = new ExceptionBuffer();
 
             for (var i = 0; i < drivers.Length; i++)
             {
@@ -382,10 +374,9 @@ namespace inonego.Xeri.UI
                 throw errors[0];
             }
 
-            throw new AggregateException
+            throw errors.CreateAggregateException
             (
-                "native Focus backend 적용 중 하나 이상의 선택이 실패했습니다.",
-                errors
+                "native Focus backend 적용 중 하나 이상의 선택이 실패했습니다."
             );
         }
 
@@ -396,7 +387,7 @@ namespace inonego.Xeri.UI
         // ------------------------------------------------------------
         private void ClearDrivers(FocusDriverBehaviour except)
         {
-            var errors = new List<Exception>();
+            var errors = new ExceptionBuffer();
 
             for (var i = 0; i < drivers.Length; i++)
             {
@@ -427,7 +418,7 @@ namespace inonego.Xeri.UI
             var handlers = OnFocusChanged;
             if (handlers == null) return;
 
-            var errors = new List<Exception>();
+            var errors = new ExceptionBuffer();
 
             foreach (Action<object> handler in handlers.GetInvocationList())
             {
@@ -452,7 +443,7 @@ namespace inonego.Xeri.UI
         private static void ThrowFocusErrors
         (
             string message,
-            List<Exception> errors
+            ExceptionBuffer errors
         )
         {
             if (errors.Count == 0) return;
@@ -462,7 +453,7 @@ namespace inonego.Xeri.UI
                 throw errors[0];
             }
 
-            throw new AggregateException(message, errors);
+            throw errors.CreateAggregateException(message);
         }
 
         // ------------------------------------------------------------
@@ -507,7 +498,7 @@ namespace inonego.Xeri.UI
                 // 실제 Focus를 얻은 Driver가 권한을 소유하며 다른 native 선택은 남기지 않는다.
                 currentDriver = driver;
                 focusLossEvaluationRequested = false;
-                var errors = new List<Exception>();
+                var errors = new ExceptionBuffer();
 
                 try
                 {

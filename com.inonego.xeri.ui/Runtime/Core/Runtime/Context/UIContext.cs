@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : UIContext.cs
-수정일 : 2026-10-07
+수정일 : 2026-11-02
 
 # 설명
 독립 Screen/Modal/Focus/Input state와 PresentationSession 참조를 소유한다.
@@ -295,10 +295,7 @@ namespace inonego.Xeri.UI
             }
             catch (Exception exception)
             {
-                var errors = new List<Exception>
-                {
-                    exception,
-                };
+                var errors = new ExceptionBuffer(exception);
 
                 if (view != null)
                 {
@@ -326,10 +323,9 @@ namespace inonego.Xeri.UI
                     throw;
                 }
 
-                throw new AggregateException
+                throw errors.CreateAggregateException
                 (
-                    $"Static Presentation Placement '{presentationID}' 획득과 롤백이 실패했습니다.",
-                    errors
+                    $"Static Presentation Placement '{presentationID}' 획득과 롤백이 실패했습니다."
                 );
             }
         }
@@ -403,10 +399,7 @@ namespace inonego.Xeri.UI
             }
             catch (Exception exception)
             {
-                var errors = new List<Exception>
-                {
-                    exception,
-                };
+                var errors = new ExceptionBuffer(exception);
 
                 if (view != null)
                 {
@@ -434,10 +427,9 @@ namespace inonego.Xeri.UI
                     throw;
                 }
 
-                throw new AggregateException
+                throw errors.CreateAggregateException
                 (
-                    $"Presentation Target '{target}' 획득과 롤백이 실패했습니다.",
-                    errors
+                    $"Presentation Target '{target}' 획득과 롤백이 실패했습니다."
                 );
             }
         }
@@ -550,18 +542,19 @@ namespace inonego.Xeri.UI
             catch (Exception exception)
             {
                 children.Remove(child);
-                var errors = child.DisposeFromParent();
+                var cleanupErrors = child.DisposeFromParent();
 
-                if (errors.Count == 0)
+                if (cleanupErrors.Count == 0)
                 {
                     throw;
                 }
 
-                errors.Insert(0, exception);
-                throw new AggregateException
+                var errors = new ExceptionBuffer();
+                errors.Add(exception);
+                errors.AddRange(cleanupErrors);
+                throw errors.CreateAggregateException
                 (
-                    "Child UI Context 생성과 authority 롤백이 모두 실패했습니다.",
-                    errors
+                    "Child UI Context 생성과 authority 롤백이 모두 실패했습니다."
                 );
             }
         }
@@ -604,7 +597,36 @@ namespace inonego.Xeri.UI
             bool hasCursorAuthority
         )
         {
-            if (IsDisposing || IsDisposed) return;
+            if (IsDisposed) return;
+
+            if (IsDisposing)
+            {
+                if (onActivePath || isEffective || hasCursorAuthority)
+                {
+                    throw new InvalidOperationException
+                    (
+                        "종료 중인 UI Context에 새로운 authority를 부여할 수 없습니다."
+                    );
+                }
+
+                // 종료 중에는 이전 권한으로 rollback하지 않고 독립 반환을 끝까지 시도한다.
+                var errors = new ExceptionBuffer();
+                TryRestoreAuthority(() => Screens.SetInputContributionEnabled(false), ref errors);
+                TryRestoreAuthority(() => Screens.SetCursorPolicyEnabled(false), ref errors);
+                TryRestoreAuthority(focusController.Suspend, ref errors);
+
+                if (errors.Count == 1)
+                {
+                    throw errors[0];
+                }
+
+                if (errors.Count > 1)
+                {
+                    throw errors.CreateAggregateException("UI Context authority 반환이 실패했습니다.");
+                }
+
+                return;
+            }
 
             var previousInput = Screens.IsInputContributionEnabled;
             var previousCursor = Screens.IsCursorPolicyEnabled;
@@ -626,10 +648,7 @@ namespace inonego.Xeri.UI
             }
             catch (Exception exception)
             {
-                var errors = new List<Exception>
-                {
-                    exception,
-                };
+                var errors = new ExceptionBuffer(exception);
 
                 TryRestoreAuthority
                 (
@@ -644,17 +663,17 @@ namespace inonego.Xeri.UI
                             focusController.Suspend();
                         }
                     },
-                    errors
+                    ref errors
                 );
                 TryRestoreAuthority
                 (
                     () => Screens.SetCursorPolicyEnabled(previousCursor),
-                    errors
+                    ref errors
                 );
                 TryRestoreAuthority
                 (
                     () => Screens.SetInputContributionEnabled(previousInput),
-                    errors
+                    ref errors
                 );
 
                 if (errors.Count == 1)
@@ -662,10 +681,9 @@ namespace inonego.Xeri.UI
                     throw;
                 }
 
-                throw new AggregateException
+                throw errors.CreateAggregateException
                 (
-                    "UI Context authority 적용과 롤백이 모두 실패했습니다.",
-                    errors
+                    "UI Context authority 적용과 롤백이 모두 실패했습니다."
                 );
             }
         }
@@ -678,7 +696,7 @@ namespace inonego.Xeri.UI
         private static void TryRestoreAuthority
         (
             Action restore,
-            List<Exception> errors
+            ref ExceptionBuffer errors
         )
         {
             try
@@ -799,7 +817,7 @@ namespace inonego.Xeri.UI
         /// Runtime 종료에 맞춰 루트 상태를 반환한다.
         /// </summary>
         // ------------------------------------------------------------
-        internal List<Exception> DisposeFromRuntime()
+        internal IReadOnlyList<Exception> DisposeFromRuntime()
         {
             return Release
             (
@@ -814,7 +832,7 @@ namespace inonego.Xeri.UI
         /// 부모 종료에 맞춰 자식 상태를 반환한다.
         /// </summary>
         // ------------------------------------------------------------
-        private List<Exception> DisposeFromParent()
+        private IReadOnlyList<Exception> DisposeFromParent()
         {
             return Release
             (
@@ -829,16 +847,16 @@ namespace inonego.Xeri.UI
         /// 콘텐츠와 자식 상태를 반환하고 정리 실패를 모은다.
         /// </summary>
         // ------------------------------------------------------------
-        private List<Exception> Release
+        private IReadOnlyList<Exception> Release
         (
             bool removeFromParent,
             bool allowRoot,
             bool restoreAuthority
         )
         {
-            var errors = new List<Exception>();
+            var errors = new ExceptionBuffer();
 
-            if (IsDisposed || IsDisposing) return errors;
+            if (IsDisposed || IsDisposing) return errors.AsReadOnlyList();
 
             if (parent == null && !allowRoot)
             {
@@ -870,7 +888,7 @@ namespace inonego.Xeri.UI
                 var index = lifetimes.Count - 1;
                 var lifetime = lifetimes[index];
                 lifetimes.RemoveAt(index);
-                DisposeOwned(lifetime, errors);
+                DisposeOwned(lifetime, ref errors);
             }
 
             while (children.Count > 0)
@@ -881,7 +899,7 @@ namespace inonego.Xeri.UI
                 errors.AddRange(child.DisposeFromParent());
             }
 
-            DisposeModalController(Modals, errors);
+            DisposeModalController(Modals, ref errors);
             Screens.OnPolicyChanged -= HandleScreenStackChanged;
 
             try
@@ -902,11 +920,11 @@ namespace inonego.Xeri.UI
                 errors.Add(exception);
             }
 
-            DisposeScreenRegistry(ScreenRegistry, errors);
+            DisposeScreenRegistry(ScreenRegistry, ref errors);
             parent = null;
             IsDisposing = false;
             IsDisposed = true;
-            return errors;
+            return errors.AsReadOnlyList();
         }
 
         // ------------------------------------------------------------
@@ -926,7 +944,7 @@ namespace inonego.Xeri.UI
         private static void DisposeModalController
         (
             ModalController controller,
-            ICollection<Exception> errors
+            ref ExceptionBuffer errors
         )
         {
             try
@@ -943,7 +961,7 @@ namespace inonego.Xeri.UI
         private static void DisposeScreenRegistry
         (
             ScreenRegistry registry,
-            ICollection<Exception> errors
+            ref ExceptionBuffer errors
         )
         {
             try
@@ -961,7 +979,7 @@ namespace inonego.Xeri.UI
         /// 개별 정리 실패를 모아 나머지 반환을 계속한다.
         /// </summary>
         // ------------------------------------------------------------
-        private static void DisposeOwned(IDisposable owned, ICollection<Exception> errors)
+        private static void DisposeOwned(IDisposable owned, ref ExceptionBuffer errors)
         {
             try
             {

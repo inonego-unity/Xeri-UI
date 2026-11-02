@@ -145,7 +145,7 @@ namespace inonego.Xeri.UI
         {
             activeParams = null;
             holes.Clear();
-            var errors = new List<Exception>();
+            var errors = new ExceptionBuffer();
 
             if (graphic != null)
             {
@@ -178,10 +178,9 @@ namespace inonego.Xeri.UI
                 throw errors[0];
             }
 
-            throw new AggregateException
+            throw errors.CreateAggregateException
             (
-                "UGUI Spotlight 숨김 처리 중 하나 이상의 정리가 실패했습니다.",
-                errors
+                "UGUI Spotlight 숨김 처리 중 하나 이상의 정리가 실패했습니다."
             );
         }
 

@@ -153,7 +153,7 @@ namespace inonego.Xeri.UI
             draggable = null;
             dragEndCleanupLease = null;
 
-            var errors = new List<Exception>();
+            var errors = new ExceptionBuffer();
 
             if (removeFromBindings)
             {
@@ -214,10 +214,9 @@ namespace inonego.Xeri.UI
                 throw errors[0];
             }
 
-            throw new AggregateException
+            throw errors.CreateAggregateException
             (
-                "Drag Visual Binding 종료 중 하나 이상의 정리가 실패했습니다.",
-                errors
+                "Drag Visual Binding 종료 중 하나 이상의 정리가 실패했습니다."
             );
         }
 

@@ -236,10 +236,7 @@ namespace inonego.Xeri.UI
             catch (Exception exception)
             {
                 ResetApplyStateAfterFailure();
-                var errors = new List<Exception>
-                {
-                    exception,
-                };
+                var errors = new ExceptionBuffer(exception);
 
                 for (var i = 0; i < sessionsReadyForRelease.Count; i++)
                 {
@@ -264,10 +261,9 @@ namespace inonego.Xeri.UI
                     throw;
                 }
 
-                throw new AggregateException
+                throw errors.CreateAggregateException
                 (
-                    "입력 정책 적용과 해제 완료 callback이 모두 실패했습니다.",
-                    errors
+                    "입력 정책 적용과 해제 완료 callback이 모두 실패했습니다."
                 );
             }
 
@@ -613,9 +609,9 @@ namespace inonego.Xeri.UI
         /// 모든 입력 Session 소유권을 먼저 분리하고 기준 상태 적용 뒤 역순으로 종결한다.
         /// </summary>
         // ----------------------------------------------------------------------
-        private List<Exception> ReleaseAllSessions()
+        private IReadOnlyList<Exception> ReleaseAllSessions()
         {
-            var errors = new List<Exception>();
+            var errors = new ExceptionBuffer();
             var releasingSessions = new List<SessionState>(sessions.Count);
 
             // 전체 해제 시작 시점의 Session만 분리해 callback에서 획득한 새 Session을 보존한다.
@@ -656,7 +652,7 @@ namespace inonego.Xeri.UI
                 }
             }
 
-            return errors;
+            return errors.AsReadOnlyList();
         }
 
         // ------------------------------------------------------------
@@ -762,7 +758,7 @@ namespace inonego.Xeri.UI
         // --------------------------------------------------------------------------------
         private void ApplyCapturedBaselineState()
         {
-            var errors = new List<Exception>();
+            var errors = new ExceptionBuffer();
 
             try
             {
@@ -819,10 +815,9 @@ namespace inonego.Xeri.UI
                 throw errors[0];
             }
 
-            throw new AggregateException
+            throw errors.CreateAggregateException
             (
-                "Input baseline 상태 복원 중 하나 이상의 적용이 실패했습니다.",
-                errors
+                "Input baseline 상태 복원 중 하나 이상의 적용이 실패했습니다."
             );
         }
 
@@ -892,7 +887,7 @@ namespace inonego.Xeri.UI
             bool[] states
         )
         {
-            var errors = new List<Exception>();
+            var errors = new ExceptionBuffer();
 
             try
             {
@@ -926,10 +921,9 @@ namespace inonego.Xeri.UI
                 throw errors[0];
             }
 
-            throw new AggregateException
+            throw errors.CreateAggregateException
             (
-                $"Input Action Map '{map.name}' 상태 복원 중 하나 이상의 Action 적용이 실패했습니다.",
-                errors
+                $"Input Action Map '{map.name}' 상태 복원 중 하나 이상의 Action 적용이 실패했습니다."
             );
         }
 
@@ -946,7 +940,7 @@ namespace inonego.Xeri.UI
             CursorLockMode cursorLockMode
         )
         {
-            var errors = new List<Exception>();
+            var errors = new ExceptionBuffer();
 
             if (uiEnabled != appliedUIEnabled)
             {
@@ -1022,10 +1016,9 @@ namespace inonego.Xeri.UI
                 throw errors[0];
             }
 
-            throw new AggregateException
+            throw errors.CreateAggregateException
             (
-                "Screen 입력 정책 적용 중 하나 이상의 backend 변경이 실패했습니다.",
-                errors
+                "Screen 입력 정책 적용 중 하나 이상의 backend 변경이 실패했습니다."
             );
         }
 
@@ -1262,7 +1255,7 @@ namespace inonego.Xeri.UI
 
             var wasInitialized = IsInitialized;
             isDisposed = true;
-            var errors = new List<Exception>();
+            var errors = new ExceptionBuffer();
 
             if (wasInitialized)
             {
@@ -1283,7 +1276,7 @@ namespace inonego.Xeri.UI
 
             if (errors.Count > 0)
             {
-                throw new AggregateException("Input System Screen Input Driver 해제가 실패했습니다.", errors);
+                throw errors.CreateAggregateException("Input System Screen Input Driver 해제가 실패했습니다.");
             }
         }
 

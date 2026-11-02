@@ -149,15 +149,17 @@ namespace inonego.Xeri.UI.Window
             }
             catch (Exception exception)
             {
-                var errors = ReleaseApplication();
+                var cleanupErrors = ReleaseApplication();
 
-                if (errors.Count == 0)
+                if (cleanupErrors.Count == 0)
                 {
                     throw;
                 }
 
-                errors.Insert(0, exception);
-                throw new AggregateException("Window Session 조립과 롤백이 실패했습니다.", errors);
+                var errors = new ExceptionBuffer();
+                errors.Add(exception);
+                errors.AddRange(cleanupErrors);
+                throw errors.CreateAggregateException("Window Session 조립과 롤백이 실패했습니다.");
             }
         }
 
@@ -250,11 +252,11 @@ namespace inonego.Xeri.UI.Window
         // ------------------------------------------------------------
         private void ReleaseContent()
         {
-            var errors = new List<Exception>();
-            ReleaseChildren(errors);
+            var errors = new ExceptionBuffer();
+            ReleaseChildren(ref errors);
             if (errors.Count > 0)
             {
-                throw new AggregateException("Window 콘텐츠 정리가 실패했습니다.", errors);
+                throw errors.CreateAggregateException("Window 콘텐츠 정리가 실패했습니다.");
             }
         }
 
@@ -263,7 +265,7 @@ namespace inonego.Xeri.UI.Window
         /// 콘텐츠를 역순 반환하며 실패한 항목도 한 번만 정리한다.
         /// </summary>
         // ------------------------------------------------------------
-        private void ReleaseChildren(List<Exception> errors)
+        private void ReleaseChildren(ref ExceptionBuffer errors)
         {
             if (isContentReleased) return;
 
@@ -307,7 +309,7 @@ namespace inonego.Xeri.UI.Window
         /// Workspace 추적에 공개되기 전 실패한 provisional Session을 직접 Terminal 정리한다.
         /// </summary>
         // --------------------------------------------------------------------------------
-        internal List<Exception> ReleaseUnaccepted
+        internal IReadOnlyList<Exception> ReleaseUnaccepted
         (
             XeriWindowContainer container,
             IXeriWindowRegistry registry
@@ -322,19 +324,19 @@ namespace inonego.Xeri.UI.Window
         /// Workspace 소유권을 종료하고 입력·표시·View 자원을 attempt-once로 반환한다.
         /// </summary>
         // ----------------------------------------------------------------------
-        internal List<Exception> Release
+        internal IReadOnlyList<Exception> Release
         (
             XeriWindowContainer container,
             IXeriWindowRegistry registry
         )
         {
-            var errors = new List<Exception>();
+            var errors = new ExceptionBuffer();
 
-            if (isReleased) return errors;
+            if (isReleased) return errors.AsReadOnlyList();
 
             isReleased = true;
-            Unbind(errors);
-            ReleaseChildren(errors);
+            Unbind(ref errors);
+            ReleaseChildren(ref errors);
             errors.AddRange(ReleaseApplication());
 
             var currentPanel = panel;
@@ -397,7 +399,7 @@ namespace inonego.Xeri.UI.Window
                 }
             }
 
-            return errors;
+            return errors.AsReadOnlyList();
         }
 
         // --------------------------------------------------------------------------------
@@ -424,18 +426,19 @@ namespace inonego.Xeri.UI.Window
             }
             catch (Exception exception)
             {
-                var errors = ReleaseApplication();
+                var cleanupErrors = ReleaseApplication();
 
-                if (errors.Count == 0)
+                if (cleanupErrors.Count == 0)
                 {
                     throw;
                 }
 
-                errors.Insert(0, exception);
-                throw new AggregateException
+                var errors = new ExceptionBuffer();
+                errors.Add(exception);
+                errors.AddRange(cleanupErrors);
+                throw errors.CreateAggregateException
                 (
-                    "Application Window UI 조립과 롤백이 실패했습니다.",
-                    errors
+                    "Application Window UI 조립과 롤백이 실패했습니다."
                 );
             }
         }
@@ -463,9 +466,9 @@ namespace inonego.Xeri.UI.Window
         /// Application Window의 Child Context, Surface와 Registry를 역순 반환한다.
         /// </summary>
         // --------------------------------------------------------------------------------
-        private List<Exception> ReleaseApplication()
+        private IReadOnlyList<Exception> ReleaseApplication()
         {
-            var errors = new List<Exception>();
+            var errors = new ExceptionBuffer();
             var context = childContext;
             var presentation = childPresentation;
             var currentFocusScope = focusScope;
@@ -500,7 +503,7 @@ namespace inonego.Xeri.UI.Window
                 errors.Add(exception);
             }
 
-            return errors;
+            return errors.AsReadOnlyList();
         }
 
         // ------------------------------------------------------------
@@ -542,17 +545,16 @@ namespace inonego.Xeri.UI.Window
             }
             catch (Exception bindException)
             {
-                var errors = new List<Exception>();
-                Unbind(errors);
+                var errors = new ExceptionBuffer();
+                Unbind(ref errors);
 
                 if (errors.Count > 0)
                 {
-                    errors.Insert(0, bindException);
+                    errors.Prepend(bindException);
 
-                    throw new AggregateException
+                    throw errors.CreateAggregateException
                     (
-                        "Window Session 입력 binding과 롤백이 함께 실패했습니다.",
-                        errors
+                        "Window Session 입력 binding과 롤백이 함께 실패했습니다."
                     );
                 }
 
@@ -565,7 +567,7 @@ namespace inonego.Xeri.UI.Window
         /// Window 입력 binding과 Controller 이벤트를 한 번 해제한다.
         /// </summary>
         // ------------------------------------------------------------
-        private void Unbind(List<Exception> errors)
+        private void Unbind(ref ExceptionBuffer errors)
         {
             if (isControllerBound)
             {

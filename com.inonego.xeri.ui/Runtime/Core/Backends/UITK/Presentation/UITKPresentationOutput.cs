@@ -175,7 +175,7 @@ namespace inonego.Xeri.UI
         {
             if (!isInitialized && !reloadRegistered && root == null && layerRoot == null) return;
 
-            var errors = new List<Exception>();
+            var errors = new ExceptionBuffer();
             var generated = RuntimePanelSettings;
             var borrowed = borrowedSettings;
             var order = borrowedSortingOrder;
@@ -194,32 +194,32 @@ namespace inonego.Xeri.UI
 
             if (unregister && panelRenderer != null)
             {
-                Cleanup(() => panelRenderer.UnregisterUIReloadCallback(HandleUIReload), errors);
+                Cleanup(() => panelRenderer.UnregisterUIReloadCallback(HandleUIReload), ref errors);
             }
 
-            Cleanup(RestoreRootStyle, errors);
-            Cleanup(() => detachedLayer?.RemoveFromHierarchy(), errors);
+            Cleanup(RestoreRootStyle, ref errors);
+            Cleanup(() => detachedLayer?.RemoveFromHierarchy(), ref errors);
             if (restoreBorrowed)
             {
                 if (borrowed != null)
                 {
-                    Cleanup(() => borrowed.sortingOrder = order, errors);
+                    Cleanup(() => borrowed.sortingOrder = order, ref errors);
                 }
             }
             else if (panelRenderer != null)
             {
-                Cleanup(() => panelRenderer.panelSettings = null, errors);
-                Cleanup(() => panelRenderer.visualTreeAsset = null, errors);
+                Cleanup(() => panelRenderer.panelSettings = null, ref errors);
+                Cleanup(() => panelRenderer.visualTreeAsset = null, ref errors);
             }
 
-            Cleanup(() => DestroyOwnedObject(generated), errors);
+            Cleanup(() => DestroyOwnedObject(generated), ref errors);
             if (errors.Count > 0)
             {
-                throw new AggregateException("UITK Presentation Output 해제가 실패했습니다.", errors);
+                throw errors.CreateAggregateException("UITK Presentation Output 해제가 실패했습니다.");
             }
         }
 
-        private static void Cleanup(Action action, List<Exception> errors)
+        private static void Cleanup(Action action, ref ExceptionBuffer errors)
         {
             try
             {

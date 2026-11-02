@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : PresentationHost.cs
-수정일 : 2026-10-28
+수정일 : 2026-11-02
 
 # 설명
 app-wide semantic destination을 Root PresentationSession Layer에 resolve하고 Layer Lease를 발급한다.

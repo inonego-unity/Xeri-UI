@@ -75,9 +75,9 @@ namespace inonego.Xeri.UI.Tray
         // ------------------------------------------------------------
         protected override void UnregisterCallbacksFromTarget()
         {
-            var errors = new List<Exception>();
+            var errors = new ExceptionBuffer();
 
-            TryCleanup(CancelActive, errors);
+            TryCleanup(CancelActive, ref errors);
             TryCleanup
             (
                 () => target.UnregisterCallback<PointerDownEvent>
@@ -85,7 +85,7 @@ namespace inonego.Xeri.UI.Tray
                     OnPointerDown,
                     TrickleDown.TrickleDown
                 ),
-                errors
+                ref errors
             );
             TryCleanup
             (
@@ -94,7 +94,7 @@ namespace inonego.Xeri.UI.Tray
                     OnPointerMove,
                     TrickleDown.TrickleDown
                 ),
-                errors
+                ref errors
             );
             TryCleanup
             (
@@ -103,7 +103,7 @@ namespace inonego.Xeri.UI.Tray
                     OnPointerUp,
                     TrickleDown.TrickleDown
                 ),
-                errors
+                ref errors
             );
             TryCleanup
             (
@@ -112,7 +112,7 @@ namespace inonego.Xeri.UI.Tray
                     OnPointerCancel,
                     TrickleDown.TrickleDown
                 ),
-                errors
+                ref errors
             );
 
             ThrowCleanupErrors("Tray reorder callback 해제", errors);
@@ -130,7 +130,7 @@ namespace inonego.Xeri.UI.Tray
             var currentSession = session;
             var currentButton = activeButton;
             var currentPointerID = pointerID;
-            var errors = new List<Exception>();
+            var errors = new ExceptionBuffer();
 
             // 외부 animator/callback 재진입이 같은 drag 종료를 다시 시작하지 않게 먼저 terminalize한다.
             ResetActiveState();
@@ -149,7 +149,7 @@ namespace inonego.Xeri.UI.Tray
                         target.ReleasePointer(currentPointerID);
                     }
                 },
-                errors
+                ref errors
             );
             TryCleanup
             (
@@ -158,12 +158,12 @@ namespace inonego.Xeri.UI.Tray
                     reorderTarget,
                     currentSession
                 ),
-                errors
+                ref errors
             );
             TryCleanup
             (
                 () => visual.Clear(currentButton, currentSession),
-                errors
+                ref errors
             );
 
             ThrowCleanupErrors("Tray reorder 취소", errors);
@@ -325,7 +325,7 @@ namespace inonego.Xeri.UI.Tray
             var shouldCommit =
                 wasDragging &&
                 currentSession.TargetIndex != currentSession.SourceIndex;
-            var errors = new List<Exception>();
+            var errors = new ExceptionBuffer();
 
             // 확정 observer가 재진입해 Panel을 reload해도 같은 drag 수명을 다시 정리하지 않게 먼저 종료한다.
             ResetActiveState();
@@ -339,7 +339,7 @@ namespace inonego.Xeri.UI.Tray
                         target.ReleasePointer(evt.pointerId);
                     }
                 },
-                errors
+                ref errors
             );
 
             if (shouldCommit)
@@ -355,7 +355,7 @@ namespace inonego.Xeri.UI.Tray
                             currentSession.TargetIndex
                         )
                     ),
-                    errors
+                    ref errors
                 );
                 TryCleanup
                 (
@@ -364,7 +364,7 @@ namespace inonego.Xeri.UI.Tray
                         reorderTarget,
                         currentSession
                     ),
-                    errors
+                    ref errors
                 );
             }
             else
@@ -376,14 +376,14 @@ namespace inonego.Xeri.UI.Tray
                         reorderTarget,
                         currentSession
                     ),
-                    errors
+                    ref errors
                 );
             }
 
             TryCleanup
             (
                 () => visual.Clear(currentButton, currentSession),
-                errors
+                ref errors
             );
 
             if (wasDragging)
@@ -406,7 +406,7 @@ namespace inonego.Xeri.UI.Tray
 
             var currentSession = session;
             var currentButton = activeButton;
-            var errors = new List<Exception>();
+            var errors = new ExceptionBuffer();
 
             ResetActiveState();
 
@@ -419,7 +419,7 @@ namespace inonego.Xeri.UI.Tray
                         target.ReleasePointer(evt.pointerId);
                     }
                 },
-                errors
+                ref errors
             );
             TryCleanup
             (
@@ -428,12 +428,12 @@ namespace inonego.Xeri.UI.Tray
                     reorderTarget,
                     currentSession
                 ),
-                errors
+                ref errors
             );
             TryCleanup
             (
                 () => visual.Clear(currentButton, currentSession),
-                errors
+                ref errors
             );
 
             ThrowCleanupErrors("Tray reorder pointer 취소", errors);
@@ -460,7 +460,7 @@ namespace inonego.Xeri.UI.Tray
         private static void TryCleanup
         (
             Action cleanup,
-            List<Exception> errors
+            ref ExceptionBuffer errors
         )
         {
             try
@@ -481,7 +481,7 @@ namespace inonego.Xeri.UI.Tray
         private static void ThrowCleanupErrors
         (
             string message,
-            List<Exception> errors
+            ExceptionBuffer errors
         )
         {
             if (errors.Count == 0) return;
@@ -491,10 +491,9 @@ namespace inonego.Xeri.UI.Tray
                 throw errors[0];
             }
 
-            throw new AggregateException
+            throw errors.CreateAggregateException
             (
-                $"{message} 중 하나 이상의 작업이 실패했습니다.",
-                errors
+                $"{message} 중 하나 이상의 작업이 실패했습니다."
             );
         }
 

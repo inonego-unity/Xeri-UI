@@ -511,7 +511,7 @@ namespace inonego.Xeri.UI.URP.Editor
             var state = URPDirectOutputInstallationState.instance;
             state.RecordChange("Xeri URP 소유 기록 해제");
             var restored = 0;
-            var errors = new List<Exception>();
+            List<Exception> errors = null;
             for (var index = state.FeatureChanges.Count - 1; index >= 0; index--)
             {
                 try
@@ -526,7 +526,7 @@ namespace inonego.Xeri.UI.URP.Editor
                 }
                 catch (Exception exception)
                 {
-                    errors.Add(exception);
+                    (errors ??= new List<Exception>()).Add(exception);
                 }
             }
 
@@ -543,7 +543,7 @@ namespace inonego.Xeri.UI.URP.Editor
                 }
                 catch (Exception exception)
                 {
-                    errors.Add(exception);
+                    (errors ??= new List<Exception>()).Add(exception);
                 }
             }
 
@@ -556,10 +556,10 @@ namespace inonego.Xeri.UI.URP.Editor
             }
             catch (Exception exception)
             {
-                errors.Add(exception);
+                (errors ??= new List<Exception>()).Add(exception);
             }
 
-            if (errors.Count > 0)
+            if (errors != null)
             {
                 throw new AggregateException("URP 적용 해제 중 완료하지 못한 변경이 있습니다.", errors);
             }

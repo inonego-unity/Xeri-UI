@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : IPresentationSource.cs
-수정일 : 2026-10-05
+수정일 : 2026-11-02
 
 # 설명
 Presentation Layer에 View를 획득하고 반환하는 일반 Presentation Source 계약을 정의한다.

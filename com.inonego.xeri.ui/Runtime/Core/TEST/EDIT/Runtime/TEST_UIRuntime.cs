@@ -1,6 +1,6 @@
 ﻿/* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : TEST_UIRuntime.cs
-수정일 : 2026-10-19
+수정일 : 2026-11-02
 
 # 설명
 UIRuntime의 Root Presentation, Context Authority, Scene 구성과 초기화·종료 실패 정리를 검증한다.
@@ -242,7 +242,6 @@ namespace inonego.Xeri.UI.TEST.Core
             /// </summary>
             // ------------------------------------------------------------
             public PresentationVisibility Visibility { get; }
-
 
             // ------------------------------------------------------------
             /// <summary>
@@ -1509,6 +1508,63 @@ namespace inonego.Xeri.UI.TEST.Core
 
             overlay.Dispose();
             Assert.DoesNotThrow(fixture.Runtime.Shutdown);
+        }
+
+        // --------------------------------------------------------------------------------
+        /// <summary>
+        /// 종료되는 Child Context가 Input·Cursor authority를 반환하고 Parent를 복원한다.
+        /// </summary>
+        // --------------------------------------------------------------------------------
+        [Test]
+        public void TEST_UIRuntime_ChildContext종료_Authority기여반환()
+        {
+            var fixture = CreateRuntimeFixture();
+            fixture.Runtime.Initialize(fixture.Settings);
+            var main = fixture.Runtime.Main;
+            var child = main.CreateChild();
+            var mainSource = new TestScreenSource();
+            var childSource = new TestScreenSource();
+            main.ScreenRegistry.Register
+            (
+                new ScreenOptions("Main", openDuration: 0.0f, closeDuration: 0.0f),
+                PresentationTarget.Local("Test"),
+                mainSource
+            );
+            child.ScreenRegistry.Register
+            (
+                new ScreenOptions("Child", openDuration: 0.0f, closeDuration: 0.0f),
+                PresentationTarget.Local("Test"),
+                childSource
+            );
+            var mainScreen = main.Screens.Open("Main");
+            var childScreen = child.Screens.Open("Child");
+            Assert.IsTrue(mainScreen.Accepted);
+            Assert.IsTrue(childScreen.Accepted);
+
+            var mainInput = mainScreen.Session.Resources.InputSession;
+            var childInput = childScreen.Session.Resources.InputSession;
+            Assert.IsTrue(mainInput.IsCursorPolicyEnabled);
+            Assert.IsFalse(childInput.IsCursorPolicyEnabled);
+
+            child.SetBaseAuthority();
+
+            Assert.IsTrue(child.IsEffective);
+            Assert.IsTrue(childInput.IsContributionEnabled);
+            Assert.IsTrue(childInput.IsCursorPolicyEnabled);
+            Assert.IsFalse(mainInput.IsCursorPolicyEnabled);
+
+            child.Dispose();
+
+            Assert.IsTrue(child.IsDisposed);
+            Assert.IsTrue(childInput.IsReleased);
+            Assert.IsFalse(child.Screens.IsInputContributionEnabled);
+            Assert.IsFalse(child.Screens.IsCursorPolicyEnabled);
+            Assert.IsTrue(main.IsEffective);
+            Assert.IsTrue(mainInput.IsContributionEnabled);
+            Assert.IsTrue(mainInput.IsCursorPolicyEnabled);
+            Assert.AreEqual(1, childSource.ReleaseCount);
+            Assert.AreEqual(0, mainSource.ReleaseCount);
+            fixture.Runtime.Shutdown();
         }
 
     #endregion

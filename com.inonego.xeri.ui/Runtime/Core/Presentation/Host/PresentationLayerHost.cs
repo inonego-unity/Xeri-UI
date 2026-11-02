@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : PresentationLayerHost.cs
-수정일 : 2026-10-05
+수정일 : 2026-11-02
 
 # 설명
 Scene-authored Presentation Layer의 explicit materialization identity와 borrow lifetime 공통 계약.

@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : PresentationTarget.cs
-수정일 : 2026-10-28
+수정일 : 2026-11-02
 
 # 설명
 UI를 현재 Session의 local Layer 또는 Runtime PresentationHost destination에 표시할 대상을 정의한다.

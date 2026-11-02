@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : Presentation.cs
-수정일 : 2026-09-19
+수정일 : 2026-11-02
 # 설명
 UI backend Target을 Xeri Presentation State에 연결하는 기본 Presentation 구현이다.
 Alpha와 Visibility는 서로 독립 capability이며 제공된 Target에 대해서만 생성한다.

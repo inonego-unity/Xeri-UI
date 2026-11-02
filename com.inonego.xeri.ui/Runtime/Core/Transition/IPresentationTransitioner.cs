@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : IPresentationTransitioner.cs
-수정일 : 2026-07-29
+수정일 : 2026-11-02
 
 # 설명
 backend 독립 Presentation Transition 실행과 완료·오류 callback 계약을 정의한다.

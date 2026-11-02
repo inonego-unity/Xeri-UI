@@ -1,6 +1,6 @@
 ﻿/* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : TEST_PresentationSession.cs
-수정일 : 2026-10-03
+수정일 : 2026-11-02
 
 # 설명
 PresentationSession의 top-level materialization, placement ordering, Child Session 격리와 release 계약을 검증한다.
@@ -842,6 +842,85 @@ namespace inonego.Xeri.UI.TEST.Core
             Assert.IsTrue(parent.IsDisposed);
             Assert.AreEqual(0, parent.ChildCount);
             Assert.AreEqual(0, root.transform.childCount);
+        }
+
+        // --------------------------------------------------------------------------------
+        /// <summary>
+        /// <br/> Parent 종료 중 Child 해제 callback이 형제를 종료해도 전체 자원을 반환한다.
+        /// <br/> 종료 중인 Parent 하위 Child의 신규 Layer 획득을 거부한다.
+        /// </summary>
+        // --------------------------------------------------------------------------------
+        [Test]
+        public void TEST_PresentationSession_Parent종료중형제해제_중복없이전체종료()
+        {
+            var parentPlan = new PresentationPlan
+            (
+                new List<PresentationPlanLayer>
+                {
+                    PresentationTestScope.CreateLayer("Parent"),
+                },
+                new List<PresentationPlanPlacement>()
+            );
+            var root = new GameObject("Parent Session Root");
+            ownedObjects.Add(root);
+            PresentationSession first = null;
+            PresentationSession second = null;
+            IPresentationLayerDriver lastDriver = null;
+            Exception blockedAcquire = null;
+            var siblingReleaseCount = 0;
+
+            var parent = PresentationSession.CreateTopLevel
+            (
+                parentPlan,
+                root.transform,
+                null,
+                null,
+                driver => new Lease
+                (
+                    () =>
+                    {
+                        if (!ReferenceEquals(driver, lastDriver)) return;
+
+                        try
+                        {
+                            using var usage = second.AcquireLayer("Child");
+                        }
+                        catch (Exception exception)
+                        {
+                            blockedAcquire = exception;
+                        }
+
+                        siblingReleaseCount++;
+                        first.Dispose();
+                    }
+                )
+            );
+
+            Assert.IsTrue(parent.LayerRegistry.TryGet("Parent", out var parentDriver));
+            var parentRoot = ((IPresentationLayerDriver<RectTransform>)parentDriver).Root;
+            var layout = CreateLayout
+            (
+                new[]
+                {
+                    Layer("Child", 0),
+                },
+                Array.Empty<PresentationPlacementDefinition>()
+            );
+            first = parent.CreateChild(layout, parentRoot);
+            second = parent.CreateChild(layout, parentRoot);
+            var last = parent.CreateChild(layout, parentRoot);
+            Assert.IsTrue(last.LayerRegistry.TryGet("Child", out lastDriver));
+            Assert.AreEqual(3, parent.ChildCount);
+
+            parent.Dispose();
+
+            Assert.IsTrue(parent.IsDisposed);
+            Assert.IsTrue(first.IsDisposed);
+            Assert.IsTrue(second.IsDisposed);
+            Assert.IsTrue(last.IsDisposed);
+            Assert.AreEqual(0, parent.ChildCount);
+            Assert.AreEqual(1, siblingReleaseCount);
+            Assert.IsInstanceOf<ObjectDisposedException>(blockedAcquire);
         }
 
     #endregion

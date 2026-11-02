@@ -302,10 +302,7 @@ namespace inonego.Xeri.UI
             }
             catch (Exception exception)
             {
-                var errors = new List<Exception>
-                {
-                    exception,
-                };
+                var errors = new ExceptionBuffer(exception);
 
                 if (driverSetTopAttempted)
                 {
@@ -338,7 +335,7 @@ namespace inonego.Xeri.UI
                     throw;
                 }
 
-                throw new AggregateException("Modal 표시 시작과 롤백이 실패했습니다.", errors);
+                throw errors.CreateAggregateException("Modal 표시 시작과 롤백이 실패했습니다.");
             }
         }
 
@@ -385,7 +382,7 @@ namespace inonego.Xeri.UI
                 ? stack[index - 1]
                 : null;
 
-            var errors = new List<Exception>();
+            var errors = new ExceptionBuffer();
 
             try
             {
@@ -447,7 +444,7 @@ namespace inonego.Xeri.UI
 
             if (errors.Count > 0)
             {
-                throw new AggregateException("Modal 해제가 실패했습니다.", errors);
+                throw errors.CreateAggregateException("Modal 해제가 실패했습니다.");
             }
         }
 
@@ -497,7 +494,7 @@ namespace inonego.Xeri.UI
             if (isDisposed) return;
 
             isDisposed = true;
-            var errors = new List<Exception>();
+            var errors = new ExceptionBuffer();
 
             try
             {
@@ -527,7 +524,7 @@ namespace inonego.Xeri.UI
 
             if (errors.Count > 0)
             {
-                throw new AggregateException("Modal Controller 해제가 실패했습니다.", errors);
+                throw errors.CreateAggregateException("Modal Controller 해제가 실패했습니다.");
             }
         }
 

@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : PresentationAlpha.cs
-수정일 : 2026-10-28
+수정일 : 2026-11-02
 
 # 설명
 Presentation의 local Alpha 값과 Modifier 소유권을 backend 적용과 함께 관리한다.
@@ -216,8 +216,10 @@ namespace inonego.Xeri.UI
         /// <br/>마지막 등록이면 구독을 해제하며 적용 실패도 보고한다.
         /// </summary>
         // ------------------------------------------------------------
-        public bool RemoveModifier(string key, bool invokeEvent = true) =>
-            state.RemoveModifier(key, invokeEvent);
+        public bool RemoveModifier(string key, bool invokeEvent = true)
+        {
+            return state.RemoveModifier(key, invokeEvent);
+        }
 
         // ----------------------------------------------------------------------
         /// <summary>
@@ -385,7 +387,7 @@ namespace inonego.Xeri.UI
             EnterUpdate();
             var previousBase = Base;
             var previousModified = Modified;
-            List<Exception> errors = null;
+            var errors = new ExceptionBuffer();
 
             try
             {
@@ -402,7 +404,7 @@ namespace inonego.Xeri.UI
             }
             catch (Exception exception)
             {
-                (errors ??= new List<Exception>()).Add(exception);
+                errors.Add(exception);
             }
             finally
             {
@@ -462,7 +464,7 @@ namespace inonego.Xeri.UI
             var previous = Modified;
             var previousApplyPending = applyPending;
             var previousOutput = default(T);
-            List<Exception> errors = null;
+            var errors = new ExceptionBuffer();
             var added = false;
             var applied = false;
             Subscription subscription = null;
@@ -497,7 +499,7 @@ namespace inonego.Xeri.UI
             }
             catch (Exception exception)
             {
-                (errors ??= new List<Exception>()).Add(exception);
+                errors.Add(exception);
 
                 if (added)
                 {
@@ -522,7 +524,7 @@ namespace inonego.Xeri.UI
                     }
                     catch (Exception cleanupException)
                     {
-                        (errors ??= new List<Exception>()).Add(cleanupException);
+                        errors.Add(cleanupException);
                     }
                 }
             }
@@ -531,7 +533,7 @@ namespace inonego.Xeri.UI
                 isUpdating = false;
             }
 
-            if (errors == null || errors.Count == 0)
+            if (errors.Count == 0)
             {
                 NotifyChanges(Base, previous, invokeEvent, ref errors);
             }
@@ -543,7 +545,7 @@ namespace inonego.Xeri.UI
         {
             EnterUpdate();
             var previous = Modified;
-            List<Exception> errors = null;
+            var errors = new ExceptionBuffer();
             var removed = false;
 
             try
@@ -572,7 +574,7 @@ namespace inonego.Xeri.UI
             }
             catch (Exception exception)
             {
-                (errors ??= new List<Exception>()).Add(exception);
+                errors.Add(exception);
             }
             finally
             {
@@ -588,7 +590,7 @@ namespace inonego.Xeri.UI
         {
             EnterUpdate();
             var previous = Modified;
-            List<Exception> errors = null;
+            var errors = new ExceptionBuffer();
 
             try
             {
@@ -616,7 +618,7 @@ namespace inonego.Xeri.UI
             }
             catch (Exception exception)
             {
-                (errors ??= new List<Exception>()).Add(exception);
+                errors.Add(exception);
             }
             finally
             {
@@ -637,7 +639,7 @@ namespace inonego.Xeri.UI
             return null;
         }
 
-        private static void Detach(Subscription subscription, ref List<Exception> errors)
+        private static void Detach(Subscription subscription, ref ExceptionBuffer errors)
         {
             subscription.Owner = null;
 
@@ -647,7 +649,7 @@ namespace inonego.Xeri.UI
             }
             catch (Exception exception)
             {
-                (errors ??= new List<Exception>()).Add(exception);
+                errors.Add(exception);
             }
         }
 
@@ -657,19 +659,19 @@ namespace inonego.Xeri.UI
 
         internal void InvokeOnBaseChange(T previous)
         {
-            List<Exception> errors = null;
+            var errors = new ExceptionBuffer();
             Notify(OnBaseChange, previous, Base, revision, ref errors);
             ThrowErrors(errors);
         }
 
         internal void InvokeOnModifiedChange(T previous)
         {
-            List<Exception> errors = null;
+            var errors = new ExceptionBuffer();
             Notify(OnModifiedChange, previous, Modified, revision, ref errors);
             ThrowErrors(errors);
         }
 
-        private void NotifyChanges(T previousBase, T previousModified, bool invokeEvent, ref List<Exception> errors)
+        private void NotifyChanges(T previousBase, T previousModified, bool invokeEvent, ref ExceptionBuffer errors)
         {
             if (!invokeEvent) return;
 
@@ -693,7 +695,7 @@ namespace inonego.Xeri.UI
             T previous,
             T current,
             int expectedRevision,
-            ref List<Exception> errors
+            ref ExceptionBuffer errors
         )
         {
             if (handlers == null) return;
@@ -710,21 +712,21 @@ namespace inonego.Xeri.UI
                 }
                 catch (Exception exception)
                 {
-                    (errors ??= new List<Exception>()).Add(exception);
+                    errors.Add(exception);
                 }
             }
         }
 
-        private static void ThrowErrors(List<Exception> errors)
+        private static void ThrowErrors(ExceptionBuffer errors)
         {
-            if (errors == null || errors.Count == 0) return;
+            if (errors.Count == 0) return;
 
             if (errors.Count == 1)
             {
                 System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(errors[0]).Throw();
             }
 
-            throw new AggregateException("Presentation 값 갱신과 후속 처리가 실패했습니다.", errors);
+            throw errors.CreateAggregateException("Presentation 값 갱신과 후속 처리가 실패했습니다.");
         }
 
     #endregion

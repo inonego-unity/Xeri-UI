@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : IPresentationLayerDriver.cs
-수정일 : 2026-09-22
+수정일 : 2026-11-02
 
 # 설명
 Presentation Layer의 backend별 View 배치 Root와 논리 활성 상태 계약을 정의한다.

@@ -332,14 +332,14 @@ namespace inonego.Xeri.UI.Window
                 throw;
             }
 
-            var errors = new List<Exception>();
+            var errors = new ExceptionBuffer();
             InvokeValueChangeHandlers
             (
                 OnPosChange,
                 new ValueChangeEventArgs<Vector2>(previous, pos),
-                errors
+                ref errors
             );
-            InvokeStateHandlers(OnMove, CreateEventArgs(), errors);
+            InvokeStateHandlers(OnMove, CreateEventArgs(), ref errors);
             ThrowEventErrors("Window 이동 이벤트 처리", errors);
         }
 
@@ -383,14 +383,14 @@ namespace inonego.Xeri.UI.Window
                 throw;
             }
 
-            var errors = new List<Exception>();
+            var errors = new ExceptionBuffer();
             InvokeValueChangeHandlers
             (
                 OnSizeChange,
                 new ValueChangeEventArgs<Vector2>(previous, clamped),
-                errors
+                ref errors
             );
-            InvokeStateHandlers(OnResize, CreateEventArgs(), errors);
+            InvokeStateHandlers(OnResize, CreateEventArgs(), ref errors);
             ThrowEventErrors("Window 크기 변경 이벤트 처리", errors);
         }
 
@@ -440,7 +440,7 @@ namespace inonego.Xeri.UI.Window
                 throw;
             }
 
-            var errors = new List<Exception>();
+            var errors = new ExceptionBuffer();
 
             if (previous.position != next.position)
             {
@@ -448,9 +448,9 @@ namespace inonego.Xeri.UI.Window
                 (
                     OnPosChange,
                     new ValueChangeEventArgs<Vector2>(previous.position, next.position),
-                    errors
+                    ref errors
                 );
-                InvokeStateHandlers(OnMove, CreateEventArgs(), errors);
+                InvokeStateHandlers(OnMove, CreateEventArgs(), ref errors);
             }
 
             if (previous.size != next.size)
@@ -459,9 +459,9 @@ namespace inonego.Xeri.UI.Window
                 (
                     OnSizeChange,
                     new ValueChangeEventArgs<Vector2>(previous.size, next.size),
-                    errors
+                    ref errors
                 );
-                InvokeStateHandlers(OnResize, CreateEventArgs(), errors);
+                InvokeStateHandlers(OnResize, CreateEventArgs(), ref errors);
             }
 
             ThrowEventErrors("Window resize bounds 이벤트 처리", errors);
@@ -707,7 +707,7 @@ namespace inonego.Xeri.UI.Window
                 Cancel = false,
             };
 
-            var errors = new List<Exception>();
+            var errors = new ExceptionBuffer();
             isDispatchingStateEvent = true;
 
             try
@@ -931,7 +931,7 @@ namespace inonego.Xeri.UI.Window
             }
 
             var eventArgs = CreateEventArgs();
-            var errors = new List<Exception>();
+            var errors = new ExceptionBuffer();
             isDispatchingStateEvent = true;
 
             try
@@ -942,11 +942,11 @@ namespace inonego.Xeri.UI.Window
                     (
                         OnStateChange,
                         new ValueChangeEventArgs<XeriWindowState>(previous, state),
-                        errors
+                        ref errors
                     );
                 }
 
-                InvokeStateHandlers(GetStateEvent(request.Kind), eventArgs, errors);
+                InvokeStateHandlers(GetStateEvent(request.Kind), eventArgs, ref errors);
             }
             finally
             {
@@ -965,7 +965,7 @@ namespace inonego.Xeri.UI.Window
         (
             ValueChangeEventHandler<T> handlers,
             ValueChangeEventArgs<T> eventArgs,
-            List<Exception> errors
+            ref ExceptionBuffer errors
         )
         {
             if (handlers == null) return;
@@ -992,7 +992,7 @@ namespace inonego.Xeri.UI.Window
         (
             EventHandler<XeriWindowEventArgs> handlers,
             XeriWindowEventArgs eventArgs,
-            List<Exception> errors
+            ref ExceptionBuffer errors
         )
         {
             if (handlers == null) return;
@@ -1018,7 +1018,7 @@ namespace inonego.Xeri.UI.Window
         private static void ThrowEventErrors
         (
             string message,
-            List<Exception> errors
+            ExceptionBuffer errors
         )
         {
             if (errors.Count == 0) return;
@@ -1028,10 +1028,9 @@ namespace inonego.Xeri.UI.Window
                 throw errors[0];
             }
 
-            throw new AggregateException
+            throw errors.CreateAggregateException
             (
-                $"{message} 중 하나 이상의 오류가 발생했습니다.",
-                errors
+                $"{message} 중 하나 이상의 오류가 발생했습니다."
             );
         }
 

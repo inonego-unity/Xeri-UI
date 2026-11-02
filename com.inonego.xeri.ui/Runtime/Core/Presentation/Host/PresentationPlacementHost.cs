@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : PresentationPlacementHost.cs
-수정일 : 2026-10-05
+수정일 : 2026-11-02
 
 # 설명
 Scene-authored Presentation Placement의 optional physical placement root 공통 계약.

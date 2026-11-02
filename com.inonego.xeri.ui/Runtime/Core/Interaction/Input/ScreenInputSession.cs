@@ -248,7 +248,7 @@ namespace inonego.Xeri.UI
 
             if (!invokeCompletionCallback || completionCallback == null) return;
 
-            var errors = new List<Exception>();
+            var errors = new ExceptionBuffer();
 
             foreach (Action callback in completionCallback.GetInvocationList())
             {
@@ -269,10 +269,9 @@ namespace inonego.Xeri.UI
                 throw errors[0];
             }
 
-            throw new AggregateException
+            throw errors.CreateAggregateException
             (
-                "Screen input release 완료 callback 중 하나 이상이 실패했습니다.",
-                errors
+                "Screen input release 완료 callback 중 하나 이상이 실패했습니다."
             );
         }
 

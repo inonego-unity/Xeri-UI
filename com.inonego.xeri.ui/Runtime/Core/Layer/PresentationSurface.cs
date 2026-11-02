@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : PresentationSurface.cs
-수정일 : 2026-10-03
+수정일 : 2026-11-02
 
 # 설명
 Embedded/shared-output Session의 Layer hierarchy containment와 root lifetime만 소유한다.
@@ -89,13 +89,10 @@ namespace inonego.Xeri.UI
             }
             catch (Exception exception)
             {
-                var errors = new List<Exception>
-                {
-                    exception,
-                };
+                var errors = new ExceptionBuffer(exception);
 
                 layers.Remove(owned);
-                TryCleanup(release, errors);
+                TryCleanup(release, ref errors);
 
                 // Ordering 적용이 일부 진행된 뒤 실패했을 수 있으므로 생존 Layer 순서를 다시 확정한다.
                 try
@@ -112,10 +109,9 @@ namespace inonego.Xeri.UI
                     throw;
                 }
 
-                throw new AggregateException
+                throw errors.CreateAggregateException
                 (
-                    $"Presentation Surface Layer '{plan.LayerID}' 추가와 롤백이 실패했습니다.",
-                    errors
+                    $"Presentation Surface Layer '{plan.LayerID}' 추가와 롤백이 실패했습니다."
                 );
             }
         }
@@ -186,7 +182,7 @@ namespace inonego.Xeri.UI
         private static void TryCleanup
         (
             Action cleanup,
-            ICollection<Exception> errors
+            ref ExceptionBuffer errors
         )
         {
             if (cleanup == null) return;
@@ -210,22 +206,21 @@ namespace inonego.Xeri.UI
             if (IsDisposed) return;
 
             IsDisposed = true;
-            var errors = new List<Exception>();
+            var errors = new ExceptionBuffer();
 
             for (var index = layers.Count - 1; index >= 0; index--)
             {
-                TryCleanup(layers[index].Release, errors);
+                TryCleanup(layers[index].Release, ref errors);
             }
 
             layers.Clear();
-            TryCleanup(ReleaseSurfaceRoot, errors);
+            TryCleanup(ReleaseSurfaceRoot, ref errors);
 
             if (errors.Count > 0)
             {
-                throw new AggregateException
+                throw errors.CreateAggregateException
                 (
-                    "Presentation Surface 해제가 실패했습니다.",
-                    errors
+                    "Presentation Surface 해제가 실패했습니다."
                 );
             }
         }

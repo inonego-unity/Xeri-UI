@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : PresentationDestinationDefinition.cs
-수정일 : 2026-10-28
+수정일 : 2026-11-02
 
 # 설명
 Runtime PresentationHost destination과 Root PresentationSession Layer의 명시적 매핑을 직렬화한다.

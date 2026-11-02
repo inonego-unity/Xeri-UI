@@ -159,7 +159,7 @@ namespace inonego.Xeri.UI
                 }
             }
 
-            var errors = new List<Exception>();
+            var errors = new ExceptionBuffer();
             foreach (var content in attachments.ToArray())
             {
                 if (!attachments.Contains(content)) continue;
@@ -193,7 +193,7 @@ namespace inonego.Xeri.UI
 
             if (errors.Count > 0)
             {
-                throw new AggregateException("UITK Layer 루트 재연결 중 오류가 발생했습니다.", errors);
+                throw errors.CreateAggregateException("UITK Layer 루트 재연결 중 오류가 발생했습니다.");
             }
         }
 

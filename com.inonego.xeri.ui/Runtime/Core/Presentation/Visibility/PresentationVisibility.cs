@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : PresentationVisibility.cs
-수정일 : 2026-10-28
+수정일 : 2026-11-02
 
 # 설명
 Presentation의 local Visibility 값과 Modifier 소유권을 backend 적용과 함께 관리한다.
@@ -203,8 +203,10 @@ namespace inonego.Xeri.UI
         /// <br/>마지막 등록이면 구독을 해제하며 적용 실패도 보고한다.
         /// </summary>
         // ------------------------------------------------------------
-        public bool RemoveModifier(string key, bool invokeEvent = true) =>
-            state.RemoveModifier(key, invokeEvent);
+        public bool RemoveModifier(string key, bool invokeEvent = true)
+        {
+            return state.RemoveModifier(key, invokeEvent);
+        }
 
         // ----------------------------------------------------------------------
         /// <summary>

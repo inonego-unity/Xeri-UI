@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : SceneFader.cs
-수정일 : 2026-10-07
+수정일 : 2026-11-02
 # 설명
 PresentationHost의 System destination Layer Lease를 Cover부터 Reveal 또는 종료까지 소유하는 상태 머신이다.
 Fade Source lifetime과 PresentationAlpha를 결합해 Presentation 수명 Core 위에 구성한다.
@@ -408,10 +408,7 @@ namespace inonego.Xeri.UI
         // --------------------------------------------------------------------------------
         private Exception RollbackToStable(Exception failure)
         {
-            var errors = new List<Exception>
-            {
-                failure,
-            };
+            var errors = new ExceptionBuffer(failure);
             var stableAlpha = stableState == SceneFadeState.Covered ? 1.0f : 0.0f;
 
             // Covered 안정 상태는 요청이 바꾼 색상도 마지막 성공 상태로 함께 복원한다.
@@ -455,7 +452,7 @@ namespace inonego.Xeri.UI
             State = stableState;
             LastFailure = errors.Count == 1
                 ? failure
-                : new AggregateException("Scene Fade 실패 롤백이 실패했습니다.", errors);
+                : errors.CreateAggregateException("Scene Fade 실패 롤백이 실패했습니다.");
             return LastFailure;
         }
 
@@ -498,7 +495,7 @@ namespace inonego.Xeri.UI
             presentationDriver = null;
             alpha = null;
             presentationInitialized = false;
-            var errors = new List<Exception>();
+            var errors = new ExceptionBuffer();
 
             if (currentDriver != null)
             {
@@ -531,10 +528,9 @@ namespace inonego.Xeri.UI
 
             if (errors.Count > 1)
             {
-                throw new AggregateException
+                throw errors.CreateAggregateException
                 (
-                    "Scene Fade Presentation 반환이 실패했습니다.",
-                    errors
+                    "Scene Fade Presentation 반환이 실패했습니다."
                 );
             }
         }
@@ -612,7 +608,7 @@ namespace inonego.Xeri.UI
             stableState = SceneFadeState.Clear;
             LastFailure = null;
 
-            var errors = new List<Exception>();
+            var errors = new ExceptionBuffer();
 
             try
             {
@@ -634,7 +630,7 @@ namespace inonego.Xeri.UI
 
             if (errors.Count > 0)
             {
-                throw new AggregateException("Scene Fader 해제가 실패했습니다.", errors);
+                throw errors.CreateAggregateException("Scene Fader 해제가 실패했습니다.");
             }
         }
 

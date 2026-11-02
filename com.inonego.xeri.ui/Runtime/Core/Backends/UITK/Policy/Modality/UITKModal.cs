@@ -95,21 +95,17 @@ namespace inonego.Xeri.UI
             }
             catch (Exception exception)
             {
-                var errors = new List<Exception>
-                {
-                    exception,
-                };
-                TryDispose(restoreInteraction, errors);
+                var errors = new ExceptionBuffer(exception);
+                TryDispose(restoreInteraction, ref errors);
 
                 if (errors.Count == 1)
                 {
                     throw;
                 }
 
-                throw new AggregateException
+                throw errors.CreateAggregateException
                 (
-                    "UITK Modal 조립과 interaction 상태 rollback이 모두 실패했습니다.",
-                    errors
+                    "UITK Modal 조립과 interaction 상태 rollback이 모두 실패했습니다."
                 );
             }
         }
@@ -148,21 +144,17 @@ namespace inonego.Xeri.UI
             }
             catch (Exception exception)
             {
-                var errors = new List<Exception>
-                {
-                    exception,
-                };
-                TryDispose(restoreInteraction, errors);
+                var errors = new ExceptionBuffer(exception);
+                TryDispose(restoreInteraction, ref errors);
 
                 if (errors.Count == 1)
                 {
                     throw;
                 }
 
-                throw new AggregateException
+                throw errors.CreateAggregateException
                 (
-                    "UITK Modal 조립과 interaction 상태 rollback이 모두 실패했습니다.",
-                    errors
+                    "UITK Modal 조립과 interaction 상태 rollback이 모두 실패했습니다."
                 );
             }
         }
@@ -180,7 +172,7 @@ namespace inonego.Xeri.UI
             (
                 () =>
                 {
-                    var errors = new List<Exception>();
+                    var errors = new ExceptionBuffer();
 
                     try
                     {
@@ -207,10 +199,9 @@ namespace inonego.Xeri.UI
                         throw errors[0];
                     }
 
-                    throw new AggregateException
+                    throw errors.CreateAggregateException
                     (
-                        "UITK Modal interaction 상태 복원이 실패했습니다.",
-                        errors
+                        "UITK Modal interaction 상태 복원이 실패했습니다."
                     );
                 }
             );
@@ -332,22 +323,18 @@ namespace inonego.Xeri.UI
             }
             catch (Exception exception)
             {
-                var errors = new List<Exception>
-                {
-                    exception,
-                };
-                TryDispose(hierarchyLifetime, errors);
-                TryDispose(layerLease, errors);
+                var errors = new ExceptionBuffer(exception);
+                TryDispose(hierarchyLifetime, ref errors);
+                TryDispose(layerLease, ref errors);
 
                 if (errors.Count == 1)
                 {
                     throw;
                 }
 
-                throw new AggregateException
+                throw errors.CreateAggregateException
                 (
-                    "UITK Modal Layer Lease 조립과 소유권 rollback이 실패했습니다.",
-                    errors
+                    "UITK Modal Layer Lease 조립과 소유권 rollback이 실패했습니다."
                 );
             }
         }
@@ -360,7 +347,7 @@ namespace inonego.Xeri.UI
         private static void TryDispose
         (
             IDisposable lifetime,
-            List<Exception> errors
+            ref ExceptionBuffer errors
         )
         {
             if (lifetime == null) return;

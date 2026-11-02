@@ -152,19 +152,19 @@ namespace inonego.Xeri.UI.Window
         {
             var currentScheduledItem = scheduledItem;
             scheduledItem = null;
-            var errors = new List<Exception>();
+            var errors = new ExceptionBuffer();
 
             if (currentScheduledItem != null)
             {
-                TryCleanup(currentScheduledItem.Pause, errors);
+                TryCleanup(currentScheduledItem.Pause, ref errors);
             }
 
             if (restoreVisual)
             {
-                TryCleanup(RestorePreviousVisual, errors);
+                TryCleanup(RestorePreviousVisual, ref errors);
             }
 
-            TryCleanup(RestoreContentInput, errors);
+            TryCleanup(RestoreContentInput, ref errors);
 
             isRunning = false;
             context = default;
@@ -375,17 +375,17 @@ namespace inonego.Xeri.UI.Window
             var driver = context.Driver;
             if (driver == null) return;
 
-            var errors = new List<Exception>();
-            TryCleanup(() => driver.Alpha.Set(1f), errors);
-            TryCleanup(() => driver.ApplyVisualState(context.PreviousState), errors);
+            var errors = new ExceptionBuffer();
+            TryCleanup(() => driver.Alpha.Set(1f), ref errors);
+            TryCleanup(() => driver.ApplyVisualState(context.PreviousState), ref errors);
 
             if (context.PreviousState == XeriWindowState.Maximized)
             {
-                TryCleanup(driver.ApplyMaximizedBounds, errors);
+                TryCleanup(driver.ApplyMaximizedBounds, ref errors);
             }
             else
             {
-                TryCleanup(() => driver.ApplyBounds(context.PreviousBounds), errors);
+                TryCleanup(() => driver.ApplyBounds(context.PreviousBounds), ref errors);
             }
 
             TryCleanup
@@ -395,7 +395,7 @@ namespace inonego.Xeri.UI.Window
                     context.PreviousState != XeriWindowState.Minimized &&
                     context.PreviousState != XeriWindowState.Closed
                 ),
-                errors
+                ref errors
             );
 
             ThrowErrors("UITK Window animation visual 복원", errors);
@@ -440,7 +440,7 @@ namespace inonego.Xeri.UI.Window
         private static void TryCleanup
         (
             Action cleanup,
-            List<Exception> errors
+            ref ExceptionBuffer errors
         )
         {
             try
@@ -461,7 +461,7 @@ namespace inonego.Xeri.UI.Window
         private static void ThrowErrors
         (
             string message,
-            List<Exception> errors
+            ExceptionBuffer errors
         )
         {
             if (errors.Count == 0) return;
@@ -471,7 +471,7 @@ namespace inonego.Xeri.UI.Window
                 throw errors[0];
             }
 
-            throw new AggregateException(message, errors);
+            throw errors.CreateAggregateException(message);
         }
 
     #endregion

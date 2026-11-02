@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : PresentationLayerLease.cs
-수정일 : 2026-10-28
+수정일 : 2026-11-02
 
 # 설명
 resolved Presentation Layer와 해당 Layer consumer lifetime을 하나의 Lease로 묶는다.

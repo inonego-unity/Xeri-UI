@@ -108,7 +108,7 @@ namespace inonego.Xeri.UI
             var current = target;
             var currentOwner = owner;
             var currentPresentationLifetime = presentationLifetime;
-            var errors = new List<Exception>();
+            var errors = new ExceptionBuffer();
 
             // 외부 hierarchy callback이 재진입해도 같은 Handle 종료를 다시 시작하지 않게 먼저 terminalize한다.
             owner = null;
@@ -116,15 +116,15 @@ namespace inonego.Xeri.UI
 
             if (current != null)
             {
-                TryCleanup(() => current.SetParent(originalParent, false), errors);
-                TryCleanup(() => current.SetSiblingIndex(originalSibling), errors);
-                TryCleanup(() => current.anchorMin = originalAnchorMin, errors);
-                TryCleanup(() => current.anchorMax = originalAnchorMax, errors);
-                TryCleanup(() => current.pivot = originalPivot, errors);
-                TryCleanup(() => current.anchoredPosition3D = originalAnchoredPosition, errors);
-                TryCleanup(() => current.sizeDelta = originalSizeDelta, errors);
-                TryCleanup(() => current.localRotation = originalRotation, errors);
-                TryCleanup(() => current.localScale = originalScale, errors);
+                TryCleanup(() => current.SetParent(originalParent, false), ref errors);
+                TryCleanup(() => current.SetSiblingIndex(originalSibling), ref errors);
+                TryCleanup(() => current.anchorMin = originalAnchorMin, ref errors);
+                TryCleanup(() => current.anchorMax = originalAnchorMax, ref errors);
+                TryCleanup(() => current.pivot = originalPivot, ref errors);
+                TryCleanup(() => current.anchoredPosition3D = originalAnchoredPosition, ref errors);
+                TryCleanup(() => current.sizeDelta = originalSizeDelta, ref errors);
+                TryCleanup(() => current.localRotation = originalRotation, ref errors);
+                TryCleanup(() => current.localScale = originalScale, ref errors);
             }
 
             // 계층 복원 callback 동안에는 Target 점유를 유지하고 모든 authored state 복원 시도 뒤 해제한다.
@@ -132,12 +132,12 @@ namespace inonego.Xeri.UI
 
             if (removeFromHandles)
             {
-                TryCleanup(() => currentOwner.Release(this), errors);
+                TryCleanup(() => currentOwner.Release(this), ref errors);
             }
 
             if (currentPresentationLifetime != null)
             {
-                TryCleanup(currentPresentationLifetime.Dispose, errors);
+                TryCleanup(currentPresentationLifetime.Dispose, ref errors);
             }
 
             if (errors.Count == 0) return;
@@ -147,10 +147,9 @@ namespace inonego.Xeri.UI
                 throw errors[0];
             }
 
-            throw new AggregateException
+            throw errors.CreateAggregateException
             (
-                "Drag Visual pose와 Presentation Layer Lease 정리 중 하나 이상의 작업이 실패했습니다.",
-                errors
+                "Drag Visual pose와 Presentation Layer Lease 정리 중 하나 이상의 작업이 실패했습니다."
             );
         }
 
@@ -162,7 +161,7 @@ namespace inonego.Xeri.UI
         private static void TryCleanup
         (
             Action cleanup,
-            List<Exception> errors
+            ref ExceptionBuffer errors
         )
         {
             try

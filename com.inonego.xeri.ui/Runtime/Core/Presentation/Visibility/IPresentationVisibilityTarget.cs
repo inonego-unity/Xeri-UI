@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : IPresentationVisibilityTarget.cs
-수정일 : 2026-09-15
+수정일 : 2026-11-02
 
 # 설명
 PresentationVisibility가 최종 표시 상태를 읽고 적용할 backend Target 계약을 정의한다.

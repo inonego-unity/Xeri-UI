@@ -81,10 +81,7 @@ namespace inonego.Xeri.UI.Window
                 }
                 catch (Exception exception)
                 {
-                    var errors = new List<Exception>
-                    {
-                        exception,
-                    };
+                    var errors = new ExceptionBuffer(exception);
 
                     try
                     {
@@ -111,10 +108,9 @@ namespace inonego.Xeri.UI.Window
                         throw;
                     }
 
-                    throw new AggregateException
+                    throw errors.CreateAggregateException
                     (
-                        "Window Container 획득과 롤백이 실패했습니다.",
-                        errors
+                        "Window Container 획득과 롤백이 실패했습니다."
                     );
                 }
             }
@@ -132,7 +128,7 @@ namespace inonego.Xeri.UI.Window
 
                 if (container == null) return;
 
-                var errors = new List<Exception>();
+                var errors = new ExceptionBuffer();
 
                 try
                 {
@@ -156,10 +152,9 @@ namespace inonego.Xeri.UI.Window
 
                 if (errors.Count > 0)
                 {
-                    throw new AggregateException
+                    throw errors.CreateAggregateException
                     (
-                        "Window Container 반환이 실패했습니다.",
-                        errors
+                        "Window Container 반환이 실패했습니다."
                     );
                 }
             }
@@ -301,10 +296,7 @@ namespace inonego.Xeri.UI.Window
             }
             catch (Exception exception)
             {
-                var errors = new List<Exception>
-                {
-                    exception,
-                };
+                var errors = new ExceptionBuffer(exception);
 
                 if (isRegistryActiveBound)
                 {
@@ -334,10 +326,9 @@ namespace inonego.Xeri.UI.Window
                     throw;
                 }
 
-                throw new AggregateException
+                throw errors.CreateAggregateException
                 (
-                    "Window Workspace 조립과 롤백이 실패했습니다.",
-                    errors
+                    "Window Workspace 조립과 롤백이 실패했습니다."
                 );
             }
         }
@@ -732,10 +723,7 @@ namespace inonego.Xeri.UI.Window
             }
             catch (Exception exception)
             {
-                var errors = new List<Exception>
-                {
-                    exception,
-                };
+                var errors = new ExceptionBuffer(exception);
 
                 try
                 {
@@ -806,7 +794,7 @@ namespace inonego.Xeri.UI.Window
                     throw;
                 }
 
-                throw new AggregateException("Window 조립과 롤백이 실패했습니다.", errors);
+                throw errors.CreateAggregateException("Window 조립과 롤백이 실패했습니다.");
             }
         }
 
@@ -866,7 +854,7 @@ namespace inonego.Xeri.UI.Window
             ThrowIfDisposed();
 
             var snapshots = new List<XeriWindowRecord>(registry.Records);
-            var errors = new List<Exception>();
+            var errors = new ExceptionBuffer();
             var themes = new Dictionary<string, string>();
             var currentSessions = new List<XeriWindowSession>(sessionOrder);
 
@@ -888,10 +876,9 @@ namespace inonego.Xeri.UI.Window
 
             if (errors.Count > 0)
             {
-                throw new AggregateException
+                throw errors.CreateAggregateException
                 (
-                    "Window View Session 저장이 실패했습니다.",
-                    errors
+                    "Window View Session 저장이 실패했습니다."
                 );
             }
 
@@ -1291,7 +1278,7 @@ namespace inonego.Xeri.UI.Window
             var shouldRestoreFocus =
                 ReferenceEquals(registry.ActiveHandle, session.Handle) ||
                 ReferenceEquals(focusedSession, session);
-            var errors = new List<Exception>();
+            var errors = new ExceptionBuffer();
 
             if (shouldRestoreFocus && !isDisposed && !isClosingScreen)
             {
@@ -1332,7 +1319,7 @@ namespace inonego.Xeri.UI.Window
 
             if (errors.Count > 0)
             {
-                throw new AggregateException("Window Session 해제가 실패했습니다.", errors);
+                throw errors.CreateAggregateException("Window Session 해제가 실패했습니다.");
             }
         }
 
@@ -1432,7 +1419,7 @@ namespace inonego.Xeri.UI.Window
             if (screenSession == null || isClosingScreen) return;
 
             isClosingScreen = true;
-            var errors = new List<Exception>();
+            var errors = new ExceptionBuffer();
 
             try
             {
@@ -1463,10 +1450,9 @@ namespace inonego.Xeri.UI.Window
 
             if (errors.Count > 0)
             {
-                throw new AggregateException
+                throw errors.CreateAggregateException
                 (
-                    "Window Workspace Screen 해제가 실패했습니다.",
-                    errors
+                    "Window Workspace Screen 해제가 실패했습니다."
                 );
             }
         }
@@ -1478,7 +1464,7 @@ namespace inonego.Xeri.UI.Window
         // ----------------------------------------------------------------------
         private void ReleaseSessionsFromScreen()
         {
-            var errors = new List<Exception>();
+            var errors = new ExceptionBuffer();
             var wasClosingScreen = isClosingScreen;
             isClosingScreen = true;
 
@@ -1514,10 +1500,9 @@ namespace inonego.Xeri.UI.Window
 
             if (errors.Count > 0)
             {
-                throw new AggregateException
+                throw errors.CreateAggregateException
                 (
-                    "Window Workspace Screen 자식 해제가 실패했습니다.",
-                    errors
+                    "Window Workspace Screen 자식 해제가 실패했습니다."
                 );
             }
         }
@@ -1604,7 +1589,7 @@ namespace inonego.Xeri.UI.Window
             bool isRegistryOwned
         )
         {
-            var errors = new List<Exception>();
+            var errors = new ExceptionBuffer();
 
             if (isContainerAttached && handle != null)
             {
@@ -1653,7 +1638,7 @@ namespace inonego.Xeri.UI.Window
 
             if (errors.Count > 0)
             {
-                throw new AggregateException("Window 조립 롤백이 실패했습니다.", errors);
+                throw errors.CreateAggregateException("Window 조립 롤백이 실패했습니다.");
             }
         }
 
@@ -1689,7 +1674,7 @@ namespace inonego.Xeri.UI.Window
             if (isDisposed) return;
 
             isDisposed = true;
-            var errors = new List<Exception>();
+            var errors = new ExceptionBuffer();
 
             if (isRegistryActiveBound)
             {
@@ -1739,7 +1724,7 @@ namespace inonego.Xeri.UI.Window
 
             if (errors.Count > 0)
             {
-                throw new AggregateException("Window Workspace 해제가 실패했습니다.", errors);
+                throw errors.CreateAggregateException("Window Workspace 해제가 실패했습니다.");
             }
         }
 

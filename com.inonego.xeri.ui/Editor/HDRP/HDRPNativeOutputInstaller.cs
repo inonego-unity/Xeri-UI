@@ -316,7 +316,7 @@ namespace inonego.Xeri.UI.HDRP.Editor
             state.RecordChange("Xeri HDRP 소유 기록 해제");
             var changed = !string.IsNullOrEmpty(state.GlobalSettingsGuid) ||
                 state.Components.Count > 0 || state.FormatChanges.Count > 0 || state.Profile != null;
-            var errors = new List<Exception>();
+            List<Exception> errors = null;
             var preservedTypes = new HashSet<string>();
             foreach (var component in state.Components)
             {
@@ -333,7 +333,7 @@ namespace inonego.Xeri.UI.HDRP.Editor
             }
             catch (Exception exception)
             {
-                errors.Add(exception);
+                (errors ??= new List<Exception>()).Add(exception);
             }
 
             for (var index = state.Components.Count - 1; index >= 0; index--)
@@ -365,7 +365,7 @@ namespace inonego.Xeri.UI.HDRP.Editor
                 }
                 catch (Exception exception)
                 {
-                    errors.Add(exception);
+                    (errors ??= new List<Exception>()).Add(exception);
                 }
             }
 
@@ -384,7 +384,7 @@ namespace inonego.Xeri.UI.HDRP.Editor
                 }
                 catch (Exception exception)
                 {
-                    errors.Add(exception);
+                    (errors ??= new List<Exception>()).Add(exception);
                 }
             }
 
@@ -397,10 +397,10 @@ namespace inonego.Xeri.UI.HDRP.Editor
             }
             catch (Exception exception)
             {
-                errors.Add(exception);
+                (errors ??= new List<Exception>()).Add(exception);
             }
 
-            if (errors.Count > 0)
+            if (errors != null)
             {
                 throw new AggregateException("HDRP 적용 해제 중 완료하지 못한 변경이 있습니다.", errors);
             }

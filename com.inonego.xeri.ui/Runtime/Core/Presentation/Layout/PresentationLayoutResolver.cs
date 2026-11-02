@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : PresentationLayoutResolver.cs
-수정일 : 2026-09-26
+수정일 : 2026-11-02
 
 # 설명
 PresentationLayout의 논리 topology와 placement를 순수 검증·정렬해 immutable PresentationPlan으로 resolve한다.

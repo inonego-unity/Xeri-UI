@@ -1,6 +1,6 @@
 ﻿/* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : PresentationLayout.cs
-수정일 : 2026-10-28
+수정일 : 2026-11-02
 
 # 설명
 Presentation scope의 Layer 정의와 Presentation placement를 직렬화한다.

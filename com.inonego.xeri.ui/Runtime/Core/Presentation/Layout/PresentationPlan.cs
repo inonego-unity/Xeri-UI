@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : PresentationPlan.cs
-수정일 : 2026-09-26
+수정일 : 2026-11-02
 
 # 설명
 PresentationLayout을 resolve한 immutable Layer와 placement snapshot을 보관한다.

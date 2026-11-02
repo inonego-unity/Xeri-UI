@@ -153,7 +153,7 @@ namespace inonego.Xeri.UI
         /// <br/> 실패한 Handle은 다시 보관하지 않고 나머지 독립 정리를 계속한다.
         /// </summary>
         // --------------------------------------------------------------------------------
-        public void ReleaseChildren(List<Exception> errors)
+        internal void ReleaseChildren(ref ExceptionBuffer errors)
         {
             for (var i = childHandles.Count - 1; i >= 0; i--)
             {
@@ -177,7 +177,7 @@ namespace inonego.Xeri.UI
         /// <br/> 반환 실패 뒤에도 같은 Instance를 다시 반환하지 않는다.
         /// </summary>
         // ------------------------------------------------------------
-        public void ReleaseSource(List<Exception> errors)
+        internal void ReleaseSource(ref ExceptionBuffer errors)
         {
             var current = instance;
             instance = null;
@@ -200,7 +200,7 @@ namespace inonego.Xeri.UI
         /// <br/> 반환 실패 뒤에도 같은 Lease를 재시도하지 않는다.
         /// </summary>
         // ------------------------------------------------------------
-        public void ReleaseLayerLease(List<Exception> errors)
+        internal void ReleaseLayerLease(ref ExceptionBuffer errors)
         {
             var current = layerLease;
             layerLease = null;

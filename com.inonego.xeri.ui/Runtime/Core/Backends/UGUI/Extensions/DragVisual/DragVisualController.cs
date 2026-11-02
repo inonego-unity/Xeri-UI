@@ -385,7 +385,7 @@ namespace inonego.Xeri.UI
             if (isDisposed) return;
 
             isDisposed = true;
-            var errors = new List<Exception>();
+            var errors = new ExceptionBuffer();
 
             try
             {
@@ -429,7 +429,7 @@ namespace inonego.Xeri.UI
 
             if (errors.Count > 0)
             {
-                throw new AggregateException("Drag Visual Controller 해제가 실패했습니다.", errors);
+                throw errors.CreateAggregateException("Drag Visual Controller 해제가 실패했습니다.");
             }
         }
 

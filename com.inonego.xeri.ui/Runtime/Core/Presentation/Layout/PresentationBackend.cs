@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : PresentationBackend.cs
-수정일 : 2026-10-07
+수정일 : 2026-11-02
 
 # 설명
 Presentation Core가 materialize할 UI backend와 Runtime bootstrap capability를 정의한다.

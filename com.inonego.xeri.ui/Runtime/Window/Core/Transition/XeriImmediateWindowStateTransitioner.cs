@@ -163,20 +163,20 @@ namespace inonego.Xeri.UI.Window
         )
         {
             var driver = request.Driver;
-            var errors = new List<Exception>();
+            var errors = new ExceptionBuffer();
 
-            TryRollback(() => driver.Alpha.Set(1f), errors);
+            TryRollback(() => driver.Alpha.Set(1f), ref errors);
 
             if (request.PreviousState == XeriWindowState.Maximized)
             {
-                TryRollback(driver.ApplyMaximizedBounds, errors);
+                TryRollback(driver.ApplyMaximizedBounds, ref errors);
             }
             else
             {
-                TryRollback(() => driver.ApplyBounds(context.PreviousBounds), errors);
+                TryRollback(() => driver.ApplyBounds(context.PreviousBounds), ref errors);
             }
 
-            TryRollback(() => driver.CommitState(request.PreviousState), errors);
+            TryRollback(() => driver.CommitState(request.PreviousState), ref errors);
             TryRollback
             (
                 () => driver.Visibility.Set
@@ -184,7 +184,7 @@ namespace inonego.Xeri.UI.Window
                     request.PreviousState != XeriWindowState.Minimized &&
                     request.PreviousState != XeriWindowState.Closed
                 ),
-                errors
+                ref errors
             );
 
             if (errors.Count == 0) return;
@@ -194,10 +194,9 @@ namespace inonego.Xeri.UI.Window
                 throw errors[0];
             }
 
-            throw new AggregateException
+            throw errors.CreateAggregateException
             (
-                "Immediate Window 상태 전환 롤백 중 하나 이상의 복원이 실패했습니다.",
-                errors
+                "Immediate Window 상태 전환 롤백 중 하나 이상의 복원이 실패했습니다."
             );
         }
 
@@ -209,7 +208,7 @@ namespace inonego.Xeri.UI.Window
         private static void TryRollback
         (
             Action rollback,
-            List<Exception> errors
+            ref ExceptionBuffer errors
         )
         {
             try

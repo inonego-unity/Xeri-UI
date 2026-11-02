@@ -1,10 +1,10 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : IFocusScope.cs
-수정일 : 2026-09-20
+수정일 : 2026-11-02
 
 # 설명
-Screen 내부의 일시적 Focus 범위를 Core Focus 기록·복원에 연결하는 최소 계약을 정의한다.
-UIContext에서 획득한 Scope는 당시 Top Screen에 묶이며 다른 Screen이 활성화되면 폐기된다.
+UIContext에 등록하는 영속 Focus Scope의 기본 대상과 포함 관계를 정의한다.
+Screen Base Focus와 독립적으로 Primary 또는 Override로 선택할 수 있다.
 표시와 입력 차단 정책은 포함하지 않는다.
 ========================================================================= BLOCK_HEADER_END */
 

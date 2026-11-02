@@ -249,7 +249,7 @@ namespace inonego.Xeri.UI
 
             isInitialized = false;
             isDisposed = true;
-            var errors = new List<Exception>();
+            var errors = new ExceptionBuffer();
 
             for (var i = ownedViews.Count - 1; i >= 0; i--)
             {
@@ -268,7 +268,7 @@ namespace inonego.Xeri.UI
 
             if (errors.Count > 0)
             {
-                throw new AggregateException("UITK Scene Fade Source 해제가 실패했습니다.", errors);
+                throw errors.CreateAggregateException("UITK Scene Fade Source 해제가 실패했습니다.");
             }
         }
 

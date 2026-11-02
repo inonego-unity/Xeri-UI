@@ -80,21 +80,17 @@ namespace inonego.Xeri.UI.Window
             }
             catch (Exception exception)
             {
-                var errors = new List<Exception>
-                {
-                    exception,
-                };
-                UnbindRegistry(errors);
+                var errors = new ExceptionBuffer(exception);
+                UnbindRegistry(ref errors);
 
                 if (errors.Count == 1)
                 {
                     throw;
                 }
 
-                throw new AggregateException
+                throw errors.CreateAggregateException
                 (
-                    "Window Tray Source Registry 연결과 롤백이 실패했습니다.",
-                    errors
+                    "Window Tray Source Registry 연결과 롤백이 실패했습니다."
                 );
             }
         }
@@ -215,15 +211,14 @@ namespace inonego.Xeri.UI.Window
             if (isDisposed) return;
 
             isDisposed = true;
-            var errors = new List<Exception>();
-            UnbindRegistry(errors);
+            var errors = new ExceptionBuffer();
+            UnbindRegistry(ref errors);
 
             if (errors.Count > 0)
             {
-                throw new AggregateException
+                throw errors.CreateAggregateException
                 (
-                    "Window Tray Source Registry 해제가 실패했습니다.",
-                    errors
+                    "Window Tray Source Registry 해제가 실패했습니다."
                 );
             }
         }
@@ -252,7 +247,7 @@ namespace inonego.Xeri.UI.Window
         /// Registry 변경 이벤트 연결을 한 번씩 해제한다.
         /// </summary>
         // ------------------------------------------------------------
-        private void UnbindRegistry(List<Exception> errors)
+        private void UnbindRegistry(ref ExceptionBuffer errors)
         {
             if (isActiveBound)
             {
@@ -389,7 +384,7 @@ namespace inonego.Xeri.UI.Window
             var handlers = OnReloadRequired;
             if (handlers == null) return;
 
-            var errors = new List<Exception>();
+            var errors = new ExceptionBuffer();
 
             foreach (EventHandler handler in handlers.GetInvocationList())
             {
@@ -410,10 +405,9 @@ namespace inonego.Xeri.UI.Window
                 throw errors[0];
             }
 
-            throw new AggregateException
+            throw errors.CreateAggregateException
             (
-                "Window Tray reload 이벤트 처리 중 오류가 발생했습니다.",
-                errors
+                "Window Tray reload 이벤트 처리 중 오류가 발생했습니다."
             );
         }
 

@@ -182,7 +182,7 @@ namespace inonego.Xeri.UI.Window.Editor
             if (isDisposed) return;
 
             isDisposed = true;
-            var errors = new List<Exception>();
+            List<Exception> errors = null;
 
             try
             {
@@ -190,7 +190,7 @@ namespace inonego.Xeri.UI.Window.Editor
             }
             catch (Exception exception)
             {
-                errors.Add(exception);
+                (errors ??= new List<Exception>()).Add(exception);
             }
 
             try
@@ -199,7 +199,7 @@ namespace inonego.Xeri.UI.Window.Editor
             }
             catch (Exception exception)
             {
-                errors.Add(exception);
+                (errors ??= new List<Exception>()).Add(exception);
             }
 
             try
@@ -208,7 +208,7 @@ namespace inonego.Xeri.UI.Window.Editor
             }
             catch (Exception exception)
             {
-                errors.Add(exception);
+                (errors ??= new List<Exception>()).Add(exception);
             }
 
             try
@@ -217,7 +217,7 @@ namespace inonego.Xeri.UI.Window.Editor
             }
             catch (Exception exception)
             {
-                errors.Add(exception);
+                (errors ??= new List<Exception>()).Add(exception);
             }
 
             try
@@ -226,12 +226,12 @@ namespace inonego.Xeri.UI.Window.Editor
             }
             catch (Exception exception)
             {
-                errors.Add(exception);
+                (errors ??= new List<Exception>()).Add(exception);
             }
 
-            if (errors.Count == 0) return;
+            if ((errors?.Count ?? 0) == 0) return;
 
-            if (errors.Count == 1)
+            if ((errors?.Count ?? 0) == 1)
             {
                 throw errors[0];
             }

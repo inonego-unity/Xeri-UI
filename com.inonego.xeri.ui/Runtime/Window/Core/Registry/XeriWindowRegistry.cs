@@ -189,7 +189,7 @@ namespace inonego.Xeri.UI.Window
 
             BindController(entry);
 
-            var errors = new List<Exception>();
+            var errors = new ExceptionBuffer();
             var registeredHandlers = OnRegister;
             var registeredArgs = CreateEventArgs(entry);
 
@@ -212,13 +212,13 @@ namespace inonego.Xeri.UI.Window
 
             if (HasRegistrationOwnership(id, entry))
             {
-                InvokeHandlers(OnCollectionChange, EventArgs.Empty, errors);
+                InvokeHandlers(OnCollectionChange, EventArgs.Empty, ref errors);
             }
 
             // Observer 실패는 이미 공개된 등록을 취소하지 않는다.
-            foreach (var error in errors)
+            for (var index = 0; index < errors.Count; index++)
             {
-                Debug.LogException(error);
+                Debug.LogException(errors[index]);
             }
 
             if (!HasRegistrationOwnership(id, entry))
@@ -252,10 +252,10 @@ namespace inonego.Xeri.UI.Window
                 activeHandle = null;
             }
 
-            var errors = new List<Exception>();
-            InvokeHandlers(OnUnregister, CreateEventArgs(entry), errors);
-            InvokeHandlers(OnCollectionChange, EventArgs.Empty, errors);
-            InvokeHandlers(OnOrderChange, EventArgs.Empty, errors);
+            var errors = new ExceptionBuffer();
+            InvokeHandlers(OnUnregister, CreateEventArgs(entry), ref errors);
+            InvokeHandlers(OnCollectionChange, EventArgs.Empty, ref errors);
+            InvokeHandlers(OnOrderChange, EventArgs.Empty, ref errors);
 
             if (wasActive)
             {
@@ -263,7 +263,7 @@ namespace inonego.Xeri.UI.Window
                 (
                     OnActiveChange,
                     new XeriWindowEventArgs(),
-                    errors
+                    ref errors
                 );
             }
 
@@ -378,9 +378,9 @@ namespace inonego.Xeri.UI.Window
             activeHandle = handle;
             MoveWindowOrderToFront(entry);
 
-            var errors = new List<Exception>();
-            InvokeHandlers(OnActiveChange, CreateEventArgs(entry), errors);
-            InvokeHandlers(OnOrderChange, EventArgs.Empty, errors);
+            var errors = new ExceptionBuffer();
+            InvokeHandlers(OnActiveChange, CreateEventArgs(entry), ref errors);
+            InvokeHandlers(OnOrderChange, EventArgs.Empty, ref errors);
             ThrowEventErrors("Window Focus 이벤트 처리", errors);
         }
 
@@ -394,8 +394,8 @@ namespace inonego.Xeri.UI.Window
             if (!ReferenceEquals(activeHandle, handle)) return;
 
             activeHandle = null;
-            var errors = new List<Exception>();
-            InvokeHandlers(OnActiveChange, new XeriWindowEventArgs(), errors);
+            var errors = new ExceptionBuffer();
+            InvokeHandlers(OnActiveChange, new XeriWindowEventArgs(), ref errors);
             ThrowEventErrors("Window active 해제 이벤트 처리", errors);
         }
 
@@ -410,8 +410,8 @@ namespace inonego.Xeri.UI.Window
 
             MoveWindowOrderToFront(entry);
 
-            var errors = new List<Exception>();
-            InvokeHandlers(OnOrderChange, EventArgs.Empty, errors);
+            var errors = new ExceptionBuffer();
+            InvokeHandlers(OnOrderChange, EventArgs.Empty, ref errors);
             ThrowEventErrors("Window 순서 변경 이벤트 처리", errors);
         }
 
@@ -426,8 +426,8 @@ namespace inonego.Xeri.UI.Window
 
             MoveWindowOrderToBack(entry);
 
-            var errors = new List<Exception>();
-            InvokeHandlers(OnOrderChange, EventArgs.Empty, errors);
+            var errors = new ExceptionBuffer();
+            InvokeHandlers(OnOrderChange, EventArgs.Empty, ref errors);
             ThrowEventErrors("Window 순서 변경 이벤트 처리", errors);
         }
 
@@ -453,8 +453,8 @@ namespace inonego.Xeri.UI.Window
             entry.Record.StackLayer = stackLayer;
             MoveWindowOrderToFront(entry);
 
-            var errors = new List<Exception>();
-            InvokeHandlers(OnOrderChange, EventArgs.Empty, errors);
+            var errors = new ExceptionBuffer();
+            InvokeHandlers(OnOrderChange, EventArgs.Empty, ref errors);
             ThrowEventErrors("Window StackLayer 이벤트 처리", errors);
         }
 
@@ -494,7 +494,7 @@ namespace inonego.Xeri.UI.Window
             string message
         )
         {
-            var errors = new List<Exception>();
+            var errors = new ExceptionBuffer();
 
             try
             {
@@ -577,7 +577,7 @@ namespace inonego.Xeri.UI.Window
                     state == XeriWindowState.Minimized ||
                     state == XeriWindowState.Closed;
 
-                var errors = new List<Exception>();
+                var errors = new ExceptionBuffer();
 
                 if (shouldDeactivate && ReferenceEquals(activeHandle, entry.Handle))
                 {
@@ -586,11 +586,11 @@ namespace inonego.Xeri.UI.Window
                     (
                         OnActiveChange,
                         new XeriWindowEventArgs(),
-                        errors
+                        ref errors
                     );
                 }
 
-                InvokeHandlers(OnCollectionChange, EventArgs.Empty, errors);
+                InvokeHandlers(OnCollectionChange, EventArgs.Empty, ref errors);
                 ThrowEventErrors("Window 상태 동기화 이벤트 처리", errors);
             };
 
@@ -640,7 +640,7 @@ namespace inonego.Xeri.UI.Window
         (
             EventHandler handlers,
             EventArgs eventArgs,
-            List<Exception> errors
+            ref ExceptionBuffer errors
         )
         {
             if (handlers == null) return;
@@ -667,7 +667,7 @@ namespace inonego.Xeri.UI.Window
         (
             EventHandler<TEventArgs> handlers,
             TEventArgs eventArgs,
-            List<Exception> errors
+            ref ExceptionBuffer errors
         )
         where TEventArgs : EventArgs
         {
@@ -694,7 +694,7 @@ namespace inonego.Xeri.UI.Window
         private static void ThrowEventErrors
         (
             string message,
-            List<Exception> errors
+            ExceptionBuffer errors
         )
         {
             if (errors.Count == 0) return;
@@ -704,7 +704,7 @@ namespace inonego.Xeri.UI.Window
                 throw errors[0];
             }
 
-            throw new AggregateException(message, errors);
+            throw errors.CreateAggregateException(message);
         }
 
     #endregion

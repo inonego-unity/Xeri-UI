@@ -1,6 +1,6 @@
 ﻿/* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : PresentationLayerRegistry.cs
-수정일 : 2026-10-06
+수정일 : 2026-11-02
 
 # 설명
 PresentationSession scope에서 stable LayerID와 runtime backend를 등록하고 활성 소비자 수명을 추적한다.
@@ -141,10 +141,7 @@ namespace inonego.Xeri.UI
             }
             catch (Exception exception)
             {
-                var errors = new List<Exception>
-                {
-                    exception,
-                };
+                var errors = new ExceptionBuffer(exception);
 
                 if (entries.TryGetValue(layerID, out var current) && ReferenceEquals(current, entry))
                 {
@@ -166,10 +163,9 @@ namespace inonego.Xeri.UI
                     throw;
                 }
 
-                throw new AggregateException
+                throw errors.CreateAggregateException
                 (
-                    $"Presentation Layer '{layerID}' 등록과 롤백이 실패했습니다.",
-                    errors
+                    $"Presentation Layer '{layerID}' 등록과 롤백이 실패했습니다."
                 );
             }
         }
@@ -333,7 +329,7 @@ namespace inonego.Xeri.UI
             }
 
             isDisposed = true;
-            var errors = new List<Exception>();
+            var errors = new ExceptionBuffer();
 
             try
             {
@@ -361,7 +357,7 @@ namespace inonego.Xeri.UI
 
             if (errors.Count > 0)
             {
-                throw new AggregateException("Presentation Layer Registry 해제가 실패했습니다.", errors);
+                throw errors.CreateAggregateException("Presentation Layer Registry 해제가 실패했습니다.");
             }
         }
 
