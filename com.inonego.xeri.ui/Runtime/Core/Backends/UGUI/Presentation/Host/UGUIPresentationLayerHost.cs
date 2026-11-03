@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : UGUIPresentationLayerHost.cs
-수정일 : 2026-10-17
+수정일 : 2026-11-02
 
 # 설명
 Scene-authored UGUI Layer의 Canvas Native Output과 explicit ManagedRoot를 Presentation Layer로 제공한다.

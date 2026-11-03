@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : UITKPresentationSurface.cs
-수정일 : 2026-10-05
+수정일 : 2026-11-02
 
 # 설명
 Embedded UITK Session이 부모 Panel Native Output을 공유하면서 Plan Layer roots를 containment한다.

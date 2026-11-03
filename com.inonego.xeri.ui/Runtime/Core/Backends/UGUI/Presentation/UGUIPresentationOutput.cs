@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : UGUIPresentationOutput.cs
-수정일 : 2026-10-17
+수정일 : 2026-11-02
 
 # 설명
 Top-level UGUI ScreenOverlay Layer의 Canvas Native Output 경계를 제공한다.

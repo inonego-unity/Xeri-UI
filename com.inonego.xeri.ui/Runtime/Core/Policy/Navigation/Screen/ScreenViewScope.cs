@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : ScreenViewScope.cs
-수정일 : 2026-09-23
+수정일 : 2026-11-02
 # 설명
 Screen Source에 ID, Open Params, 현재 Session과 resolved placement Driver를 불변 범위로 전달한다.
 ========================================================================= BLOCK_HEADER_END */

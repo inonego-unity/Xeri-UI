@@ -1,8 +1,8 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : UITKSafeAreaLayout.cs
-수정일 : 2026-10-03
+수정일 : 2026-11-05
 # 설명
-화면과 Panel 크기 변화를 감지해 명시적으로 지정한 VisualElement에 Safe Area를 반영한다.
+화면·Panel 크기와 Native Output Root 재연결을 관찰해 지정 VisualElement에 Safe Area를 반영한다.
 ========================================================================= BLOCK_HEADER_END */
 
 using System;
@@ -129,6 +129,8 @@ namespace inonego.Xeri.UI
         // --------------------------------------------------------------------------------
         private void NotifyLayoutChanged()
         {
+            if (isDisposed) return;
+
             var handlers = OnLayoutChanged;
             if (handlers == null) return;
 
@@ -136,6 +138,8 @@ namespace inonego.Xeri.UI
 
             foreach (Action handler in handlers.GetInvocationList())
             {
+                if (isDisposed) break;
+
                 try
                 {
                     handler.Invoke();
@@ -196,15 +200,12 @@ namespace inonego.Xeri.UI
         // ------------------------------------------------------------
         private void ObserveRoot()
         {
-            observedRoot = FindRoot();
+            var currentRoot = FindRoot();
+            if (ReferenceEquals(observedRoot, currentRoot)) return;
 
-            if (observedRoot == null)
-            {
-                throw new InvalidOperationException
-                (
-                    $"UITK Safe Area Root '{rootName}'을 찾을 수 없습니다."
-                );
-            }
+            UnobserveRoot();
+            observedRoot = currentRoot;
+            if (observedRoot == null) return;
 
             observedRoot.RegisterCallback<AttachToPanelEvent>(HandleAttachedToPanel);
 
@@ -227,6 +228,21 @@ namespace inonego.Xeri.UI
             observedRoot = null;
         }
 
+        // ------------------------------------------------------------
+        /// <summary>
+        /// Native Output과 현재 Root의 구독을 함께 반환한다.
+        /// </summary>
+        // ------------------------------------------------------------
+        private void StopObserving()
+        {
+            if (output != null)
+            {
+                output.RootUpdated -= HandleOutputRootUpdated;
+            }
+
+            UnobserveRoot();
+        }
+
     #endregion
 
     #region 이벤트 핸들러
@@ -238,7 +254,21 @@ namespace inonego.Xeri.UI
         // ------------------------------------------------------------
         private void HandleAttachedToPanel(AttachToPanelEvent evt)
         {
+            if (!isActiveAndEnabled || isDisposed) return;
+
             Refresh();
+        }
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// Native Root 교체·반환에 맞춰 관찰 대상을 갱신한다.
+        /// </summary>
+        // ------------------------------------------------------------
+        private void HandleOutputRootUpdated(VisualElement root)
+        {
+            if (!isActiveAndEnabled || isDisposed) return;
+
+            ObserveRoot();
         }
 
     #endregion
@@ -254,7 +284,18 @@ namespace inonego.Xeri.UI
         {
             if (isDisposed) return;
 
-            ObserveRoot();
+            CacheOutput();
+            output.RootUpdated += HandleOutputRootUpdated;
+
+            try
+            {
+                ObserveRoot();
+            }
+            catch
+            {
+                StopObserving();
+                throw;
+            }
         }
 
         // ------------------------------------------------------------
@@ -264,7 +305,7 @@ namespace inonego.Xeri.UI
         // ------------------------------------------------------------
         private void OnDisable()
         {
-            UnobserveRoot();
+            StopObserving();
         }
 
         // ------------------------------------------------------------
@@ -310,7 +351,7 @@ namespace inonego.Xeri.UI
             if (isDisposed) return;
 
             isDisposed = true;
-            UnobserveRoot();
+            StopObserving();
             OnLayoutChanged = null;
             enabled = false;
         }

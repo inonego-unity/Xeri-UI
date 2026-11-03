@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : TEST_PresentationHandles.cs
-수정일 : 2026-10-28
+수정일 : 2026-11-05
 
 # 설명
 Modal·Alpha·Visibility·Group과 Presentation 소유 수명을 검증한다.
@@ -40,6 +40,21 @@ namespace inonego.Xeri.UI.TEST.Core
     {
 
     #region 헬퍼
+
+        // ============================================================
+        /// <summary>
+        /// Root 비활성 콜백에서 다시 점유하는 테스트 Component.
+        /// </summary>
+        // ============================================================
+        private sealed class BlockerDisableReentry : MonoBehaviour
+        {
+            public Action Disabled { get; set; }
+
+            private void OnDisable()
+            {
+                Disabled?.Invoke();
+            }
+        }
 
         private sealed class FailingModifier : IModifier<float>
         {
@@ -2208,6 +2223,105 @@ namespace inonego.Xeri.UI.TEST.Core
             second.Dispose();
 
             Assert.IsFalse(root.activeSelf);
+        }
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// 중첩 점유 후 최신 CanvasGroup 상태를 유지한다.
+        /// </summary>
+        // ------------------------------------------------------------
+        [Test]
+        public void TEST_UGUIInteractionBlocker_Root비활성중재점유_최신Raycast유지()
+        {
+            var host = new GameObject("Blocker Host");
+            var root = new GameObject("Blocker Root", typeof(CanvasGroup));
+            root.transform.SetParent(host.transform, false);
+            ownedObjects.Add(host);
+            ownedObjects.Add(root);
+            var blocker = host.AddComponent<UGUIInteractionBlocker>();
+            var group = root.GetComponent<CanvasGroup>();
+            SetField(blocker, "root", root);
+            SetField(blocker, "canvasGroup", group);
+            root.SetActive(false);
+            var callback = root.AddComponent<BlockerDisableReentry>();
+            var first = blocker.Acquire();
+            Lease next = null;
+            callback.Disabled = () => next = blocker.Acquire();
+
+            first.Dispose();
+
+            Assert.IsNotNull(next);
+            Assert.IsTrue(root.activeSelf);
+            Assert.IsTrue(group.interactable);
+            Assert.IsTrue(group.blocksRaycasts);
+
+            callback.Disabled = null;
+            next.Dispose();
+            Assert.IsFalse(root.activeSelf);
+            Assert.IsFalse(group.interactable);
+            Assert.IsFalse(group.blocksRaycasts);
+        }
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// 자신 또는 조상 Root를 제어하는 순환 구성을 점유 전에 거부한다.
+        /// </summary>
+        // ------------------------------------------------------------
+        [TestCase(false)]
+        [TestCase(true)]
+        public void TEST_UGUIInteractionBlocker_자기또는조상Root_순환구성거부(bool ancestor)
+        {
+            var root = new GameObject("Blocker Root");
+            ownedObjects.Add(root);
+            var host = root;
+
+            if (ancestor)
+            {
+                host = new GameObject("Blocker Host");
+                host.transform.SetParent(root.transform, false);
+                ownedObjects.Add(host);
+            }
+
+            var blocker = host.AddComponent<UGUIInteractionBlocker>();
+            SetField(blocker, "root", root);
+
+            Assert.Throws<InvalidOperationException>(() => blocker.Acquire());
+            Assert.IsTrue(root.activeSelf);
+        }
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// Component 비활성 중 Blocker가 숨겨지고 복귀 시 점유가 복원된다.
+        /// </summary>
+        // ------------------------------------------------------------
+        [Test]
+        public void TEST_UGUIInteractionBlocker_Host비활성후복귀_기존점유복원()
+        {
+            var host = new GameObject("Blocker Host");
+            var root = new GameObject("Blocker Root", typeof(CanvasGroup));
+            root.transform.SetParent(host.transform, false);
+            ownedObjects.Add(host);
+            ownedObjects.Add(root);
+            var blocker = host.AddComponent<UGUIInteractionBlocker>();
+            var group = root.GetComponent<CanvasGroup>();
+            SetField(blocker, "root", root);
+            SetField(blocker, "canvasGroup", group);
+            var lease = blocker.Acquire();
+
+            host.SetActive(false);
+            Assert.IsFalse(root.activeSelf);
+            Assert.IsFalse(group.interactable);
+            Assert.IsFalse(group.blocksRaycasts);
+
+            host.SetActive(true);
+            Assert.IsTrue(root.activeSelf);
+            Assert.IsTrue(group.interactable);
+            Assert.IsTrue(group.blocksRaycasts);
+
+            lease.Dispose();
+            Assert.IsFalse(root.activeSelf);
+            Assert.IsFalse(group.interactable);
+            Assert.IsFalse(group.blocksRaycasts);
         }
 
     #endregion

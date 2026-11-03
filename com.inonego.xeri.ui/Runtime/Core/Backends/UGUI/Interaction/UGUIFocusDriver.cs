@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : UGUIFocusDriver.cs
-수정일 : 2026-09-23
+수정일 : 2026-11-04
 # 설명
 명시적으로 연결한 EventSystem으로 Screen Focus 선택, 유효성 검사와 native 선택 변경 보고를 수행한다.
 ========================================================================= BLOCK_HEADER_END */
@@ -54,7 +54,7 @@ namespace inonego.Xeri.UI
         [SerializeField]
         private GameObject fallback = null;
 
-        private readonly List<RectTransform> layerRoots = new List<RectTransform>();
+        private readonly Dictionary<IPresentationLayerDriver<RectTransform>, RectTransform> registeredRoots = new();
         private GameObject observedSelection = null;
         private bool observedSelectionValid = false;
 
@@ -71,20 +71,23 @@ namespace inonego.Xeri.UI
 
         // ------------------------------------------------------------
         /// <summary>
+        /// EventSystem의 선택 callback 중에는 변경 적용을 보류한다.
+        /// </summary>
+        // ------------------------------------------------------------
+        internal override bool IsSelectionBlocked => eventSystem != null && eventSystem.alreadySelecting;
+
+        // ------------------------------------------------------------
+        /// <summary>
         /// UGUI Presentation Layer Root를 Focus 소유 범위로 등록한다.
         /// </summary>
         // ------------------------------------------------------------
         protected override void HandleLayerRegistered(IPresentationLayerDriver driver)
         {
-            if (!(driver is IPresentationLayerDriver<RectTransform> layer) || layer.Root == null)
-            {
-                return;
-            }
+            if (driver is not IPresentationLayerDriver<RectTransform> layer) return;
+            var root = layer.Root;
+            if (root == null || registeredRoots.ContainsKey(layer)) return;
 
-            if (!layerRoots.Contains(layer.Root))
-            {
-                layerRoots.Add(layer.Root);
-            }
+            registeredRoots.Add(layer, root);
         }
 
         // ------------------------------------------------------------
@@ -94,10 +97,8 @@ namespace inonego.Xeri.UI
         // ------------------------------------------------------------
         protected override void HandleLayerUnregistered(IPresentationLayerDriver driver)
         {
-            if (driver is IPresentationLayerDriver<RectTransform> layer && layer.Root != null)
-            {
-                layerRoots.Remove(layer.Root);
-            }
+            if (driver is not IPresentationLayerDriver<RectTransform> layer) return;
+            registeredRoots.Remove(layer);
         }
 
         // ------------------------------------------------------------
@@ -154,8 +155,15 @@ namespace inonego.Xeri.UI
         // ------------------------------------------------------------
         public override void Select(object target)
         {
-            // EventSystem은 선택 callback 안의 중첩 선택을 거부하므로 바깥 선택이 끝난 뒤 다시 요청하게 둔다.
-            if (eventSystem == null || eventSystem.alreadySelecting) return;
+            if (eventSystem == null) return;
+
+            if (IsSelectionBlocked)
+            {
+                throw new InvalidOperationException
+                (
+                    "EventSystem 선택 callback 도중에는 Native Focus를 직접 변경할 수 없습니다."
+                );
+            }
 
             if (IsValid(target))
             {
@@ -192,15 +200,9 @@ namespace inonego.Xeri.UI
 
             var transform = gameObject.transform;
 
-            for (var i = layerRoots.Count - 1; i >= 0; i--)
+            foreach (var root in registeredRoots.Values)
             {
-                var root = layerRoots[i];
-
-                if (root == null)
-                {
-                    layerRoots.RemoveAt(i);
-                    continue;
-                }
+                if (root == null) continue;
 
                 if (transform == root || transform.IsChildOf(root))
                 {

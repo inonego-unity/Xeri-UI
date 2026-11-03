@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : GameObjectProviderPresentationSource.cs
-수정일 : 2026-10-03
+수정일 : 2026-11-02
 # 설명
 IGameObjectProvider를 일반 Presentation View Source로 연결하고 Parent와 View 반환 수명을 관리한다.
 ========================================================================= BLOCK_HEADER_END */

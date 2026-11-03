@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : UITKModal.cs
-수정일 : 2026-10-21
+수정일 : 2026-11-02
 
 # 설명
 일반 UITK Modal 사용에서 PresentationTarget Layer Lease 획득, hierarchy attach/detach,

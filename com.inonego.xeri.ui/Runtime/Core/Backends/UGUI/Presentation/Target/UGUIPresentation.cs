@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : UGUIPresentation.cs
-수정일 : 2026-09-19
+수정일 : 2026-11-02
 # 설명
 지정 UGUI GameObject와 선택적 CanvasGroup을 Xeri Presentation State에 연결한다.
 GameObject hierarchy는 소유하지 않으며 Visibility와 가능한 경우 Alpha만 제어한다.

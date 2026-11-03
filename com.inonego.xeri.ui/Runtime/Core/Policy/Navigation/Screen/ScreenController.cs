@@ -156,7 +156,7 @@ namespace inonego.Xeri.UI
         {
             if (inputContributionEnabled == enabled) return;
 
-            var changedSessions = new List<ScreenInputSession>();
+            List<ScreenInputSession> changedSessions = null;
 
             try
             {
@@ -170,7 +170,7 @@ namespace inonego.Xeri.UI
                     }
 
                     inputSession.SetContributionEnabled(enabled);
-                    changedSessions.Add(inputSession);
+                    (changedSessions ??= new List<ScreenInputSession>()).Add(inputSession);
                 }
 
                 RefreshCursorPolicyOwner(enabled, cursorPolicyEnabled);
@@ -180,7 +180,7 @@ namespace inonego.Xeri.UI
             {
                 var errors = new ExceptionBuffer(exception);
 
-                for (var index = changedSessions.Count - 1; index >= 0; index--)
+                for (var index = (changedSessions?.Count ?? 0) - 1; index >= 0; index--)
                 {
                     try
                     {
@@ -241,7 +241,7 @@ namespace inonego.Xeri.UI
             var owner = policyEnabled && contributionEnabled
                 ? ResolveCursorPolicyOwner()
                 : null;
-            var changedSessions = new List<(ScreenInputSession Session, bool Previous)>();
+            List<(ScreenInputSession Session, bool Previous)> changedSessions = null;
 
             try
             {
@@ -258,14 +258,14 @@ namespace inonego.Xeri.UI
 
                     var previous = inputSession.IsCursorPolicyEnabled;
                     inputSession.SetCursorPolicyEnabled(enabled);
-                    changedSessions.Add((inputSession, previous));
+                    (changedSessions ??= new List<(ScreenInputSession, bool)>()).Add((inputSession, previous));
                 }
             }
             catch (Exception exception)
             {
                 var errors = new ExceptionBuffer(exception);
 
-                for (var index = changedSessions.Count - 1; index >= 0; index--)
+                for (var index = (changedSessions?.Count ?? 0) - 1; index >= 0; index--)
                 {
                     try
                     {

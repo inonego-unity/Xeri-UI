@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : TEST_PresentationSession_HostValidation.cs
-수정일 : 2026-10-28
+수정일 : 2026-11-02
 
 # 설명
 PresentationSession의 explicit Scene Host collection 사전 검증과 activation rollback 계약을 검증한다.
@@ -553,6 +553,72 @@ namespace inonego.Xeri.UI.TEST.Core
 
     #region V-3: 독립 UITK 출력의 설정 소유권
 
+        // ----------------------------------------------------------------------
+        /// <summary>
+        /// <br/> 생성형 UITK 출력 설정이 없으면 선행 UGUI Host를 획득하지 않고 거부한다.
+        /// <br/> 설정 검증은 출력 materialization보다 먼저 완료되어야 한다.
+        /// </summary>
+        // ----------------------------------------------------------------------
+        [TestCase(false)]
+        [TestCase(true)]
+        public void TEST_PresentationSession_생성형UITK필수설정누락_다른Layer획득전에거부
+        (
+            bool hasTemplateWithoutTheme
+        )
+        {
+            PanelSettings template = null;
+
+            if (hasTemplateWithoutTheme)
+            {
+                template = ScriptableObject.CreateInstance<PanelSettings>();
+                template.themeStyleSheet = null;
+                ownedObjects.Add(template);
+            }
+
+            var runtimeRoot = CreateOwnedRoot("Runtime Root");
+            var hostObject = new GameObject("UGUI Host", typeof(NullDriverLayerHost));
+            hostObject.transform.SetParent(runtimeRoot.transform, false);
+            var host = hostObject.GetComponent<NullDriverLayerHost>();
+            SetField(host, "layerID", "UGUI");
+            var acquireCount = 0;
+            host.Acquiring = () => acquireCount++;
+
+            var plan = CreatePlan
+            (
+                new[]
+                {
+                    Layer("UGUI", PresentationBackend.UGUI),
+                    Layer("UITK", PresentationBackend.UITK),
+                },
+                Array.Empty<PresentationPlanPlacement>()
+            );
+
+            var failure = Assert.Throws<InvalidOperationException>
+            (
+                () => PresentationSession.CreateTopLevel
+                (
+                    plan,
+                    runtimeRoot.transform,
+                    template,
+                    null,
+                    layerHosts: new PresentationLayerHost[]
+                    {
+                        host,
+                    }
+                )
+            );
+
+            StringAssert.Contains("UITK", failure.Message);
+            StringAssert.Contains
+            (
+                hasTemplateWithoutTheme ? "ThemeStyleSheet" : "PanelSettings Template",
+                failure.Message
+            );
+            Assert.AreEqual(0, acquireCount);
+            Assert.AreEqual(0, host.ReleaseCount);
+            Assert.AreEqual(1, runtimeRoot.transform.childCount);
+        }
+
         // ------------------------------------------------------------
         /// <summary>
         /// 같은 패널 설정을 빌린 두 출력을 변경 전에 거부한다.
@@ -598,6 +664,32 @@ namespace inonego.Xeri.UI.TEST.Core
     #endregion
 
     #region R-1: 최상위 구체화 롤백
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// 잘못된 UGUI Template의 복제본은 생성 실패 시 반환한다.
+        /// </summary>
+        // ------------------------------------------------------------
+        [Test]
+        public void TEST_PresentationMaterializer_잘못된UGUITemplate_생성형OutputRollback()
+        {
+            var root = CreateOwnedRoot("Runtime");
+            var template = CreateOutputTemplate();
+            template.Canvas.renderMode = RenderMode.WorldSpace;
+
+            var failure = Assert.Throws<InvalidOperationException>
+            (
+                () => PresentationLayerMaterializer.CreateTopLevel
+                (
+                    Layer("Invalid UGUI", PresentationBackend.UGUI),
+                    root.transform, null, template, out _
+                )
+            );
+
+            StringAssert.Contains("Screen Space - Overlay", failure.Message);
+            Assert.AreEqual(0, root.transform.childCount);
+            Assert.IsNotNull(template);
+        }
 
         // --------------------------------------------------------------------------------
         /// <summary>
@@ -716,6 +808,57 @@ namespace inonego.Xeri.UI.TEST.Core
             Assert.AreSame(sceneHost.transform, runtimeRoot.transform.GetChild(0));
             Assert.IsFalse(sceneHost.gameObject.activeSelf);
             Assert.AreEqual(37, sceneCanvas.sortingOrder);
+        }
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// <br/> 생성한 UITK Output 뒤의 Scene Host 획득이 실패해도
+        /// <br/> 생성형 Panel과 Layer를 반환하고 원래 Template은 유지한다.
+        /// </summary>
+        // ------------------------------------------------------------
+        [Test]
+        public void TEST_PresentationSession_UITK생성후Host실패_GeneratedOutputRollback()
+        {
+            var runtimeRoot = CreateOwnedRoot("Runtime Root");
+            var template = ScriptableObject.CreateInstance<PanelSettings>();
+            ownedObjects.Add(template);
+            UITKTestPanelSettings.ApplyDefaultRuntimeTheme(template);
+            template.sortingOrder = 42;
+            var hostObject = new GameObject("Invalid Scene Host", typeof(NullDriverLayerHost));
+            hostObject.transform.SetParent(runtimeRoot.transform, false);
+            var host = hostObject.GetComponent<NullDriverLayerHost>();
+            SetField(host, "layerID", "Scene");
+
+            var plan = CreatePlan
+            (
+                new[]
+                {
+                    new PresentationPlanLayer("Generated", "Generated", 10, PresentationBackend.UITK),
+                    new PresentationPlanLayer("Scene", "Scene", 20, PresentationBackend.UGUI),
+                },
+                Array.Empty<PresentationPlanPlacement>()
+            );
+
+            Assert.Throws<InvalidOperationException>
+            (
+                () => PresentationSession.CreateTopLevel
+                (
+                    plan,
+                    runtimeRoot.transform,
+                    template,
+                    null,
+                    layerHosts: new PresentationLayerHost[]
+                    {
+                        host,
+                    }
+                )
+            );
+
+            Assert.AreEqual(1, host.ReleaseCount);
+            Assert.AreEqual(1, runtimeRoot.transform.childCount);
+            Assert.AreSame(host.transform, runtimeRoot.transform.GetChild(0));
+            Assert.AreEqual(42, template.sortingOrder);
+            Assert.IsNotNull(template.themeStyleSheet);
         }
 
     #endregion

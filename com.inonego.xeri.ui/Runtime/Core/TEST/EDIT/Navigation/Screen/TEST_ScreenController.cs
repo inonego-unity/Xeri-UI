@@ -833,11 +833,11 @@ namespace inonego.Xeri.UI.TEST.Core
 
         // ------------------------------------------------------------
         /// <summary>
-        /// Screen 공개 생성자가 유한하지 않은 Transition 시간을 거부한다.
+        /// Screen 공개 생성자가 유효하지 않은 시간과 정책 enum을 거부한다.
         /// </summary>
         // ------------------------------------------------------------
         [Test]
-        public void TEST_ScreenOptions_유한하지않은Transition시간_생성거부()
+        public void TEST_ScreenOptions_유효하지않은설정_생성거부()
         {
             Assert.Throws<ArgumentOutOfRangeException>
             (
@@ -853,6 +853,22 @@ namespace inonego.Xeri.UI.TEST.Core
                 (
                     "Infinity",
                     closeDuration: float.PositiveInfinity
+                )
+            );
+            Assert.Throws<ArgumentOutOfRangeException>
+            (
+                () => new ScreenOptions
+                (
+                    "DuplicatePolicy",
+                    duplicatePolicy: (ScreenDuplicatePolicy)100
+                )
+            );
+            Assert.Throws<ArgumentOutOfRangeException>
+            (
+                () => new ScreenOptions
+                (
+                    "CursorLockMode",
+                    cursorLockMode: (CursorLockMode)100
                 )
             );
         }

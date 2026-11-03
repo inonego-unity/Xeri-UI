@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : UITKFocusDriver.cs
-수정일 : 2026-10-28
+수정일 : 2026-11-04
 
 # 설명
 등록된 UITK Presentation Layer 범위의 Unity native Focus를 관찰하고 선택하는 얇은 backend bridge.
@@ -83,14 +83,34 @@ namespace inonego.Xeri.UI
             var root = layer.Root;
             if (ReferenceEquals(previous, root)) return;
             registeredRoots[layer] = root;
+
+            // 이전 Root 해제 중 Focus observer가 Layer를 반환해도 새 Root 구독이 남지 않는다.
+            if (root != null && !layerRoots.Contains(root))
+            {
+                layerRoots.Add(root);
+                root.RegisterCallback<FocusInEvent>(HandleFocusIn, TrickleDown.TrickleDown);
+                root.RegisterCallback<FocusOutEvent>(HandleFocusOut, TrickleDown.TrickleDown);
+                root.RegisterCallback<DetachFromPanelEvent>(HandleLayerDetached);
+            }
+
             ReleaseRoot(previous);
-            if (root == null || layerRoots.Contains(root)) return;
-            layerRoots.Add(root);
-            root.RegisterCallback<FocusInEvent>(HandleFocusIn, TrickleDown.TrickleDown);
-            root.RegisterCallback<FocusOutEvent>(HandleFocusOut, TrickleDown.TrickleDown);
-            root.RegisterCallback<DetachFromPanelEvent>(HandleLayerDetached);
+
+            if
+            (
+                root == null ||
+                !registeredRoots.TryGetValue(layer, out var currentRoot) ||
+                !ReferenceEquals(currentRoot, root)
+            )
+            {
+                return;
+            }
+
+            // Root 등록·교체는 유효한 기존 선택보다 우선하지 않는다.
+            if (IsValid(current)) return;
+
+            // 기존 선택이 없을 때만 새로 관찰하는 Root의 Native Focus를 동기화한다.
             var focused = root.panel?.focusController?.focusedElement as VisualElement;
-            PublishCurrent(ResolveFocusTarget(focused));
+            PublishCurrent(IsDescendantOf(focused, root) ? ResolveFocusTarget(focused) : null);
         }
 
         private void ReleaseRoot(VisualElement root)
@@ -99,7 +119,8 @@ namespace inonego.Xeri.UI
             root.UnregisterCallback<FocusInEvent>(HandleFocusIn, TrickleDown.TrickleDown);
             root.UnregisterCallback<FocusOutEvent>(HandleFocusOut, TrickleDown.TrickleDown);
             root.UnregisterCallback<DetachFromPanelEvent>(HandleLayerDetached);
-            if (IsDescendantOf(current, root) || !IsValid(current))
+            // 제거한 Root의 하위라도 다른 등록 Root가 소유하면 Focus를 유지한다.
+            if (!IsValid(current))
             {
                 PublishCurrent(null);
             }

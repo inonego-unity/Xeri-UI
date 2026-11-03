@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : ScreenInputSession.cs
-수정일 : 2026-10-03
+수정일 : 2026-11-02
 # 설명
 한 Screen의 입력·Cursor 정책 lifetime과 active Context path에 대한 contribution 상태를 표현한다.
 ========================================================================= BLOCK_HEADER_END */

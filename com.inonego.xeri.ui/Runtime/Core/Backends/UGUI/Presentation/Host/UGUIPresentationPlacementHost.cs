@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : UGUIPresentationPlacementHost.cs
-수정일 : 2026-09-29
+수정일 : 2026-11-02
 
 # 설명
 Scene-authored UGUI RectTransform 하나를 특정 Presentation의 optional Placement Root로 제공한다.

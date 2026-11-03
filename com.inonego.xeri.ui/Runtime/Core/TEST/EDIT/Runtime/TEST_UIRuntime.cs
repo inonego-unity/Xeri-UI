@@ -1,6 +1,6 @@
 ﻿/* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : TEST_UIRuntime.cs
-수정일 : 2026-11-02
+수정일 : 2026-11-04
 
 # 설명
 UIRuntime의 Root Presentation, Context Authority, Scene 구성과 초기화·종료 실패 정리를 검증한다.
@@ -333,6 +333,7 @@ namespace inonego.Xeri.UI.TEST.Core
         private sealed class AuthorityFocusDriver : FocusDriverBehaviour
         {
             public object Target { get; } = new object();
+            public Action<object> Selecting { get; set; }
             public int SelectFailureCount { get; set; } = 0;
             public int CurrentFailureCount { get; set; } = 0;
 
@@ -362,6 +363,8 @@ namespace inonego.Xeri.UI.TEST.Core
 
             public override void Select(object target)
             {
+                Selecting?.Invoke(target);
+
                 if (SelectFailureCount <= 0) return;
 
                 SelectFailureCount--;
@@ -765,6 +768,30 @@ namespace inonego.Xeri.UI.TEST.Core
             fixture.Runtime.Shutdown();
 
             Assert.IsFalse(UIRuntime.TryCurrent(out _));
+            Assert.IsTrue(fixture.Runtime.IsReleased);
+        }
+
+        // ----------------------------------------------------------------------
+        /// <summary>
+        /// UGUI 전용 Runtime은 UITK PanelSettings 없이도 생성·종료할 수 있다.
+        /// </summary>
+        // ----------------------------------------------------------------------
+        [Test]
+        public void TEST_UIRuntime_UGUIOnly_UITKPanelSettings없이초기화성공()
+        {
+            var fixture = CreateRuntimeFixture();
+            SetField(fixture.Settings, "uitkPanelSettingsTemplate", null);
+
+            Assert.AreEqual(PresentationBackendSupport.UGUI, fixture.Settings.BackendSupport);
+
+            fixture.Runtime.Initialize(fixture.Settings);
+
+            Assert.IsTrue(fixture.Runtime.IsInitialized);
+            Assert.IsNotNull(fixture.Runtime.RootPresentation);
+            Assert.IsNotNull(fixture.Runtime.Main);
+
+            fixture.Runtime.Shutdown();
+
             Assert.IsTrue(fixture.Runtime.IsReleased);
         }
 
@@ -1325,6 +1352,7 @@ namespace inonego.Xeri.UI.TEST.Core
             var main = fixture.Runtime.Main;
             var child = main.CreateChild();
             var grandchild = child.CreateChild();
+            var focus = fixture.Runtime.GetComponent<UIFocusDriver>();
 
             Assert.DoesNotThrow(fixture.Runtime.Shutdown);
 
@@ -1332,6 +1360,7 @@ namespace inonego.Xeri.UI.TEST.Core
             Assert.IsTrue(child.IsDisposed);
             Assert.IsTrue(grandchild.IsDisposed);
             Assert.IsTrue(fixture.Runtime.IsReleased);
+            Assert.Throws<InvalidOperationException>(() => focus.Select(null));
         }
 
     #endregion
@@ -1472,6 +1501,121 @@ namespace inonego.Xeri.UI.TEST.Core
             Assert.DoesNotThrow(fixture.Runtime.Shutdown);
         }
 
+        // ----------------------------------------------------------------------
+        /// <summary>
+        /// <br/> Focus 적용 콜백이 다른 Base를 선택해도 중첩 갱신을 직렬화한다.
+        /// <br/> 이전 경로의 남은 Child에 Input authority가 다시 적용되지 않는다.
+        /// </summary>
+        // ----------------------------------------------------------------------
+        [Test]
+        public void TEST_UIRuntime_FocusCallback중Base변경_최종Context경로만활성화()
+        {
+            var fixture = CreateRuntimeFixture();
+            var focus = fixture.Runtime.gameObject.AddComponent<AuthorityFocusDriver>();
+            fixture.Runtime.Initialize(fixture.Settings);
+            var main = fixture.Runtime.Main;
+            var branch = main.CreateChild();
+            var leaf = branch.CreateChild();
+            var sibling = main.CreateChild();
+            var reentered = false;
+
+            focus.Selecting = _ =>
+            {
+                if (reentered) return;
+
+                reentered = true;
+                sibling.SetBaseAuthority();
+            };
+
+            leaf.SetBaseAuthority();
+
+            Assert.IsTrue(reentered);
+            Assert.IsTrue(sibling.IsEffective);
+            Assert.IsTrue(sibling.IsOnActivePath);
+            Assert.IsTrue(sibling.Screens.IsInputContributionEnabled);
+            Assert.IsFalse(branch.IsOnActivePath);
+            Assert.IsFalse(leaf.IsOnActivePath);
+            Assert.IsFalse(branch.Screens.IsInputContributionEnabled);
+            Assert.IsFalse(leaf.Screens.IsInputContributionEnabled);
+            Assert.IsFalse(branch.Screens.IsCursorPolicyEnabled);
+            Assert.IsFalse(leaf.Screens.IsCursorPolicyEnabled);
+
+            focus.Selecting = null;
+            fixture.Runtime.Shutdown();
+        }
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// 실패한 Base 전환이 콜백의 후속 Base 선택을 되돌리지 않는다.
+        /// </summary>
+        // ------------------------------------------------------------
+        [Test]
+        public void TEST_UIRuntime_Focus실패중Base재선택_최신권한보존()
+        {
+            var fixture = CreateRuntimeFixture();
+            var focus = fixture.Runtime.gameObject.AddComponent<AuthorityFocusDriver>();
+            fixture.Runtime.Initialize(fixture.Settings);
+            var main = fixture.Runtime.Main;
+            var first = main.CreateChild();
+            var second = main.CreateChild();
+            var reentered = false;
+
+            focus.Selecting = _ =>
+            {
+                if (reentered) return;
+
+                reentered = true;
+                second.SetBaseAuthority();
+                focus.SelectFailureCount = 1;
+            };
+
+            Assert.Throws<InvalidOperationException>(first.SetBaseAuthority);
+
+            Assert.IsTrue(reentered);
+            Assert.IsTrue(second.IsEffective);
+            Assert.IsTrue(second.IsOnActivePath);
+            Assert.IsFalse(first.IsEffective);
+            Assert.IsFalse(first.IsOnActivePath);
+            Assert.IsTrue(second.Screens.IsInputContributionEnabled);
+            Assert.IsFalse(first.Screens.IsInputContributionEnabled);
+
+            focus.Selecting = null;
+            fixture.Runtime.Shutdown();
+        }
+
+        // ----------------------------------------------------------------------
+        /// <summary>
+        /// Focus 적용 콜백이 Runtime을 종료하면 남은 authority 적용을 중단한다.
+        /// </summary>
+        // ----------------------------------------------------------------------
+        [Test]
+        public void TEST_UIRuntime_FocusCallback중Shutdown_Context수명완전종료()
+        {
+            var fixture = CreateRuntimeFixture();
+            var focus = fixture.Runtime.gameObject.AddComponent<AuthorityFocusDriver>();
+            fixture.Runtime.Initialize(fixture.Settings);
+            var main = fixture.Runtime.Main;
+            var child = main.CreateChild();
+            var shutdownCalled = false;
+
+            focus.Selecting = _ =>
+            {
+                if (shutdownCalled) return;
+
+                shutdownCalled = true;
+                fixture.Runtime.Shutdown();
+            };
+
+            child.SetBaseAuthority();
+
+            Assert.IsTrue(shutdownCalled);
+            Assert.IsTrue(fixture.Runtime.IsReleased);
+            Assert.IsFalse(fixture.Runtime.IsInitialized);
+            Assert.IsTrue(main.IsDisposed);
+            Assert.IsTrue(child.IsDisposed);
+            Assert.IsFalse(UIRuntime.TryCurrent(out _));
+        }
+
         // --------------------------------------------------------------------------------
         /// <summary>
         /// <br/> Override 해제 authority cleanup이 실패해도 논리 topology는 Base로 전환하고
@@ -1507,6 +1651,127 @@ namespace inonego.Xeri.UI.TEST.Core
             Assert.IsFalse(overlay.Screens.IsInputContributionEnabled);
 
             overlay.Dispose();
+            Assert.DoesNotThrow(fixture.Runtime.Shutdown);
+        }
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// <br/> 실패한 Context 반환 재시도 중 Base가 바뀌면
+        /// <br/> 오래된 경로의 정리를 중단하고 최신 권한을 유지한다.
+        /// </summary>
+        // ------------------------------------------------------------
+        [Test]
+        public void TEST_UIRuntime_권한정리재시도중Base변경_이전경로정리중단()
+        {
+            var fixture = CreateRuntimeFixture();
+            fixture.Runtime.Initialize(fixture.Settings);
+            var main = fixture.Runtime.Main;
+            var first = main.CreateChild();
+            var second = main.CreateChild();
+            var third = main.CreateChild();
+            second.SetBaseAuthority();
+
+            first.ScreenRegistry.Register
+            (
+                new ScreenOptions("First", openDuration: 0.0f, closeDuration: 0.0f),
+                PresentationTarget.Local("Test"),
+                new TestScreenSource()
+            );
+            second.ScreenRegistry.Register
+            (
+                new ScreenOptions("Second", openDuration: 0.0f, closeDuration: 0.0f),
+                PresentationTarget.Local("Test"),
+                new TestScreenSource()
+            );
+
+            var firstResponse = first.Screens.Open("First");
+            var secondResponse = second.Screens.Open("Second");
+            Assert.IsTrue(firstResponse.Accepted);
+            Assert.IsTrue(secondResponse.Accepted);
+
+            var authority = first.PushAuthorityOverride();
+            Assert.IsTrue(first.IsEffective);
+            Assert.IsFalse(second.Screens.IsInputContributionEnabled);
+
+            var firstInput = firstResponse.Session.Resources.InputSession;
+            var secondInput = secondResponse.Session.Resources.InputSession;
+            var callbackField = typeof(ScreenInputSession).GetField
+            (
+                "contributionChanged",
+                BindingFlags.Instance | BindingFlags.NonPublic
+            );
+            Assert.IsNotNull(callbackField);
+            var firstCallback = (Action<ScreenInputSession>)callbackField.GetValue(firstInput);
+            var secondCallback = (Action<ScreenInputSession>)callbackField.GetValue(secondInput);
+            var cleanupAttempts = 0;
+            var secondDisableCount = 0;
+
+            callbackField.SetValue
+            (
+                firstInput,
+                new Action<ScreenInputSession>
+                (
+                    session =>
+                    {
+                        if (!session.IsContributionEnabled)
+                        {
+                            cleanupAttempts++;
+
+                            if (cleanupAttempts == 1)
+                            {
+                                throw new InvalidOperationException("injected stale cleanup failure");
+                            }
+
+                            if (cleanupAttempts == 2)
+                            {
+                                second.SetBaseAuthority();
+                            }
+                        }
+
+                        firstCallback?.Invoke(session);
+                    }
+                )
+            );
+            callbackField.SetValue
+            (
+                secondInput,
+                new Action<ScreenInputSession>
+                (
+                    session =>
+                    {
+                        if (!session.IsContributionEnabled)
+                        {
+                            secondDisableCount++;
+                        }
+
+                        secondCallback?.Invoke(session);
+                    }
+                )
+            );
+
+            try
+            {
+                Assert.Throws<InvalidOperationException>(authority.Dispose);
+                Assert.IsTrue(first.Screens.IsInputContributionEnabled);
+                Assert.IsTrue(second.Screens.IsInputContributionEnabled);
+
+                third.SetBaseAuthority();
+
+                Assert.AreEqual(2, cleanupAttempts);
+                Assert.AreEqual(0, secondDisableCount);
+                Assert.IsTrue(second.IsEffective);
+                Assert.IsTrue(second.IsOnActivePath);
+                Assert.IsTrue(second.Screens.IsInputContributionEnabled);
+                Assert.IsFalse(first.IsOnActivePath);
+                Assert.IsFalse(first.Screens.IsInputContributionEnabled);
+                Assert.IsFalse(third.IsOnActivePath);
+            }
+            finally
+            {
+                callbackField.SetValue(firstInput, firstCallback);
+                callbackField.SetValue(secondInput, secondCallback);
+            }
+
             Assert.DoesNotThrow(fixture.Runtime.Shutdown);
         }
 

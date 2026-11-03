@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : IModalInteractionDriver.cs
-수정일 : 2026-09-15
+수정일 : 2026-11-02
 
 # 설명
 Modality Policy가 Stack top 여부에 따라 해당 UI의 상호작용 우선권을 적용하는 backend 계약을 정의한다.

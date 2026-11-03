@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : UITKPresentationLayer.cs
-수정일 : 2026-10-21
+수정일 : 2026-11-04
 
 # 설명
 UITK Presentation Layer의 현재 Root, 논리 활성 상태와 런타임 콘텐츠 재연결을 관리한다.
@@ -10,6 +10,8 @@ PanelRenderer Native Output과 sibling ordering은 소유하지 않는다.
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Runtime;
+using System.Runtime.CompilerServices;
 
 using UnityEngine;
 using UnityEngine.UIElements;
@@ -33,7 +35,8 @@ namespace inonego.Xeri.UI
         // ------------------------------------------------------------
         public VisualElement Root { get; private set; }
 
-        private readonly List<VisualElement> attachments = new();
+        private static readonly ConditionalWeakTable<VisualElement, IPresentationLayerDriver<VisualElement>> contentOwners = new();
+        private readonly List<VisualElement> ownedContents = new();
         private StyleEnum<DisplayStyle> originalDisplay;
         private bool hasActiveState;
         private bool active = true;
@@ -69,7 +72,7 @@ namespace inonego.Xeri.UI
 
     #endregion
 
-    #region 콘텐츠 부착과 루트 재연결
+    #region 콘텐츠 Lease 부착과 해제
 
         // ------------------------------------------------------------
         /// <summary>
@@ -89,33 +92,53 @@ namespace inonego.Xeri.UI
                 throw new ArgumentNullException(nameof(content));
             }
 
+            if (contentOwners.TryGetValue(content, out _))
+            {
+                throw new InvalidOperationException("UITK 콘텐츠의 소유 Lease가 이미 존재합니다.");
+            }
+
             if (content.parent != null || ReferenceEquals(content, layer.Root))
             {
                 throw new InvalidOperationException("런타임 콘텐츠는 다른 계층에 연결되지 않은 별도 루트여야 합니다.");
             }
 
-            if (layer is not UITKPresentationLayer owned)
+            var registeredOwner = contentOwners.GetValue(content, _ => layer);
+            if (!ReferenceEquals(registeredOwner, layer))
             {
-                layer.Root.Add(content);
-                return new Lease(content.RemoveFromHierarchy);
+                throw new InvalidOperationException("이미 다른 Layer가 콘텐츠를 소유합니다.");
             }
 
-            if (owned.attachments.Contains(content))
+            if (layer is not UITKPresentationLayer owned)
+            {
+                try
+                {
+                    layer.Root.Add(content);
+                }
+                catch
+                {
+                    UnbindContent(layer, content, null);
+                    throw;
+                }
+
+                return new Lease(() => UnbindContent(layer, content, null));
+            }
+
+            if (owned.ownedContents.Contains(content))
             {
                 throw new InvalidOperationException("이미 Layer에 연결된 런타임 콘텐츠입니다.");
             }
 
-            owned.attachments.Add(content);
+            owned.ownedContents.Add(content);
             try
             {
-                owned.Root?.Add(content);
+                owned.BindContent(content);
             }
             catch (Exception exception)
             {
-                owned.attachments.Remove(content);
+                owned.ownedContents.Remove(content);
                 try
                 {
-                    content.RemoveFromHierarchy();
+                    UnbindContent(layer, content, null);
                 }
                 catch (Exception cleanupException)
                 {
@@ -129,15 +152,43 @@ namespace inonego.Xeri.UI
             (
                 () =>
                 {
-                    owned.attachments.Remove(content);
-                    content.RemoveFromHierarchy();
+                    UnbindContent(layer, content, owned);
                 }
             );
         }
 
         // ------------------------------------------------------------
         /// <summary>
-        /// authored 요소를 반환하고 소유한 콘텐츠만 새 Root로 다시 연결한다.
+        /// Lease 반환 시 콘텐츠 소유권을 해제하고 트리에서 분리한다.
+        /// </summary>
+        // ------------------------------------------------------------
+        private static void UnbindContent
+        (
+            IPresentationLayerDriver<VisualElement> layer,
+            VisualElement content,
+            UITKPresentationLayer owned
+        )
+        {
+            if (!contentOwners.TryGetValue(content, out var actualOwner)) return;
+            if (!ReferenceEquals(actualOwner, layer)) return;
+            owned?.ownedContents.Remove(content);
+            try
+            {
+                content.RemoveFromHierarchy();
+            }
+            finally
+            {
+                contentOwners.Remove(content);
+            }
+        }
+
+    #endregion
+
+    #region Root 교체와 콘텐츠 재연결
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// Root 교체 시 현재 소유 콘텐츠의 배치 위치를 갱신한다.
         /// </summary>
         // ------------------------------------------------------------
         internal void RebindRoot(VisualElement root)
@@ -160,13 +211,13 @@ namespace inonego.Xeri.UI
             }
 
             var errors = new ExceptionBuffer();
-            foreach (var content in attachments.ToArray())
+            foreach (var content in ownedContents.ToArray())
             {
-                if (!attachments.Contains(content)) continue;
+                if (!ownedContents.Contains(content)) continue;
+
                 try
                 {
-                    content.RemoveFromHierarchy();
-                    Root?.Add(content);
+                    BindContent(content);
                 }
                 catch (Exception exception)
                 {
@@ -174,12 +225,16 @@ namespace inonego.Xeri.UI
                 }
             }
 
-            // 콘텐츠 콜백이 실패해도 참조·포커스 구독자는 현재 Root를 관찰해야 한다.
-            var callbacks = RootChanged?.GetInvocationList();
+            // 중첩 교체가 일어났다면 최신 호출에서 이미 RootChanged를 전달한다.
+            var callbacks = ReferenceEquals(Root, root)
+                ? RootChanged?.GetInvocationList()
+                : null;
             if (callbacks != null)
             {
                 foreach (Action<UITKPresentationLayer> callback in callbacks)
                 {
+                    if (!ReferenceEquals(Root, root)) break;
+
                     try
                     {
                         callback(this);
@@ -194,6 +249,96 @@ namespace inonego.Xeri.UI
             if (errors.Count > 0)
             {
                 throw errors.CreateAggregateException("UITK Layer 루트 재연결 중 오류가 발생했습니다.");
+            }
+        }
+
+        // ----------------------------------------------------------------------
+        /// <summary>
+        /// <br/> 소유 콘텐츠를 현재 Root의 ContentContainer에 연결한다.
+        /// <br/> 동기 부착·분리 콜백에서 Root나 Lease가 바뀌면 최신 소유 상태를 따른다.
+        /// </summary>
+        // ----------------------------------------------------------------------
+        private void BindContent(VisualElement content)
+        {
+            while (ownedContents.Contains(content))
+            {
+                var destination = Root;
+                var container = destination?.contentContainer;
+                if (!ownedContents.Contains(content)) return;
+                if (!ReferenceEquals(Root, destination)) continue;
+                if (ReferenceEquals(content.parent, container)) return;
+
+                content.RemoveFromHierarchy();
+                if (!ownedContents.Contains(content)) return;
+                if (!ReferenceEquals(Root, destination)) continue;
+                if (destination == null) return;
+
+                destination.Add(content);
+
+                if (!ownedContents.Contains(content))
+                {
+                    ReconcileContentOwner(content);
+                    return;
+                }
+
+                if (!ReferenceEquals(Root, destination)) continue;
+
+                // Add callback도 Root와 소유권을 바꿀 수 있으므로 실제 부착 위치를 재확인한다.
+                var attachedContainer = destination.contentContainer;
+                if (!ownedContents.Contains(content))
+                {
+                    ReconcileContentOwner(content);
+                    return;
+                }
+
+                if (!ReferenceEquals(Root, destination)) continue;
+                if (!ReferenceEquals(content.parent, attachedContainer))
+                {
+                    throw new InvalidOperationException
+                    (
+                        "UITK Layer가 소유한 콘텐츠를 현재 Root의 ContentContainer에 부착하지 못했습니다."
+                    );
+                }
+
+                return;
+            }
+        }
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// 이전 부착 콜백이 끝났을 때 실제 Lease 소유자의 트리만 유지한다.
+        /// </summary>
+        // ------------------------------------------------------------
+        private static void ReconcileContentOwner(VisualElement content)
+        {
+            if (!contentOwners.TryGetValue(content, out var owner))
+            {
+                content.RemoveFromHierarchy();
+                return;
+            }
+
+            if (owner is UITKPresentationLayer layer)
+            {
+                if (layer.ownedContents.Contains(content))
+                {
+                    layer.BindContent(content);
+                }
+                else
+                {
+                    content.RemoveFromHierarchy();
+                }
+
+                return;
+            }
+
+            var root = owner.Root;
+            if (root == null)
+            {
+                content.RemoveFromHierarchy();
+            }
+            else if (!ReferenceEquals(content.parent, root.contentContainer))
+            {
+                root.Add(content);
             }
         }
 

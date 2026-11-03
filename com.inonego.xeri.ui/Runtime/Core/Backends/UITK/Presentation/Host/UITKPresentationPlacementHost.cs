@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : UITKPresentationPlacementHost.cs
-수정일 : 2026-10-21
+수정일 : 2026-11-02
 
 # 설명
 VisualElementReference로 지정한 authored element를 특정 Presentation의 optional Placement Root로 제공한다.

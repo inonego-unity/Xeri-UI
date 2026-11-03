@@ -1,13 +1,13 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : TEST_UITKUI.cs
-수정일 : 2026-10-28
+수정일 : 2026-11-05
 
 # 설명
-UITK Interaction, Native Output, Screen, Modal과 Fade의 공개 Runtime 경계를 검증한다.
+UITK Interaction·Focus, Native Output, Safe Area, Screen, Modal과 Fade의 Runtime 경계를 검증한다.
 
 # 테스트 구성
- I: UITK Interaction
- L: UITK Native Output materialization과 소유 콘텐츠 재연결
+ I: UITK Interaction과 Focus Root 재진입 해제
+ L: UITK Native Output, 소유 콘텐츠 및 Safe Area Root 재연결
  D: Screen·Modal·Fade Driver
  C: Screen Close와 Visual Tree 반환
 ========================================================================= BLOCK_HEADER_END */
@@ -88,6 +88,22 @@ namespace inonego.Xeri.UI.TEST.Core
                     callback?.Invoke();
                     return base.contentContainer;
                 }
+            }
+        }
+
+        // ============================================================
+        /// <summary>
+        /// 자식 Container를 실제 콘텐츠 삽입 위치로 제공하는 테스트 Root.
+        /// </summary>
+        // ============================================================
+        private sealed class NestedContentRoot : VisualElement
+        {
+            public VisualElement Container { get; } = new();
+            public override VisualElement contentContainer => Container;
+
+            public NestedContentRoot()
+            {
+                hierarchy.Add(Container);
             }
         }
 
@@ -385,6 +401,73 @@ namespace inonego.Xeri.UI.TEST.Core
             Assert.AreEqual(PickingMode.Ignore, element.pickingMode);
         }
 
+        // ------------------------------------------------------------
+        /// <summary>
+        /// Root 변경 중 Layer를 반환해도 구독이 남지 않는다.
+        /// </summary>
+        // ------------------------------------------------------------
+        [Test]
+        public void TEST_UITKFocusDriver_루트변경알림중바인딩해제_새루트구독없음()
+        {
+            var host = new GameObject("Focus Reentrant Release");
+            ownedObjects.Add(host);
+            var backend = host.AddComponent<UITKFocusDriver>();
+            var previousRoot = new VisualElement();
+            var focused = new Button();
+            previousRoot.Add(focused);
+            var nextRoot = new VisualElement();
+            var layer = new UITKPresentationLayer(previousRoot);
+            var binding = backend.RegisterLayer(layer);
+
+            SetField(backend, "current", focused);
+            SetField(backend, "reportedCurrent", focused);
+            backend.OnFocusChanged += _ => binding.Dispose();
+
+            layer.RebindRoot(nextRoot);
+
+            var field = typeof(UITKFocusDriver).GetField
+            (
+                "layerRoots",
+                BindingFlags.Instance | BindingFlags.NonPublic
+            );
+            Assert.IsNotNull(field);
+            var registered = (List<VisualElement>)field.GetValue(backend);
+
+            Assert.IsEmpty(registered);
+            Assert.IsNull(backend.Current);
+            Assert.DoesNotThrow(binding.Dispose);
+        }
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// 공유 Root는 마지막 Layer Lease 해제까지 구독 대상으로 유지한다.
+        /// </summary>
+        // ------------------------------------------------------------
+        [Test]
+        public void TEST_UITKFocusDriver_공유Root등록_마지막Lease까지유지()
+        {
+            var host = new GameObject("Shared UITK Focus Host");
+            ownedObjects.Add(host);
+            var backend = host.AddComponent<UITKFocusDriver>();
+            var root = new VisualElement();
+            var first = backend.RegisterLayer(new UITKPresentationLayer(root));
+            var second = backend.RegisterLayer(new UITKPresentationLayer(root));
+            var field = typeof(UITKFocusDriver).GetField
+            (
+                "layerRoots",
+                BindingFlags.Instance | BindingFlags.NonPublic
+            );
+            Assert.IsNotNull(field);
+            var roots = (List<VisualElement>)field.GetValue(backend);
+
+            Assert.AreEqual(1, roots.Count);
+            Assert.AreSame(root, roots[0]);
+            first.Dispose();
+            Assert.AreEqual(1, roots.Count);
+            second.Dispose();
+            Assert.IsEmpty(roots);
+        }
+
     #endregion
 
     #region L-1: UITK 네이티브 출력 구체화
@@ -516,6 +599,508 @@ namespace inonego.Xeri.UI.TEST.Core
             attachment.Dispose();
             layer.RebindRoot(new VisualElement());
             Assert.IsNull(content.parent, "반환한 콘텐츠가 다음 루트에 다시 연결됐습니다.");
+        }
+
+        // ----------------------------------------------------------------------
+        /// <summary>
+        /// 새 Root가 옛 Root의 조상이어도 소유 콘텐츠를 실제 ContentContainer로 옮긴다.
+        /// </summary>
+        // ----------------------------------------------------------------------
+        [TestCase(false)]
+        [TestCase(true)]
+        public void TEST_UITKPresentationLayer_조상Root교체_실제ContentContainer로재부착(bool nestedContainer)
+        {
+            var previousRoot = new VisualElement();
+            var layer = new UITKPresentationLayer(previousRoot);
+            var content = new VisualElement();
+            var attachment = UITKPresentationLayer.Attach(layer, content);
+            VisualElement nextRoot = nestedContainer ? new NestedContentRoot() : new VisualElement();
+            var container = nextRoot.contentContainer;
+            container.Add(previousRoot);
+
+            Assert.AreSame(previousRoot, content.parent);
+            layer.RebindRoot(nextRoot);
+
+            Assert.AreSame(container, content.parent);
+            previousRoot.RemoveFromHierarchy();
+            Assert.AreSame(container, content.parent);
+            attachment.Dispose();
+            Assert.IsNull(content.parent);
+        }
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// Root가 해제돼도 유효한 Lease의 독점 소유권은 유지한다.
+        /// </summary>
+        // ------------------------------------------------------------
+        [TestCase(false)]
+        [TestCase(true)]
+        public void TEST_UITKPresentationLayer_Root해제후중복획득_Lease소유권보호(bool foreignLayer)
+        {
+            var originalRoot = new VisualElement();
+            var first = new UITKPresentationLayer(originalRoot);
+            var content = new VisualElement();
+            var lease = UITKPresentationLayer.Attach(first, content);
+            first.RebindRoot(null);
+            Assert.IsNull(content.parent);
+
+            var destinationRoot = new VisualElement();
+            IPresentationLayerDriver<VisualElement> second = foreignLayer
+                ? new TestLayerDriver(destinationRoot)
+                : new UITKPresentationLayer(destinationRoot);
+
+            Assert.Throws<InvalidOperationException>
+            (
+                () => UITKPresentationLayer.Attach(second, content)
+            );
+            first.RebindRoot(originalRoot);
+            Assert.AreSame(originalRoot, content.parent);
+
+            lease.Dispose();
+            using var acquired = UITKPresentationLayer.Attach(second, content);
+            Assert.AreSame(destinationRoot, content.parent);
+        }
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// 부착 callback에서 Lease가 끝나면 콘텐츠를 반환한다.
+        /// </summary>
+        // ------------------------------------------------------------
+        [Test]
+        public void TEST_UITKPresentationLayer_부착중Lease반환_콘텐츠미재부착()
+        {
+            var layer = new UITKPresentationLayer(new VisualElement());
+            var content = new VisualElement();
+            var attachment = UITKPresentationLayer.Attach(layer, content);
+            var replacement = new CallbackLayerRoot();
+            replacement.AccessingContent = attachment.Dispose;
+
+            layer.RebindRoot(replacement);
+
+            Assert.IsNull(content.parent);
+            layer.RebindRoot(new VisualElement());
+            Assert.IsNull(content.parent);
+            Assert.DoesNotThrow(attachment.Dispose);
+        }
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// 부착 중 Lease가 이전되면 새 소유자를 유지한다.
+        /// </summary>
+        // ------------------------------------------------------------
+        [TestCase(false)]
+        [TestCase(true)]
+        public void TEST_UITKPresentationLayer_부착중Lease이전_새Layer소유권보호(bool foreignLayer)
+        {
+            var original = new UITKPresentationLayer(new VisualElement());
+            var content = new VisualElement();
+            var previousLease = UITKPresentationLayer.Attach(original, content);
+            var destinationRoot = new VisualElement();
+            IPresentationLayerDriver<VisualElement> destination = foreignLayer
+                ? new TestLayerDriver(destinationRoot)
+                : new UITKPresentationLayer(destinationRoot);
+            var intermediate = new CallbackLayerRoot();
+            Lease newLease = null;
+            intermediate.AccessingContent = () =>
+            {
+                previousLease.Dispose();
+                newLease = UITKPresentationLayer.Attach(destination, content);
+            };
+
+            original.RebindRoot(intermediate);
+
+            Assert.AreSame(destinationRoot, content.parent);
+            Assert.IsNotNull(newLease);
+            newLease.Dispose();
+            Assert.IsNull(content.parent);
+        }
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// 부착 중 더 최신 Root로 재진입하면 최종 Root에만 콘텐츠를 남긴다.
+        /// </summary>
+        // ------------------------------------------------------------
+        [Test]
+        public void TEST_UITKPresentationLayer_부착중루트재변경_최신Root만소유()
+        {
+            var layer = new UITKPresentationLayer(new VisualElement());
+            var content = new VisualElement();
+            using var attachment = UITKPresentationLayer.Attach(layer, content);
+            var intermediate = new CallbackLayerRoot();
+            var latest = new VisualElement();
+            intermediate.AccessingContent = () => layer.RebindRoot(latest);
+
+            layer.RebindRoot(intermediate);
+
+            Assert.AreSame(latest, layer.Root);
+            Assert.AreSame(latest, content.parent);
+            Assert.AreEqual(0, intermediate.childCount);
+        }
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// Root 변경 observer가 재진입하면 오래된 변경 알림을 반복하지 않는다.
+        /// </summary>
+        // ------------------------------------------------------------
+        [Test]
+        public void TEST_UITKPresentationLayer_알림중재변경_최신Root만전달()
+        {
+            var first = new VisualElement();
+            var intermediate = new VisualElement();
+            var latest = new VisualElement();
+            var layer = new UITKPresentationLayer(first);
+            var observed = new List<VisualElement>();
+            layer.RootChanged += current =>
+            {
+                if (ReferenceEquals(current.Root, intermediate))
+                {
+                    current.RebindRoot(latest);
+                }
+            };
+            layer.RootChanged += current => observed.Add(current.Root);
+
+            layer.RebindRoot(intermediate);
+
+            Assert.AreSame(latest, layer.Root);
+            var expected = new[]
+            {
+                latest,
+            };
+            CollectionAssert.AreEqual(expected, observed);
+        }
+
+    #endregion
+
+    #region L-3: Native Safe Area Root 재연결
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// 출력 Root 교체와 반환을 Safe Area 관찰이 따라간다.
+        /// </summary>
+        // ------------------------------------------------------------
+        [Test]
+        public void TEST_UITKSafeAreaLayout_OutputRoot교체와반환_관찰대상갱신()
+        {
+            var host = new GameObject("Safe Area Root Rebind");
+            host.SetActive(false);
+            ownedObjects.Add(host);
+            var settings = ScriptableObject.CreateInstance<PanelSettings>();
+            UITKTestPanelSettings.ApplyDefaultRuntimeTheme(settings);
+            ownedObjects.Add(settings);
+            var renderer = host.AddComponent<PanelRenderer>();
+            renderer.panelSettings = settings;
+            var output = host.AddComponent<UITKPresentationOutput>();
+            output.InitializeBorrowed(31);
+            var layout = host.AddComponent<UITKSafeAreaLayout>();
+            SetField(layout, "rootName", "Safe Area");
+            Assert.DoesNotThrow(() => host.SetActive(true));
+
+            var reload = typeof(UITKPresentationOutput).GetMethod
+            (
+                "HandleUIReload",
+                BindingFlags.Instance | BindingFlags.NonPublic
+            );
+            var observed = typeof(UITKSafeAreaLayout).GetField
+            (
+                "observedRoot",
+                BindingFlags.Instance | BindingFlags.NonPublic
+            );
+            Assert.IsNotNull(reload);
+            Assert.IsNotNull(observed);
+
+            var firstRoot = new VisualElement();
+            var first = new VisualElement();
+            first.name = "Safe Area";
+            firstRoot.Add(first);
+            reload.Invoke
+            (
+                output,
+                new object[]
+                {
+                    renderer, firstRoot, 1,
+                }
+            );
+            Assert.AreSame(first, observed.GetValue(layout));
+
+            var secondRoot = new VisualElement();
+            var second = new VisualElement();
+            second.name = "Safe Area";
+            secondRoot.Add(second);
+            reload.Invoke
+            (
+                output,
+                new object[]
+                {
+                    renderer, secondRoot, 2,
+                }
+            );
+            Assert.AreSame(second, layout.SafeAreaRoot);
+            Assert.AreSame(second, observed.GetValue(layout));
+
+            output.ReleaseOutputState();
+            Assert.IsNull(observed.GetValue(layout));
+            layout.Dispose();
+        }
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// Root 알림 중 Layout 비활성화는 오래된 구독도 종료한다.
+        /// </summary>
+        // ------------------------------------------------------------
+        [Test]
+        public void TEST_UITKSafeAreaLayout_Root알림중비활성화_관찰재등록방지()
+        {
+            var host = new GameObject("Safe Area Disable Reentry");
+            host.SetActive(false);
+            ownedObjects.Add(host);
+            var settings = ScriptableObject.CreateInstance<PanelSettings>();
+            UITKTestPanelSettings.ApplyDefaultRuntimeTheme(settings);
+            ownedObjects.Add(settings);
+            var renderer = host.AddComponent<PanelRenderer>();
+            renderer.panelSettings = settings;
+            var output = host.AddComponent<UITKPresentationOutput>();
+            output.InitializeBorrowed(32);
+            var layout = host.AddComponent<UITKSafeAreaLayout>();
+            SetField(layout, "rootName", "Safe Area");
+            host.SetActive(true);
+            layout.enabled = false;
+
+            // 먼저 등록된 observer가 Layout을 끈 뒤에도 snapshot의 뒤 콜백이 도착한다.
+            output.RootUpdated += root =>
+            {
+                if (root != null)
+                {
+                    layout.enabled = false;
+                }
+            };
+            layout.enabled = true;
+
+            var reload = typeof(UITKPresentationOutput).GetMethod
+            (
+                "HandleUIReload",
+                BindingFlags.Instance | BindingFlags.NonPublic
+            );
+            var observed = typeof(UITKSafeAreaLayout).GetField
+            (
+                "observedRoot",
+                BindingFlags.Instance | BindingFlags.NonPublic
+            );
+            Assert.IsNotNull(reload);
+            Assert.IsNotNull(observed);
+
+            var rootElement = new VisualElement();
+            var safeArea = new VisualElement();
+            safeArea.name = "Safe Area";
+            rootElement.Add(safeArea);
+            reload.Invoke
+            (
+                output,
+                new object[]
+                {
+                    renderer, rootElement, 1,
+                }
+            );
+
+            Assert.IsFalse(layout.enabled);
+            Assert.IsNull(observed.GetValue(layout));
+            layout.enabled = true;
+            Assert.AreSame(safeArea, observed.GetValue(layout));
+            output.ReleaseOutputState();
+            Assert.IsNull(observed.GetValue(layout));
+            layout.Dispose();
+        }
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// Safe Area가 Dispose되면 미전달 observer 호출을 중단한다.
+        /// </summary>
+        // ------------------------------------------------------------
+        [Test]
+        public void TEST_UITKSafeAreaLayout_알림중Dispose_남은Observer중단()
+        {
+            var host = new GameObject("Safe Area Callback Lifetime");
+            host.SetActive(false);
+            ownedObjects.Add(host);
+            var layout = host.AddComponent<UITKSafeAreaLayout>();
+            var staleCalls = 0;
+            layout.OnLayoutChanged += layout.Dispose;
+            layout.OnLayoutChanged += () => staleCalls++;
+            var notify = typeof(UITKSafeAreaLayout).GetMethod
+            (
+                "NotifyLayoutChanged",
+                BindingFlags.Instance | BindingFlags.NonPublic
+            );
+            Assert.IsNotNull(notify);
+
+            Assert.DoesNotThrow(() => notify.Invoke(layout, null));
+            Assert.AreEqual(0, staleCalls);
+            Assert.Throws<ObjectDisposedException>(layout.Refresh);
+        }
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// Root 알림 중 Output이 반환되면 오래된 알림은 중단한다.
+        /// </summary>
+        // ------------------------------------------------------------
+        [Test]
+        public void TEST_UITKPresentationOutput_Root알림중반환_오래된전파중단()
+        {
+            var host = new GameObject("Root Observer Reentry");
+            host.SetActive(false);
+            ownedObjects.Add(host);
+            var settings = ScriptableObject.CreateInstance<PanelSettings>();
+            UITKTestPanelSettings.ApplyDefaultRuntimeTheme(settings);
+            ownedObjects.Add(settings);
+            var renderer = host.AddComponent<PanelRenderer>();
+            renderer.panelSettings = settings;
+            var output = host.AddComponent<UITKPresentationOutput>();
+            output.InitializeBorrowed(14);
+            var staleCallbacks = 0;
+
+            output.RootUpdated += value =>
+            {
+                if (value != null)
+                {
+                    output.ReleaseOutputState();
+                }
+            };
+            output.RootUpdated += value =>
+            {
+                if (value != null)
+                {
+                    staleCallbacks++;
+                }
+            };
+
+            var reload = typeof(UITKPresentationOutput).GetMethod
+            (
+                "HandleUIReload",
+                BindingFlags.Instance | BindingFlags.NonPublic
+            );
+            Assert.IsNotNull(reload);
+            reload.Invoke
+            (
+                output,
+                new object[]
+                {
+                    renderer, new VisualElement(), 1,
+                }
+            );
+
+            Assert.AreEqual(0, staleCallbacks);
+            Assert.IsNull(output.Root);
+            Assert.Throws<InvalidOperationException>(() => output.RequireRoot());
+
+            // 해제 이후 도착한 Native callback은 반환된 Output을 다시 연결하지 못한다.
+            reload.Invoke
+            (
+                output,
+                new object[]
+                {
+                    renderer, new VisualElement(), 2,
+                }
+            );
+            Assert.IsNull(output.Root);
+        }
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// Output 해제 알림 중 재획득을 거부하고 원래 설정을 복원한다.
+        /// </summary>
+        // ------------------------------------------------------------
+        [Test]
+        public void TEST_UITKPresentationOutput_해제알림중재초기화_소유권복원()
+        {
+            var host = new GameObject("Output Release Reentry");
+            host.SetActive(false);
+            ownedObjects.Add(host);
+            var settings = ScriptableObject.CreateInstance<PanelSettings>();
+            UITKTestPanelSettings.ApplyDefaultRuntimeTheme(settings);
+            ownedObjects.Add(settings);
+            var renderer = host.AddComponent<PanelRenderer>();
+            renderer.panelSettings = settings;
+            var output = host.AddComponent<UITKPresentationOutput>();
+            var originalOrder = settings.sortingOrder;
+            output.InitializeBorrowed(14);
+            var rejected = 0;
+
+            output.RootUpdated += value =>
+            {
+                if (value != null) return;
+
+                rejected++;
+                Assert.Throws<InvalidOperationException>
+                (
+                    () => output.InitializeBorrowed(32)
+                );
+                Assert.DoesNotThrow(output.ReleaseOutputState);
+            };
+
+            output.ReleaseOutputState();
+
+            Assert.AreEqual(1, rejected);
+            Assert.AreEqual(originalOrder, settings.sortingOrder);
+            Assert.Throws<InvalidOperationException>(() => output.RequireRoot());
+
+            output.InitializeBorrowed(35);
+            Assert.AreEqual(35.0f, settings.sortingOrder);
+            output.ReleaseOutputState();
+            Assert.AreEqual(originalOrder, settings.sortingOrder);
+        }
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// 부착 중 Output이 종료되면 콘텐츠를 반환한다.
+        /// </summary>
+        // ------------------------------------------------------------
+        [Test]
+        public void TEST_UITKPresentationOutput_부착중반환_해제된Layer미부착()
+        {
+            var host = new GameObject("Output Attach Reentry");
+            host.SetActive(false);
+            ownedObjects.Add(host);
+            var settings = ScriptableObject.CreateInstance<PanelSettings>();
+            UITKTestPanelSettings.ApplyDefaultRuntimeTheme(settings);
+            ownedObjects.Add(settings);
+            var renderer = host.AddComponent<PanelRenderer>();
+            renderer.panelSettings = settings;
+            var output = host.AddComponent<UITKPresentationOutput>();
+            output.InitializeBorrowed(14);
+            var root = new CallbackLayerRoot();
+            var reload = typeof(UITKPresentationOutput).GetMethod
+            (
+                "HandleUIReload",
+                BindingFlags.Instance | BindingFlags.NonPublic
+            );
+            Assert.IsNotNull(reload);
+            reload.Invoke
+            (
+                output,
+                new object[]
+                {
+                    renderer, root, 1,
+                }
+            );
+            var content = new VisualElement();
+            var releaseNotifications = 0;
+            output.RootUpdated += current =>
+            {
+                if (current == null)
+                {
+                    releaseNotifications++;
+                }
+            };
+            root.AccessingContent = output.ReleaseOutputState;
+
+            Assert.Throws<InvalidOperationException>
+            (
+                () => output.AttachLayerRoot(content)
+            );
+
+            Assert.AreEqual(1, releaseNotifications);
+            Assert.IsNull(output.Root);
+            Assert.IsNull(content.parent);
+            Assert.DoesNotThrow(output.ReleaseOutputState);
         }
 
     #endregion

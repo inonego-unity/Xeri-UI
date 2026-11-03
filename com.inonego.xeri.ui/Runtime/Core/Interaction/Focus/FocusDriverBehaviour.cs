@@ -1,11 +1,13 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : FocusDriverBehaviour.cs
-수정일 : 2026-11-02
+수정일 : 2026-11-04
 # 설명
-Unity Focus backend이 공통 Driver에 참여하고 Layer registration을 대칭 해제하기 위한 Component 계약을 정의한다.
+Unity Focus backend의 선택 가능 시점과 Layer 등록·대칭 해제를 공통 Driver에 제공한다.
 ========================================================================= BLOCK_HEADER_END */
 
 using System;
+using System.Collections;
+using System.Collections.Generic;
 
 using UnityEngine;
 
@@ -21,6 +23,12 @@ namespace inonego.Xeri.UI
     // ============================================================
     public abstract class FocusDriverBehaviour : MonoBehaviour, IFocusDriver
     {
+
+    #region 필드
+
+        private readonly Dictionary<IPresentationLayerDriver, int> layerRegistrations = new();
+
+    #endregion
 
     #region 이벤트
 
@@ -41,6 +49,13 @@ namespace inonego.Xeri.UI
         /// </summary>
         // ------------------------------------------------------------
         public abstract bool CanSelect(object target);
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// Native 선택 트랜잭션이 진행 중인지 확인한다.
+        /// </summary>
+        // ------------------------------------------------------------
+        internal virtual bool IsSelectionBlocked => false;
 
         // ------------------------------------------------------------
         /// <summary>
@@ -72,12 +87,27 @@ namespace inonego.Xeri.UI
                 throw new ArgumentNullException(nameof(driver));
             }
 
+            if (layerRegistrations.TryGetValue(driver, out var count))
+            {
+                if (count == 0)
+                {
+                    throw new InvalidOperationException("Focus Layer 등록이 아직 진행 중입니다.");
+                }
+
+                layerRegistrations[driver] = checked(count + 1);
+                return new Lease(() => ReleaseLayerRegistration(driver));
+            }
+
+            layerRegistrations.Add(driver, 0);
             try
             {
                 HandleLayerRegistered(driver);
+                layerRegistrations[driver] = 1;
             }
             catch (Exception exception)
             {
+                layerRegistrations.Remove(driver);
+
                 try
                 {
                     HandleLayerUnregistered(driver);
@@ -95,7 +125,26 @@ namespace inonego.Xeri.UI
                 throw;
             }
 
-            return new Lease(() => HandleLayerUnregistered(driver));
+            return new Lease(() => ReleaseLayerRegistration(driver));
+        }
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// 마지막 등록 Lease를 반환할 때만 backend 구독을 해제한다.
+        /// </summary>
+        // ------------------------------------------------------------
+        private void ReleaseLayerRegistration(IPresentationLayerDriver driver)
+        {
+            if (!layerRegistrations.TryGetValue(driver, out var count)) return;
+
+            if (count > 1)
+            {
+                layerRegistrations[driver] = count - 1;
+                return;
+            }
+
+            layerRegistrations.Remove(driver);
+            HandleLayerUnregistered(driver);
         }
 
         // ------------------------------------------------------------

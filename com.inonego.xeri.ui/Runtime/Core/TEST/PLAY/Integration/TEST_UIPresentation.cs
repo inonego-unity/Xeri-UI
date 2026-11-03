@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : TEST_UIPresentation.cs
-수정일 : 2026-10-28
+수정일 : 2026-11-05
 
 # 설명
 실제 Runtime Panel과 Canvas에서 UGUI·UITK 표시와 mixed Focus의 대표 경로를 검증한다.
@@ -1279,6 +1279,36 @@ namespace inonego.Xeri.UI.TEST.Core
             }
         }
 
+        // ------------------------------------------------------------
+        /// <summary>
+        /// Layout Dispose 이후에는 뒤 observer를 호출하지 않는다.
+        /// </summary>
+        // ------------------------------------------------------------
+        [Test]
+        public void TEST_UGUISafeAreaLayout_알림중Dispose_남은Observer중단()
+        {
+            var host = new GameObject("Safe Area Observer Lifetime");
+            host.SetActive(false);
+            var element = new GameObject("Safe Area", typeof(RectTransform));
+            element.transform.SetParent(host.transform, false);
+            var layout = host.AddComponent<UGUISafeAreaLayout>();
+            SetField(layout, "safeAreaRoot", element.GetComponent<RectTransform>());
+            var staleCalls = 0;
+            layout.OnLayoutChanged += layout.Dispose;
+            layout.OnLayoutChanged += () => staleCalls++;
+
+            try
+            {
+                Assert.DoesNotThrow(layout.Refresh);
+                Assert.AreEqual(0, staleCalls);
+                Assert.Throws<ObjectDisposedException>(layout.Refresh);
+            }
+            finally
+            {
+                UnityEngine.Object.DestroyImmediate(host);
+            }
+        }
+
         // --------------------------------------------------------------------------------
         /// <summary>
         /// 실제 Canvas에서 Surface Layer와 Screen·Modal·Fade 표시 값이 독립적으로 적용된다.
@@ -1573,6 +1603,7 @@ namespace inonego.Xeri.UI.TEST.Core
             var output = CreatePanelOutput(panelHost, panelSettings, activate: false);
             var driver = driverHost.AddComponent<UITKFocusDriver>();
             var focus = driverHost.AddComponent<UIFocusDriver>();
+            focus.Initialize();
             var layerRoot = new VisualElement
             {
                 name = "Deferred Layer",
@@ -1635,6 +1666,8 @@ namespace inonego.Xeri.UI.TEST.Core
             var secondOutput = CreatePanelOutput(secondHost, secondSettings);
             var driver = driverHost.AddComponent<UITKFocusDriver>();
             var focus = driverHost.AddComponent<UIFocusDriver>();
+            focus.Initialize();
+            SetField(driver, "fallbackName", "Shared Fallback");
             var firstLayerRoot = new VisualElement
             {
                 name = "First Layer",
@@ -1645,11 +1678,11 @@ namespace inonego.Xeri.UI.TEST.Core
             };
             var first = new Button
             {
-                name = "First",
+                name = "Shared Fallback",
             };
             var second = new Button
             {
-                name = "Second",
+                name = "Shared Fallback",
             };
             firstLayerRoot.Add(first);
             secondLayerRoot.Add(second);
@@ -1666,13 +1699,23 @@ namespace inonego.Xeri.UI.TEST.Core
                 firstOutput.Root.Add(firstLayerRoot);
                 secondOutput.Root.Add(secondLayerRoot);
                 firstBinding = focus.BindLayer(new UITKPresentationLayer(firstLayerRoot));
-                secondBinding = focus.BindLayer(new UITKPresentationLayer(secondLayerRoot));
+
+                // 미등록 Panel의 이전 Native Focus는 새 등록만으로 최신 선택이 되지 않는다.
+                second.Focus();
+                yield return null;
+                Assert.AreSame(second, second.panel.focusController.focusedElement);
                 first.Focus();
                 yield return null;
+                Assert.AreSame(first, driver.Current);
+
+                secondBinding = focus.BindLayer(new UITKPresentationLayer(secondLayerRoot));
+                Assert.AreSame(first, driver.Current);
+                second.Blur();
                 second.Focus();
                 yield return null;
 
                 Assert.AreSame(second, driver.Current);
+                Assert.AreSame(second, driver.FindFallback());
 
                 driver.Select(null);
 
@@ -1682,6 +1725,13 @@ namespace inonego.Xeri.UI.TEST.Core
                     second,
                     second.panel.focusController.focusedElement
                 );
+
+                secondBinding.Dispose();
+                secondBinding = null;
+                Assert.AreSame(first, driver.FindFallback());
+                firstBinding.Dispose();
+                firstBinding = null;
+                Assert.IsNull(driver.FindFallback());
             }
             finally
             {
@@ -1694,6 +1744,70 @@ namespace inonego.Xeri.UI.TEST.Core
                 UnityEngine.Object.Destroy(secondHost);
                 UnityEngine.Object.Destroy(firstSettings);
                 UnityEngine.Object.Destroy(secondSettings);
+            }
+        }
+
+        // ----------------------------------------------------------------------
+        /// <summary>
+        /// 다른 등록 Root가 Focus를 소유하면 중첩 Root 교체·해제에도 유지한다.
+        /// </summary>
+        // ----------------------------------------------------------------------
+        [UnityTest]
+        public IEnumerator TEST_UITKFocusDriver_중첩Root교체해제_유효Focus보존()
+        {
+            var host = new GameObject("UITK Overlap Focus Host");
+            var panelHost = new GameObject("UITK Overlap Panel");
+            var settings = ScriptableObject.CreateInstance<PanelSettings>();
+            UITKTestPanelSettings.ApplyDefaultRuntimeTheme(settings);
+            var output = CreatePanelOutput(panelHost, settings);
+            var backend = host.AddComponent<UITKFocusDriver>();
+            var focus = host.AddComponent<UIFocusDriver>();
+            focus.Initialize();
+            var parentRoot = new VisualElement();
+            var nestedRoot = new VisualElement();
+            var button = new Button();
+            parentRoot.Add(nestedRoot);
+            nestedRoot.Add(button);
+            var nestedLayer = new UITKPresentationLayer(nestedRoot);
+            IDisposable parentBinding = null;
+            IDisposable nestedBinding = null;
+
+            try
+            {
+                yield return null;
+                yield return null;
+
+                Assert.IsNotNull(output.Root);
+                output.Root.Add(parentRoot);
+                parentBinding = focus.BindLayer(new UITKPresentationLayer(parentRoot));
+                nestedBinding = focus.BindLayer(nestedLayer);
+                yield return null;
+                button.Focus();
+                yield return null;
+
+                Assert.AreSame(button, backend.Current);
+
+                nestedLayer.RebindRoot(new VisualElement());
+                Assert.AreSame(button, backend.Current);
+                nestedLayer.RebindRoot(nestedRoot);
+                Assert.AreSame(button, backend.Current);
+
+                nestedBinding.Dispose();
+                nestedBinding = null;
+                Assert.AreSame(button, backend.Current);
+
+                parentBinding.Dispose();
+                parentBinding = null;
+                Assert.IsNull(backend.Current);
+            }
+            finally
+            {
+                nestedBinding?.Dispose();
+                parentBinding?.Dispose();
+                parentRoot.RemoveFromHierarchy();
+                UnityEngine.Object.Destroy(host);
+                UnityEngine.Object.Destroy(panelHost);
+                UnityEngine.Object.Destroy(settings);
             }
         }
 

@@ -127,6 +127,11 @@ namespace inonego.Xeri.UI
             {
                 var layerHostMap = session.CreateLayerHostMap(layerHosts);
                 var placementHostMap = session.CreatePlacementHostMap(layerHostMap);
+                session.ValidateGeneratedOutputRequirements
+                (
+                    panelSettingsTemplate,
+                    layerHostMap
+                );
                 session.MaterializeTopLevel
                 (
                     parent,
@@ -424,6 +429,32 @@ namespace inonego.Xeri.UI
                 }
 
                 AddRuntimeLayer(plan, driver, releaseMaterialization);
+            }
+        }
+
+        // ----------------------------------------------------------------------
+        /// <summary>
+        /// <br/> 생성형 UITK 출력이 필요한 Plan Layer를 실제 생성 전에 확인한다.
+        /// <br/> Scene Host가 제공하는 Layer는 자체 PanelSettings를 사용한다.
+        /// </summary>
+        // ----------------------------------------------------------------------
+        private void ValidateGeneratedOutputRequirements
+        (
+            PanelSettings panelSettingsTemplate,
+            IReadOnlyDictionary<string, PresentationLayerHost> layerHosts
+        )
+        {
+            for (var index = 0; index < Plan.Layers.Count; index++)
+            {
+                var layer = Plan.Layers[index];
+
+                if (layerHosts.ContainsKey(layer.LayerID)) continue;
+
+                PresentationLayerMaterializer.ValidateTopLevel
+                (
+                    layer,
+                    panelSettingsTemplate
+                );
             }
         }
 

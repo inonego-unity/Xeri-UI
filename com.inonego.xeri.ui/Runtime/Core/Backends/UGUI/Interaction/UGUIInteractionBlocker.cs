@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : UGUIInteractionBlocker.cs
-수정일 : 2026-09-17
+수정일 : 2026-11-05
 # 설명
 중첩 점유 수에 따라 명시적 UGUI Blocker Root와 CanvasGroup raycast 상태를 적용한다.
 ========================================================================= BLOCK_HEADER_END */
@@ -28,6 +28,7 @@ namespace inonego.Xeri.UI
         private CanvasGroup canvasGroup = null;
 
         private int acquisitionCount = 0;
+        private bool isApplyingState = false;
 
     #endregion
 
@@ -80,30 +81,60 @@ namespace inonego.Xeri.UI
 
         // ------------------------------------------------------------
         /// <summary>
-        /// 현재 점유 수를 UGUI 활성·raycast 상태에 적용한다.
+        /// Root가 Blocker 자체를 비활성화하는 순환 소유 구성을 거부한다.
         /// </summary>
         // ------------------------------------------------------------
-        private void ApplyState()
+        private void ValidateConfiguration()
         {
-            ApplyState(acquisitionCount > 0);
+            if
+            (
+                root != null &&
+                (ReferenceEquals(root, gameObject) || transform.IsChildOf(root.transform))
+            )
+            {
+                throw new InvalidOperationException
+                (
+                    "UGUI Interaction Blocker Root는 Blocker Component의 GameObject나 조상일 수 없습니다."
+                );
+            }
         }
 
-        // ------------------------------------------------------------
+        // ----------------------------------------------------------------------
         /// <summary>
-        /// 지정 활성 상태를 UGUI Root와 CanvasGroup에 적용한다.
+        /// <br/> 점유 수와 Component 수명에서 현재 입력 차단 상태를 계산한다.
+        /// <br/> 동기 Root 콜백에서 점유가 바뀌면 바깥 적용 흐름이 최신 상태를 반영한다.
         /// </summary>
-        // ------------------------------------------------------------
-        private void ApplyState(bool isActive)
+        // ----------------------------------------------------------------------
+        private void ApplyState()
         {
-            if (root != null)
-            {
-                root.SetActive(isActive);
-            }
+            ValidateConfiguration();
+            if (isApplyingState) return;
 
-            if (canvasGroup != null)
+            isApplyingState = true;
+
+            try
             {
-                canvasGroup.interactable = isActive;
-                canvasGroup.blocksRaycasts = isActive;
+                while (true)
+                {
+                    var isActive = isActiveAndEnabled && acquisitionCount > 0;
+
+                    if (root != null && root.activeSelf != isActive)
+                    {
+                        root.SetActive(isActive);
+                    }
+
+                    if (canvasGroup != null)
+                    {
+                        canvasGroup.interactable = isActive;
+                        canvasGroup.blocksRaycasts = isActive;
+                    }
+
+                    if (isActive == (isActiveAndEnabled && acquisitionCount > 0)) return;
+                }
+            }
+            finally
+            {
+                isApplyingState = false;
             }
         }
 
@@ -128,7 +159,7 @@ namespace inonego.Xeri.UI
         // ------------------------------------------------------------
         private void OnDisable()
         {
-            ApplyState(false);
+            ApplyState();
         }
 
     #endregion

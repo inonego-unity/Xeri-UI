@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : ScreenRegistry.cs
-수정일 : 2026-10-07
+수정일 : 2026-11-02
 # 설명
 Screen Options, PresentationTarget과 Source를 stable string ID로 등록하고 새 Open 조회를 제공한다.
 표시 Target은 Screen policy와 분리된 composition 정보로 Open 시 resolve한다.

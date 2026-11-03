@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : ScreenOptions.cs
-수정일 : 2026-10-07
+수정일 : 2026-11-02
 # 설명
 Screen identity, 중복, Gameplay Input, Cursor와 Transition 정책을 정의한다.
 ========================================================================= BLOCK_HEADER_END */
@@ -115,6 +115,16 @@ namespace inonego.Xeri.UI
             )
             {
                 throw new ArgumentOutOfRangeException(nameof(closeDuration));
+            }
+
+            if (!Enum.IsDefined(typeof(ScreenDuplicatePolicy), duplicatePolicy))
+            {
+                throw new ArgumentOutOfRangeException(nameof(duplicatePolicy));
+            }
+
+            if (!Enum.IsDefined(typeof(CursorLockMode), cursorLockMode))
+            {
+                throw new ArgumentOutOfRangeException(nameof(cursorLockMode));
             }
 
             ID = id;

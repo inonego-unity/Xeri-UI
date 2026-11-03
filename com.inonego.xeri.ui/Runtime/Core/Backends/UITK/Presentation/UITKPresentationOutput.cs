@@ -1,6 +1,6 @@
 ﻿/* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : UITKPresentationOutput.cs
-수정일 : 2026-10-22
+수정일 : 2026-11-04
 
 # 설명
 Native PanelRenderer의 생성·대여, Root 재연결 및 원래 설정 복원을 소유한다.
@@ -28,6 +28,8 @@ namespace inonego.Xeri.UI
     {
 
     #region 설정과 상태
+
+        private enum State { Inactive, Acquired, Releasing }
 
         private const string BASELINE_PATH = "Xeri/UI/Core/UIRuntimeBaseline";
         private const string ROOT_CLASS = "xeri-ui";
@@ -59,8 +61,8 @@ namespace inonego.Xeri.UI
         private StyleSheet runtimeBaseline;
         private PanelSettings borrowedSettings;
         private float borrowedSortingOrder;
-        private bool isInitialized;
-        private bool isBorrowed;
+        private State state = State.Inactive;
+        private bool IsInitialized => state == State.Acquired;
         private bool reloadRegistered;
         private bool ownsRootClass;
         private bool ownsRootStyleSheet;
@@ -112,9 +114,9 @@ namespace inonego.Xeri.UI
         // ------------------------------------------------------------
         private void InitializeCore(PanelSettings template, int layerOrder, bool borrowed)
         {
-            if (isInitialized)
+            if (state != State.Inactive)
             {
-                throw new InvalidOperationException("UITK Presentation Output이 이미 초기화됐습니다.");
+                throw new InvalidOperationException("UITK Presentation Output의 수명이 아직 종료되지 않았습니다.");
             }
 
             panelRenderer = GetComponent<PanelRenderer>();
@@ -129,8 +131,7 @@ namespace inonego.Xeri.UI
             }
 
             // Native 연결이 실패해도 획득한 자원은 같은 해제 경로로 반환한다.
-            isInitialized = true;
-            isBorrowed = borrowed;
+            state = State.Acquired;
             try
             {
                 if (borrowed)
@@ -150,6 +151,14 @@ namespace inonego.Xeri.UI
                 }
 
                 RegisterRootCallback();
+
+                if (!IsInitialized)
+                {
+                    throw new InvalidOperationException
+                    (
+                        "UITK Output 초기화 도중 Native 콜백에서 수명이 종료됐습니다."
+                    );
+                }
             }
             catch (Exception initializationError)
             {
@@ -173,19 +182,19 @@ namespace inonego.Xeri.UI
         // ------------------------------------------------------------
         internal void ReleaseOutputState()
         {
-            if (!isInitialized && !reloadRegistered && root == null && layerRoot == null) return;
+            if (state == State.Releasing) return;
+            if (!IsInitialized && !reloadRegistered && root == null && layerRoot == null) return;
 
             var errors = new ExceptionBuffer();
             var generated = RuntimePanelSettings;
             var borrowed = borrowedSettings;
             var order = borrowedSortingOrder;
-            var restoreBorrowed = isBorrowed;
+            var restoreBorrowed = !ReferenceEquals(borrowed, null);
             var detachedLayer = layerRoot;
             var unregister = reloadRegistered;
 
             // 파괴 콜백이 다시 들어와도 같은 자원을 중복 반환하지 않는다.
-            isInitialized = false;
-            isBorrowed = false;
+            state = State.Releasing;
             reloadRegistered = false;
             layerRoot = null;
             RuntimePanelSettings = null;
@@ -198,6 +207,7 @@ namespace inonego.Xeri.UI
             }
 
             Cleanup(RestoreRootStyle, ref errors);
+            Cleanup(() => NotifyRootUpdated(null), ref errors);
             Cleanup(() => detachedLayer?.RemoveFromHierarchy(), ref errors);
             if (restoreBorrowed)
             {
@@ -213,6 +223,7 @@ namespace inonego.Xeri.UI
             }
 
             Cleanup(() => DestroyOwnedObject(generated), ref errors);
+            state = State.Inactive;
             if (errors.Count > 0)
             {
                 throw errors.CreateAggregateException("UITK Presentation Output 해제가 실패했습니다.");
@@ -289,6 +300,14 @@ namespace inonego.Xeri.UI
         // ------------------------------------------------------------
         internal VisualElement RequireRoot()
         {
+            if (!IsInitialized)
+            {
+                throw new InvalidOperationException
+                (
+                    "UITK Presentation Output이 초기화되지 않았습니다."
+                );
+            }
+
             if (!Validate(out var error))
             {
                 throw new InvalidOperationException(error);
@@ -311,6 +330,14 @@ namespace inonego.Xeri.UI
                 throw new ArgumentNullException(nameof(value));
             }
 
+            if (!IsInitialized)
+            {
+                throw new InvalidOperationException
+                (
+                    "종료되었거나 초기화되지 않은 UITK Output에는 Layer를 연결할 수 없습니다."
+                );
+            }
+
             if (layerRoot != null && !ReferenceEquals(layerRoot, value))
             {
                 throw new InvalidOperationException("UITK Presentation Output에는 Layer Root를 하나만 연결할 수 있습니다.");
@@ -318,6 +345,14 @@ namespace inonego.Xeri.UI
 
             layerRoot = value;
             AttachLayerToRoot();
+
+            if (!IsInitialized || !ReferenceEquals(layerRoot, value))
+            {
+                throw new InvalidOperationException
+                (
+                    "UITK Output의 Layer 연결 도중 출력 수명이 종료됐습니다."
+                );
+            }
         }
 
         // ------------------------------------------------------------
@@ -334,6 +369,12 @@ namespace inonego.Xeri.UI
 
             reloadRegistered = true;
             panelRenderer.RegisterUIReloadCallback(HandleUIReload);
+
+            // 등록 콜백 안에서 Output이 반환되면 미완료 Native 구독도 다시 회수한다.
+            if (!IsInitialized)
+            {
+                panelRenderer.UnregisterUIReloadCallback(HandleUIReload);
+            }
         }
 
         // ------------------------------------------------------------
@@ -343,7 +384,7 @@ namespace inonego.Xeri.UI
         // ------------------------------------------------------------
         private void HandleUIReload(PanelRenderer renderer, VisualElement value, int version)
         {
-            if (!ReferenceEquals(renderer, panelRenderer)) return;
+            if (!IsInitialized || !ReferenceEquals(renderer, panelRenderer)) return;
             if (!ReferenceEquals(root, value))
             {
                 RestoreRootStyle();
@@ -352,7 +393,7 @@ namespace inonego.Xeri.UI
 
             if (root == null)
             {
-                RootUpdated?.Invoke(null);
+                NotifyRootUpdated(null);
                 return;
             }
 
@@ -376,14 +417,104 @@ namespace inonego.Xeri.UI
             }
 
             AttachLayerToRoot();
-            RootUpdated?.Invoke(root);
+
+            if (!IsInitialized || !ReferenceEquals(root, value)) return;
+
+            NotifyRootUpdated(value);
+        }
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// Native Root 변경을 모든 구독자에 전달하고 오류를 수집한다.
+        /// </summary>
+        // ------------------------------------------------------------
+        private void NotifyRootUpdated(VisualElement value)
+        {
+            var handlers = RootUpdated;
+            if (handlers == null) return;
+
+            var errors = new ExceptionBuffer();
+
+            foreach (Action<VisualElement> handler in handlers.GetInvocationList())
+            {
+                // 이전 알림 중 Release·재연결되면 오래된 Root를 뒤 구독자에게 전달하지 않는다.
+                if (!ReferenceEquals(root, value)) break;
+
+                try
+                {
+                    handler(value);
+                }
+                catch (Exception exception)
+                {
+                    errors.Add(exception);
+                }
+            }
+
+            if (errors.Count == 1)
+            {
+                throw errors[0];
+            }
+
+            if (errors.Count > 1)
+            {
+                throw errors.CreateAggregateException
+                (
+                    "UITK Presentation Output Root 변경 알림이 실패했습니다."
+                );
+            }
         }
 
         private void AttachLayerToRoot()
         {
-            if (root == null || layerRoot == null || ReferenceEquals(layerRoot.parent, root)) return;
-            layerRoot.RemoveFromHierarchy();
-            root.Add(layerRoot);
+            while
+            (
+                IsInitialized &&
+                root != null &&
+                layerRoot != null &&
+                !ReferenceEquals(layerRoot.parent, root)
+            )
+            {
+                var destination = root;
+                var content = layerRoot;
+                content.RemoveFromHierarchy();
+
+                // 분리 callback이 Output을 반환하거나 Root를 교체했을 수 있다.
+                if
+                (
+                    !IsInitialized ||
+                    !ReferenceEquals(root, destination) ||
+                    !ReferenceEquals(layerRoot, content)
+                )
+                {
+                    continue;
+                }
+
+                destination.Add(content);
+
+                // 부착 callback에서 이미 반환된 콘텐츠를 남기지 않는다.
+                if
+                (
+                    !IsInitialized ||
+                    !ReferenceEquals(root, destination) ||
+                    !ReferenceEquals(layerRoot, content)
+                )
+                {
+                    if (destination.Contains(content))
+                    {
+                        content.RemoveFromHierarchy();
+                    }
+
+                    continue;
+                }
+
+                if (!ReferenceEquals(content.parent, destination))
+                {
+                    throw new InvalidOperationException
+                    (
+                        "UITK Output이 현재 Root에 Layer 콘텐츠를 부착하지 못했습니다."
+                    );
+                }
+            }
         }
 
         // ------------------------------------------------------------

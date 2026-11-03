@@ -541,7 +541,6 @@ namespace inonego.Xeri.UI
             }
             catch (Exception exception)
             {
-                children.Remove(child);
                 var cleanupErrors = child.DisposeFromParent();
 
                 if (cleanupErrors.Count == 0)
@@ -819,12 +818,7 @@ namespace inonego.Xeri.UI
         // ------------------------------------------------------------
         internal IReadOnlyList<Exception> DisposeFromRuntime()
         {
-            return Release
-            (
-                removeFromParent: false,
-                allowRoot: true,
-                restoreAuthority: false
-            );
+            return Release(restoreAuthority: false);
         }
 
         // ------------------------------------------------------------
@@ -834,12 +828,7 @@ namespace inonego.Xeri.UI
         // ------------------------------------------------------------
         private IReadOnlyList<Exception> DisposeFromParent()
         {
-            return Release
-            (
-                removeFromParent: false,
-                allowRoot: false,
-                restoreAuthority: true
-            );
+            return Release(restoreAuthority: true);
         }
 
         // ------------------------------------------------------------
@@ -847,31 +836,16 @@ namespace inonego.Xeri.UI
         /// 콘텐츠와 자식 상태를 반환하고 정리 실패를 모은다.
         /// </summary>
         // ------------------------------------------------------------
-        private IReadOnlyList<Exception> Release
-        (
-            bool removeFromParent,
-            bool allowRoot,
-            bool restoreAuthority
-        )
+        private IReadOnlyList<Exception> Release(bool restoreAuthority)
         {
             var errors = new ExceptionBuffer();
 
             if (IsDisposed || IsDisposing) return errors.AsReadOnlyList();
 
-            if (parent == null && !allowRoot)
-            {
-                throw new InvalidOperationException
-                (
-                    "Main UI Context는 UIRuntime.Shutdown으로만 종료할 수 있습니다."
-                );
-            }
-
             IsDisposing = true;
 
-            if (removeFromParent)
-            {
-                parent.children.Remove(this);
-            }
+            // 어떤 종료 진입점이든 부모의 소유 목록에서 먼저 분리한다.
+            parent?.children.Remove(this);
 
             try
             {
@@ -941,6 +915,10 @@ namespace inonego.Xeri.UI
         }
 
         // ------------------------------------------------------------
+        /// <summary>
+        /// Modal Controller의 소유 상태를 반환하고 실패를 수집한다.
+        /// </summary>
+        // ------------------------------------------------------------
         private static void DisposeModalController
         (
             ModalController controller,
@@ -957,6 +935,10 @@ namespace inonego.Xeri.UI
             }
         }
 
+        // ------------------------------------------------------------
+        /// <summary>
+        /// Screen Registry의 소유 상태를 반환하고 실패를 수집한다.
+        /// </summary>
         // ------------------------------------------------------------
         private static void DisposeScreenRegistry
         (
@@ -1012,12 +994,7 @@ namespace inonego.Xeri.UI
                 );
             }
 
-            var errors = Release
-            (
-                removeFromParent: true,
-                allowRoot: false,
-                restoreAuthority: true
-            );
+            var errors = Release(restoreAuthority: true);
 
             if (errors.Count > 0)
             {

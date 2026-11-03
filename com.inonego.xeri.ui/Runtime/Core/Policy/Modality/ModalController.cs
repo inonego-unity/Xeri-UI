@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : ModalController.cs
-수정일 : 2026-10-07
+수정일 : 2026-11-02
 # 설명
 Modality Policy Stack을 소유하고 상단 Session만 상호작용 가능하도록 backend 상태를 갱신한다.
 각 Session은 Presentation과 상호작용 backend를 분리하며, 선택적 Focus Override와 부가 lifetime은 Session이 함께 소유한다.

@@ -1,12 +1,12 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : TEST_InputAndFocus.cs
-수정일 : 2026-10-03
+수정일 : 2026-11-04
 
 # 설명
-UGUI Focus backend 유효성, persistent Focus record의 Primary/Override/Authority 복원과 Spotlight 요청 수명을 검증한다.
+UGUI Focus backend 유효성, 공통 Focus 선택과 Native 알림 재진입, persistent Focus 복원과 Spotlight 수명을 검증한다.
 
 # 테스트 구성
- F: UGUI backend Focus 유효성과 Layer 소유권
+ F: UGUI backend 유효성, 공통 Focus 선택·Native 알림과 Layer 소유권
  P: persistent Scope와 Primary LastFocus
  O: Override Stack, LastFocus와 activation 실패 rollback
  A: Context authority suspend/resume와 logical containment
@@ -166,6 +166,8 @@ namespace inonego.Xeri.UI.TEST.Core
         {
             public object Target { get; } = new object();
             public object CurrentValue { get; private set; } = null;
+            public Action<object> Selecting { get; set; }
+            public bool PublishOnSelect { get; set; } = false;
             public int SelectFailureCount { get; set; } = 0;
 
             public override object Current => CurrentValue;
@@ -182,7 +184,13 @@ namespace inonego.Xeri.UI.TEST.Core
 
             public override void Select(object target)
             {
+                Selecting?.Invoke(target);
                 CurrentValue = IsValid(target) ? target : null;
+
+                if (PublishOnSelect)
+                {
+                    NotifyFocusChanged();
+                }
 
                 if (SelectFailureCount <= 0) return;
 
@@ -199,6 +207,21 @@ namespace inonego.Xeri.UI.TEST.Core
             {
                 CurrentValue = IsValid(target) ? target : null;
                 NotifyFocusChanged();
+            }
+        }
+
+        // ============================================================
+        /// <summary>
+        /// EventSystem 선택 중 공통 Focus를 다시 요청한다.
+        /// </summary>
+        // ============================================================
+        private sealed class SelectReentryHandler : MonoBehaviour, ISelectHandler
+        {
+            public Action Selecting { get; set; }
+
+            public void OnSelect(BaseEventData eventData)
+            {
+                Selecting?.Invoke();
             }
         }
 
@@ -428,6 +451,89 @@ namespace inonego.Xeri.UI.TEST.Core
             Assert.IsNull(eventSystem.currentSelectedGameObject);
         }
 
+        // ------------------------------------------------------------
+        /// <summary>
+        /// Native 선택 중 최신 Focus 요청을 보류한다.
+        /// </summary>
+        // ------------------------------------------------------------
+        [TestCase(false)]
+        [TestCase(true)]
+        public void TEST_UIFocusDriver_EventSystem선택중재요청_최신Focus재적용(bool pollNativeFirst)
+        {
+            var host = new GameObject("UGUI Focus Reentry Host");
+            ownedObjects.Add(host);
+            var eventSystem = host.AddComponent<EventSystem>();
+            var native = host.AddComponent<UGUIFocusDriver>();
+            SetField(native, "eventSystem", eventSystem);
+            var focus = host.AddComponent<UIFocusDriver>();
+
+            var layerObject = new GameObject("UGUI Layer", typeof(RectTransform));
+            ownedObjects.Add(layerObject);
+            var first = CreateSelectable("First");
+            var second = CreateSelectable("Second");
+            var latest = CreateSelectable("Latest");
+            first.transform.SetParent(layerObject.transform, false);
+            second.transform.SetParent(layerObject.transform, false);
+            latest.transform.SetParent(layerObject.transform, false);
+            var layer = new UGUIPresentationLayer(layerObject.GetComponent<RectTransform>());
+
+            focus.Initialize();
+            using var registration = focus.BindLayer(layer);
+            var callback = first.AddComponent<SelectReentryHandler>();
+            var callbackCount = 0;
+            callback.Selecting = () =>
+            {
+                callbackCount++;
+                Assert.IsTrue(eventSystem.alreadySelecting);
+                focus.Select(second);
+                focus.Select(latest);
+            };
+
+            eventSystem.SetSelectedGameObject(first);
+            Assert.AreSame(first, eventSystem.currentSelectedGameObject);
+
+            var type = pollNativeFirst ? typeof(UGUIFocusDriver) : typeof(UIFocusDriver);
+            var observed = pollNativeFirst ? (object)native : focus;
+            var update = type.GetMethod
+            (
+                "LateUpdate",
+                BindingFlags.Instance | BindingFlags.NonPublic
+            );
+            Assert.IsNotNull(update);
+            update.Invoke(observed, null);
+
+            Assert.AreEqual(1, callbackCount);
+            Assert.AreSame(latest, eventSystem.currentSelectedGameObject);
+            Assert.AreSame(latest, focus.Current);
+        }
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// 서로 다른 Layer가 같은 Root를 공유해도 마지막 등록까지 소유한다.
+        /// </summary>
+        // ------------------------------------------------------------
+        [Test]
+        public void TEST_UGUIFocusDriver_공유Root등록_마지막Lease까지유지()
+        {
+            var host = new GameObject("Shared UGUI Focus Host");
+            ownedObjects.Add(host);
+            var backend = host.AddComponent<UGUIFocusDriver>();
+            var rootObject = new GameObject("Shared Root", typeof(RectTransform));
+            ownedObjects.Add(rootObject);
+            var root = rootObject.GetComponent<RectTransform>();
+            var target = CreateSelectable("Shared Focus");
+            target.transform.SetParent(root, false);
+
+            var first = backend.RegisterLayer(new UGUIPresentationLayer(root));
+            var second = backend.RegisterLayer(new UGUIPresentationLayer(root));
+
+            Assert.IsTrue(backend.IsValid(target));
+            first.Dispose();
+            Assert.IsTrue(backend.IsValid(target));
+            second.Dispose();
+            Assert.IsFalse(backend.IsValid(target));
+        }
+
     #endregion
 
     #region F-2: 레이어 바인딩 롤백
@@ -464,6 +570,35 @@ namespace inonego.Xeri.UI.TEST.Core
             Assert.AreEqual(0, first.RegistrationCount);
             Assert.AreEqual(0, second.RegistrationCount);
             Assert.AreEqual(0, third.RegistrationCount);
+        }
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// 동일 Layer의 중복 등록은 마지막 Lease를 반환할 때만 해제한다.
+        /// </summary>
+        // ------------------------------------------------------------
+        [TestCase(false)]
+        [TestCase(true)]
+        public void TEST_FocusDriverBehaviour_중복등록_마지막Lease까지소유(bool reverse)
+        {
+            var host = new GameObject("Focus Registration Host");
+            ownedObjects.Add(host);
+            var backend = host.AddComponent<LayerRegistrationFocusDriver>();
+            var layerObject = new GameObject("Layer", typeof(RectTransform));
+            ownedObjects.Add(layerObject);
+            var layer = new UGUIPresentationLayer(layerObject.GetComponent<RectTransform>());
+
+            var first = backend.RegisterLayer(layer);
+            var second = backend.RegisterLayer(layer);
+            Assert.AreEqual(1, backend.RegistrationCount);
+
+            (reverse ? second : first).Dispose();
+            Assert.AreEqual(1, backend.RegistrationCount);
+            (reverse ? first : second).Dispose();
+            Assert.AreEqual(0, backend.RegistrationCount);
+
+            using var restored = backend.RegisterLayer(layer);
+            Assert.AreEqual(1, backend.RegistrationCount);
         }
 
     #endregion
@@ -508,6 +643,303 @@ namespace inonego.Xeri.UI.TEST.Core
 
         // --------------------------------------------------------------------------------
         /// <summary>
+        /// <br/> 선택 중 새 Focus를 요청하면 이전 적용과 rollback이 최신 상태를 덮어쓰지 않는다.
+        /// <br/> Native 피드백이나 이전 적용 실패도 최신 명시적 선택을 지우지 않는다.
+        /// </summary>
+        // --------------------------------------------------------------------------------
+        [TestCase(false, false)]
+        [TestCase(true, false)]
+        [TestCase(false, true)]
+        [TestCase(true, true)]
+        public void TEST_UIFocusDriver_선택중재요청_최신Focus보존(bool failPrevious, bool publishNativeFeedback)
+        {
+            var host = new GameObject("Focus Host");
+            ownedObjects.Add(host);
+            var first = host.AddComponent<SelectionFocusDriver>();
+            var second = host.AddComponent<SelectionFocusDriver>();
+            var third = host.AddComponent<SelectionFocusDriver>();
+            var focus = host.AddComponent<UIFocusDriver>();
+            focus.Initialize();
+            focus.Select(first.Target);
+            var reentered = false;
+
+            second.Selecting = target =>
+            {
+                if (!ReferenceEquals(target, second.Target) || reentered) return;
+
+                reentered = true;
+                focus.Select(third.Target);
+            };
+            second.PublishOnSelect = publishNativeFeedback;
+            second.SelectFailureCount = failPrevious ? 1 : 0;
+
+            if (failPrevious)
+            {
+                Assert.Throws<InvalidOperationException>(() => focus.Select(second.Target));
+            }
+            else
+            {
+                Assert.DoesNotThrow(() => focus.Select(second.Target));
+            }
+
+            Assert.IsTrue(reentered);
+            Assert.AreSame(third.Target, focus.Current);
+            Assert.AreSame(third.Target, third.Current);
+            Assert.IsNull(first.Current);
+            Assert.IsNull(second.Current);
+        }
+
+        // ----------------------------------------------------------------------
+        /// <summary>
+        /// 이전 backend 정리 중 새 선택이 들어오면 오래된 목표를 적용하지 않는다.
+        /// </summary>
+        // ----------------------------------------------------------------------
+        [Test]
+        public void TEST_UIFocusDriver_Backend정리중재요청_이전목표적용중단()
+        {
+            var host = new GameObject("Focus Host");
+            ownedObjects.Add(host);
+            var first = host.AddComponent<SelectionFocusDriver>();
+            var second = host.AddComponent<SelectionFocusDriver>();
+            var third = host.AddComponent<SelectionFocusDriver>();
+            var focus = host.AddComponent<UIFocusDriver>();
+            focus.Initialize();
+            var reentered = false;
+
+            first.Selecting = target =>
+            {
+                if (target != null || reentered) return;
+
+                reentered = true;
+                focus.Select(third.Target);
+            };
+
+            focus.Select(second.Target);
+
+            Assert.IsTrue(reentered);
+            Assert.AreSame(third.Target, focus.Current);
+            Assert.AreSame(third.Target, third.Current);
+            Assert.IsNull(second.Current);
+        }
+
+        // --------------------------------------------------------------------------------
+        /// <summary>
+        /// Native 변경 처리 중 새 선택이 들어오면 이전 이벤트의 정리가 새 Focus를 지우지 않는다.
+        /// </summary>
+        // --------------------------------------------------------------------------------
+        [Test]
+        public void TEST_UIFocusDriver_Native정리중재요청_최신Focus유지()
+        {
+            var host = new GameObject("Focus Host");
+            ownedObjects.Add(host);
+            var first = host.AddComponent<SelectionFocusDriver>();
+            var second = host.AddComponent<SelectionFocusDriver>();
+            var third = host.AddComponent<SelectionFocusDriver>();
+            var focus = host.AddComponent<UIFocusDriver>();
+            focus.Initialize();
+            var reentered = false;
+
+            second.Selecting = target =>
+            {
+                if (target != null || reentered) return;
+
+                reentered = true;
+                focus.Select(third.Target);
+            };
+
+            first.Publish(first.Target);
+
+            Assert.IsTrue(reentered);
+            Assert.AreSame(third.Target, focus.Current);
+            Assert.AreSame(third.Target, third.Current);
+            Assert.IsNull(first.Current);
+            Assert.IsNull(second.Current);
+        }
+
+        // ----------------------------------------------------------------------
+        /// <summary>
+        /// Native callback 안에서 해제되면 뒤의 backend 선택을 실행하지 않는다.
+        /// </summary>
+        // ----------------------------------------------------------------------
+        [Test]
+        public void TEST_UIFocusDriver_선택중Release_후속Native적용중단()
+        {
+            var host = new GameObject("Focus Host");
+            ownedObjects.Add(host);
+            var first = host.AddComponent<SelectionFocusDriver>();
+            var second = host.AddComponent<SelectionFocusDriver>();
+            var focus = host.AddComponent<UIFocusDriver>();
+            focus.Initialize();
+
+            first.Selecting = target =>
+            {
+                if (target == null)
+                {
+                    focus.Release();
+                }
+            };
+
+            Assert.DoesNotThrow(() => focus.Select(second.Target));
+            Assert.IsNull(focus.Current);
+            Assert.IsNull(second.Current);
+            Assert.Throws<InvalidOperationException>(() => focus.Select(second.Target));
+
+            first.Selecting = null;
+            focus.Initialize();
+            focus.Select(second.Target);
+            Assert.AreSame(second.Target, focus.Current);
+        }
+
+        // ----------------------------------------------------------------------
+        /// <summary>
+        /// Backend 선택 실패와 해제가 겹쳐도 종료 뒤 이전 Focus를 복원하지 않는다.
+        /// </summary>
+        // ----------------------------------------------------------------------
+        [Test]
+        public void TEST_UIFocusDriver_선택실패중Release_이전Focus복원금지()
+        {
+            var host = new GameObject("Focus Host");
+            ownedObjects.Add(host);
+            var first = host.AddComponent<SelectionFocusDriver>();
+            var second = host.AddComponent<SelectionFocusDriver>();
+            var focus = host.AddComponent<UIFocusDriver>();
+            focus.Initialize();
+            focus.Select(first.Target);
+            second.SelectFailureCount = 1;
+
+            second.Selecting = target =>
+            {
+                if (ReferenceEquals(target, second.Target))
+                {
+                    focus.Release();
+                }
+            };
+
+            Assert.Throws<InvalidOperationException>(() => focus.Select(second.Target));
+            Assert.IsNull(focus.Current);
+            Assert.IsNull(first.Current);
+            Assert.Throws<InvalidOperationException>(() => focus.Select(first.Target));
+        }
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// <br/> Native observer가 Focus를 다시 바꾸면
+        /// <br/> 이후 observer는 새 Focus만 받는다.
+        /// </summary>
+        // ------------------------------------------------------------
+        [Test]
+        public void TEST_UIFocusDriver_NativeObserver재진입_오래된알림중단()
+        {
+            var host = new GameObject("Focus Host");
+            ownedObjects.Add(host);
+            var first = host.AddComponent<SelectionFocusDriver>();
+            var second = host.AddComponent<SelectionFocusDriver>();
+            var focus = host.AddComponent<UIFocusDriver>();
+            var received = new List<object>();
+            focus.Initialize();
+            focus.OnFocusChanged += target =>
+            {
+                if (ReferenceEquals(target, first.Target))
+                {
+                    second.Publish(second.Target);
+                }
+            };
+            focus.OnFocusChanged += target => received.Add(target);
+
+            first.Publish(first.Target);
+
+            Assert.AreEqual(1, received.Count);
+            Assert.AreSame(second.Target, received[0]);
+            Assert.AreSame(second.Target, focus.Current);
+            Assert.IsNull(first.Current);
+        }
+
+        // --------------------------------------------------------------------------------
+        /// <summary>
+        /// Native 정리 중 발생한 다른 Native Focus가 이전 정리와 알림에 덮어쓰이지 않는다.
+        /// </summary>
+        // --------------------------------------------------------------------------------
+        [Test]
+        public void TEST_UIFocusDriver_Native정리중Native변경_최신Focus유지()
+        {
+            var host = new GameObject("Focus Host");
+            ownedObjects.Add(host);
+            var first = host.AddComponent<SelectionFocusDriver>();
+            var second = host.AddComponent<SelectionFocusDriver>();
+            var third = host.AddComponent<SelectionFocusDriver>();
+            var focus = host.AddComponent<UIFocusDriver>();
+            object received = null;
+            var reentered = false;
+            focus.Initialize();
+            focus.OnFocusChanged += target => received = target;
+            second.Selecting = target =>
+            {
+                if (target != null || reentered) return;
+
+                reentered = true;
+                third.Publish(third.Target);
+            };
+
+            first.Publish(first.Target);
+
+            Assert.IsTrue(reentered);
+            Assert.AreSame(third.Target, focus.Current);
+            Assert.AreSame(third.Target, received);
+            Assert.IsNull(first.Current);
+            Assert.IsNull(second.Current);
+        }
+
+        // ----------------------------------------------------------------------
+        /// <summary>
+        /// Native Focus 알림 중 Release되면 남은 observer와 Native 처리를 중단한다.
+        /// </summary>
+        // ----------------------------------------------------------------------
+        [Test]
+        public void TEST_UIFocusDriver_NativeObserver중Release_후속알림중단()
+        {
+            var host = new GameObject("Focus Host");
+            ownedObjects.Add(host);
+            var native = host.AddComponent<SelectionFocusDriver>();
+            var focus = host.AddComponent<UIFocusDriver>();
+            var laterNotifications = 0;
+            focus.Initialize();
+            focus.OnFocusChanged += _ => focus.Release();
+            focus.OnFocusChanged += _ => laterNotifications++;
+
+            native.Publish(native.Target);
+
+            Assert.AreEqual(0, laterNotifications);
+            Assert.IsNull(focus.Current);
+            Assert.Throws<InvalidOperationException>(() => focus.Select(native.Target));
+        }
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// Native 알림 후 선택이 실패하면 이전 Focus를 복원한다.
+        /// </summary>
+        // ------------------------------------------------------------
+        [Test]
+        public void TEST_UIFocusDriver_선택실패중Native알림_이전Focus복원()
+        {
+            var host = new GameObject("Focus Host");
+            ownedObjects.Add(host);
+            var first = host.AddComponent<SelectionFocusDriver>();
+            var second = host.AddComponent<SelectionFocusDriver>();
+            var focus = host.AddComponent<UIFocusDriver>();
+            focus.Initialize();
+            focus.Select(first.Target);
+            second.PublishOnSelect = true;
+            second.SelectFailureCount = 1;
+
+            Assert.Throws<InvalidOperationException>(() => focus.Select(second.Target));
+
+            Assert.AreSame(first.Target, focus.Current);
+            Assert.AreSame(first.Target, first.Current);
+            Assert.IsNull(second.Current);
+        }
+
+        // --------------------------------------------------------------------------------
+        /// <summary>
         /// <br/> native Focus 변경 중 다른 backend clear 하나가 실패해도 나머지 backend와
         /// <br/> Runtime observer까지 처리한 뒤 실패를 전달한다.
         /// </summary>
@@ -543,6 +975,64 @@ namespace inonego.Xeri.UI.TEST.Core
             Assert.AreSame(second.Target, focus.Current);
             Assert.AreEqual(1, observerCount);
             Assert.AreSame(second.Target, observed);
+        }
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// Focus native 이벤트 구독은 초기화부터 명시적 해제까지만 유지한다.
+        /// </summary>
+        // ------------------------------------------------------------
+        [Test]
+        public void TEST_UIFocusDriver_초기화와Release_Native구독수명일치()
+        {
+            var host = new GameObject("Focus Host");
+            ownedObjects.Add(host);
+            var native = host.AddComponent<SelectionFocusDriver>();
+            var focus = host.AddComponent<UIFocusDriver>();
+            var notifications = 0;
+            focus.OnFocusChanged += _ => notifications++;
+
+            native.Publish(native.Target);
+            Assert.AreEqual(0, notifications);
+
+            focus.Initialize();
+            native.Publish(native.Target);
+            Assert.AreEqual(1, notifications);
+
+            focus.Release();
+            native.Publish(native.Target);
+
+            Assert.AreEqual(1, notifications);
+            Assert.IsNull(focus.Current);
+            Assert.Throws<InvalidOperationException>(() => focus.Select(native.Target));
+        }
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// backend 구성 검증이 실패하면 native 이벤트를 구독하지 않는다.
+        /// </summary>
+        // ------------------------------------------------------------
+        [Test]
+        public void TEST_UIFocusDriver_초기화검증실패_Native구독없음()
+        {
+            var host = new GameObject("Focus Host");
+            ownedObjects.Add(host);
+            var first = host.AddComponent<SelectionFocusDriver>();
+            var second = host.AddComponent<SelectionFocusDriver>();
+            var focus = host.AddComponent<UIFocusDriver>();
+            var notifications = 0;
+            focus.OnFocusChanged += _ => notifications++;
+            second.enabled = false;
+
+            Assert.Throws<InvalidOperationException>(focus.Initialize);
+            first.Publish(first.Target);
+            Assert.AreEqual(0, notifications);
+
+            second.enabled = true;
+            focus.Initialize();
+            first.Publish(first.Target);
+            Assert.AreEqual(1, notifications);
+            focus.Release();
         }
 
     #endregion

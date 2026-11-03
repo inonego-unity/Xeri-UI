@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : UITKScreenDriver.cs
-수정일 : 2026-09-19
+수정일 : 2026-11-02
 # 설명
 VisualElement Screen Root를 Presentation State와 Screen Interaction 계약에 연결한다.
 표현 상태는 UITKPresentation이, Focus 범위와 사용자 상호작용은 이 Driver가 담당한다.

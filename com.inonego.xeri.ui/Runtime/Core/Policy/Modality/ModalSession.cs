@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : ModalSession.cs
-수정일 : 2026-10-05
+수정일 : 2026-11-02
 # 설명
 한 Presentation에 적용된 Modality Policy의 Stack 등록과 소유 lifetime을 묶는다.
 Presentation 자체의 표현 상태와 Modal 상호작용 backend는 분리해 보관한다.

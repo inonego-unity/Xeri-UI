@@ -1,6 +1,6 @@
 ﻿/* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : UGUIPresentationSurface.cs
-수정일 : 2026-10-03
+수정일 : 2026-11-02
 
 # 설명
 Embedded UGUI Session이 부모 Canvas를 공유하면서 Plan Layer roots를 containment한다.

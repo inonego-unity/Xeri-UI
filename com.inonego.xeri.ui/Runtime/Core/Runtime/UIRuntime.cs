@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : UIRuntime.cs
-수정일 : 2026-10-21
+수정일 : 2026-11-04
 # 설명
 App 단위 Singleton, Root PresentationSession, PresentationHost, Main UIContext와 Context Authority 조립·역순 해제를 소유한다.
 Top-level Layer materialization과 semantic destination Layer 획득을 분리하며 Context lifetime과 Focus/Input authority를 독립적으로 관리한다.
@@ -165,8 +165,12 @@ namespace inonego.Xeri.UI
         private readonly List<UIContext> contextOverrides = new();
         private readonly List<UIContext> activeContextPath = new();
         private readonly List<UIContext> authorityCleanupContexts = new();
+        private readonly List<UIContext> nextContextPath = new();
+        private readonly List<UIContext> authorityCleanupCandidates = new();
 
         private UIContext baseContext = null;
+        private bool isRefreshingContextAuthority = false;
+        private bool contextAuthorityRefreshRequested = false;
         private bool sceneLoadedSubscribed = false;
 
     #endregion
@@ -982,6 +986,19 @@ namespace inonego.Xeri.UI
             ReleasePresentationHost(presentationHost, ref errors);
             DisposePresentationSession(rootPresentation, ref errors);
 
+            // 모든 Context와 Layer binding을 반환한 뒤 native Focus 구독을 해제한다.
+            if (focusDriver != null)
+            {
+                try
+                {
+                    focusDriver.Release();
+                }
+                catch (Exception exception)
+                {
+                    errors.Add(exception);
+                }
+            }
+
             Main = null;
             SceneFader = null;
             PresentationHost = null;
@@ -989,6 +1006,14 @@ namespace inonego.Xeri.UI
             contextOverrides.Clear();
             activeContextPath.Clear();
             authorityCleanupContexts.Clear();
+            // 권한 적용 콜백 안에서 Shutdown이 재진입했다면 작업 목록은
+            // 바깥 갱신이 종료될 때 정리해 진행 중인 순회를 변경하지 않는다.
+            if (!isRefreshingContextAuthority)
+            {
+                nextContextPath.Clear();
+                authorityCleanupCandidates.Clear();
+            }
+
             inputDriver = null;
             transitioner = null;
             Settings = null;
@@ -1089,7 +1114,11 @@ namespace inonego.Xeri.UI
             }
         }
 
-        // ----------------------------------------------------------------------
+        // ------------------------------------------------------------
+        /// <summary>
+        /// Presentation Host의 소유 상태를 반환하고 실패를 수집한다.
+        /// </summary>
+        // ------------------------------------------------------------
         private static void ReleasePresentationHost
         (
             PresentationHost host,
@@ -1108,7 +1137,11 @@ namespace inonego.Xeri.UI
             }
         }
 
-        // ----------------------------------------------------------------------
+        // ------------------------------------------------------------
+        /// <summary>
+        /// Scene Fader의 소유 상태를 반환하고 실패를 수집한다.
+        /// </summary>
+        // ------------------------------------------------------------
         private static void DisposeSceneFader
         (
             SceneFader sceneFader,
@@ -1127,7 +1160,11 @@ namespace inonego.Xeri.UI
             }
         }
 
-        // ----------------------------------------------------------------------
+        // ------------------------------------------------------------
+        /// <summary>
+        /// Presentation Session의 소유 상태를 반환하고 실패를 수집한다.
+        /// </summary>
+        // ------------------------------------------------------------
         private static void DisposePresentationSession
         (
             PresentationSession session,
@@ -1146,7 +1183,11 @@ namespace inonego.Xeri.UI
             }
         }
 
-        // ----------------------------------------------------------------------
+        // ------------------------------------------------------------
+        /// <summary>
+        /// 소유 자원의 해제를 시도하고 실패를 수집한다.
+        /// </summary>
+        // ------------------------------------------------------------
         private static void DisposeOwned
         (
             IDisposable owned,
@@ -1189,6 +1230,12 @@ namespace inonego.Xeri.UI
             }
             catch (Exception exception)
             {
+                // 콜백이 더 새로운 Base를 선택했다면 실패한 이전 요청만 보고한다.
+                if (!ReferenceEquals(baseContext, context))
+                {
+                    throw;
+                }
+
                 baseContext = previous;
 
                 try
@@ -1304,28 +1351,87 @@ namespace inonego.Xeri.UI
             return context != null && activeContextPath.Contains(context);
         }
 
+        // --------------------------------------------------------------------------------
+        /// <summary>
+        /// <br/> Context Authority 변경을 한 번에 하나씩 적용한다.
+        /// <br/> 적용 중 콜백이 topology를 바꾸면 중첩 실행 대신 최종 경로를 다시 계산한다.
+        /// </summary>
+        // --------------------------------------------------------------------------------
         internal void RefreshContextAuthority()
         {
+            contextAuthorityRefreshRequested = true;
+
+            if (isRefreshingContextAuthority) return;
+
+            isRefreshingContextAuthority = true;
             var errors = new ExceptionBuffer();
-            var nextPath = new List<UIContext>();
-            var effective = GetEffectiveContext();
-            effective?.AppendPathTo(nextPath);
-            var cursorContext = FindCursorPolicyContext(nextPath);
-            var cleanupCandidates = new List<UIContext>();
 
-            // 이전 논리 path와 과거 cleanup 실패 Context를 합쳐 stale authority 반환을 먼저 재시도한다.
-            AddUniqueContexts(cleanupCandidates, authorityCleanupContexts);
-            AddUniqueContexts(cleanupCandidates, activeContextPath);
-            authorityCleanupContexts.Clear();
-
-            for (var index = 0; index < cleanupCandidates.Count; index++)
+            try
             {
-                var context = cleanupCandidates[index];
-                if (context == null || nextPath.Contains(context)) continue;
+                while (contextAuthorityRefreshRequested && !IsReleased)
+                {
+                    contextAuthorityRefreshRequested = false;
+                    ApplyContextAuthority(ref errors);
+                }
+            }
+            finally
+            {
+                isRefreshingContextAuthority = false;
+
+                if (IsReleased)
+                {
+                    nextContextPath.Clear();
+                    authorityCleanupCandidates.Clear();
+                }
+            }
+
+            if (errors.Count == 0) return;
+
+            if (errors.Count == 1)
+            {
+                throw errors[0];
+            }
+
+            throw errors.CreateAggregateException
+            (
+                "UI Runtime Context authority 갱신 중 하나 이상의 적용이 실패했습니다."
+            );
+        }
+
+        // ----------------------------------------------------------------------
+        /// <summary>
+        /// <br/> 마지막으로 요청된 Context 경로를 계산하고 이전 권한을 먼저 반환한다.
+        /// <br/> 콜백이 topology를 변경했다면 오래된 경로의 적용을 중단한다.
+        /// </summary>
+        // ----------------------------------------------------------------------
+        private void ApplyContextAuthority(ref ExceptionBuffer errors)
+        {
+            nextContextPath.Clear();
+            var effective = GetEffectiveContext();
+            effective?.AppendPathTo(nextContextPath);
+            var cursorContext = FindCursorPolicyContext(nextContextPath);
+
+            // 실패했던 반환은 성공할 때까지 추적하고, 이전 논리 경로도 정리 대상으로 합친다.
+            authorityCleanupCandidates.Clear();
+            AddUniqueContexts(authorityCleanupCandidates, authorityCleanupContexts);
+            AddUniqueContexts(authorityCleanupCandidates, activeContextPath);
+
+            for (var index = 0; index < authorityCleanupCandidates.Count; index++)
+            {
+                if (contextAuthorityRefreshRequested || IsReleased) return;
+
+                var context = authorityCleanupCandidates[index];
+
+                if (nextContextPath.Contains(context))
+                {
+                    authorityCleanupContexts.Remove(context);
+                    continue;
+                }
 
                 try
                 {
                     context.SetAuthorityState(false, false, false);
+                    authorityCleanupContexts.Remove(context);
                 }
                 catch (Exception exception)
                 {
@@ -1333,17 +1439,28 @@ namespace inonego.Xeri.UI
 
                     if (!context.IsDisposed && !context.IsDisposing)
                     {
-                        authorityCleanupContexts.Add(context);
+                        if (!authorityCleanupContexts.Contains(context))
+                        {
+                            authorityCleanupContexts.Add(context);
+                        }
+                    }
+                    else
+                    {
+                        authorityCleanupContexts.Remove(context);
                     }
                 }
             }
 
-            // activeContextPath는 backend cleanup 성공 여부가 아니라 현재 논리 topology를 나타낸다.
+            if (contextAuthorityRefreshRequested || IsReleased) return;
+
+            // 논리 경로는 backend 반환의 성공 여부와 독립적으로 최신 topology를 기록한다.
             activeContextPath.Clear();
-            activeContextPath.AddRange(nextPath);
+            activeContextPath.AddRange(nextContextPath);
 
             for (var index = 0; index < activeContextPath.Count; index++)
             {
+                if (contextAuthorityRefreshRequested || IsReleased) return;
+
                 var context = activeContextPath[index];
 
                 try
@@ -1360,18 +1477,6 @@ namespace inonego.Xeri.UI
                     errors.Add(exception);
                 }
             }
-
-            if (errors.Count == 0) return;
-
-            if (errors.Count == 1)
-            {
-                throw errors[0];
-            }
-
-            throw errors.CreateAggregateException
-            (
-                "UI Runtime Context authority 갱신 중 하나 이상의 적용이 실패했습니다."
-            );
         }
 
         // ------------------------------------------------------------
@@ -1481,6 +1586,11 @@ namespace inonego.Xeri.UI
 
             GetEffectiveContext()?.HandleNativeFocusChanged(current);
         }
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// 초기화되지 않았거나 종료 중인 Runtime의 사용을 거부한다.
+        /// </summary>
         // ------------------------------------------------------------
         private void ThrowIfUnavailable()
         {

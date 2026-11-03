@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : UITKPresentationLayerHost.cs
-수정일 : 2026-10-28
+수정일 : 2026-11-02
 
 # 설명
 Scene-authored UITK Layer의 PanelRenderer output과 VisualElementReference ManagedRoot를 Presentation Layer로 제공한다.

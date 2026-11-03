@@ -54,6 +54,8 @@ namespace inonego.Xeri.UI
                 throw new ArgumentNullException(nameof(parent));
             }
 
+            ValidateTopLevel(plan, panelSettingsTemplate);
+
             switch (plan.Backend)
             {
                 case PresentationBackend.UGUI:
@@ -64,6 +66,41 @@ namespace inonego.Xeri.UI
 
                 default:
                     throw new ArgumentOutOfRangeException(nameof(plan.Backend));
+            }
+        }
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// 생성형 Backend가 필요로 하는 설정을 출력 생성 전에 검증한다.
+        /// </summary>
+        // ------------------------------------------------------------
+        internal static void ValidateTopLevel
+        (
+            PresentationPlanLayer plan,
+            PanelSettings panelSettingsTemplate
+        )
+        {
+            if (plan == null)
+            {
+                throw new ArgumentNullException(nameof(plan));
+            }
+
+            if (plan.Backend != PresentationBackend.UITK) return;
+
+            if (panelSettingsTemplate == null)
+            {
+                throw new InvalidOperationException
+                (
+                    $"UITK Layer '{plan.LayerID}'를 생성할 PanelSettings Template이 없습니다."
+                );
+            }
+
+            if (panelSettingsTemplate.themeStyleSheet == null)
+            {
+                throw new InvalidOperationException
+                (
+                    $"UITK Layer '{plan.LayerID}'의 PanelSettings Template에 ThemeStyleSheet이 없습니다."
+                );
             }
         }
 
@@ -94,22 +131,12 @@ namespace inonego.Xeri.UI
                 );
             }
 
-            var output = UnityEngine.Object.Instantiate(template, parent, false);
-            var gameObject = output.gameObject;
+            GameObject gameObject = null;
+            UGUIPresentationOutput output = null;
 
-            try
+            void ReleaseCreatedOutput()
             {
-                gameObject.name = $"Xeri UI Layer - {plan.LayerID}";
-                gameObject.SetActive(false);
-                output.Initialize(plan.LayerOrder);
-                var managedRoot = UGUIPresentationSurface.CreateRect
-                (
-                    $"Managed Root - {plan.LayerID}",
-                    output.Root
-                );
-                gameObject.SetActive(true);
-                var driver = new UGUIPresentationLayer(managedRoot);
-                release = () => ReleaseGeneratedOutput
+                ReleaseGeneratedOutput
                 (
                     gameObject,
                     () =>
@@ -120,23 +147,30 @@ namespace inonego.Xeri.UI
                         }
                     }
                 );
+            }
+
+            try
+            {
+                output = UnityEngine.Object.Instantiate(template, parent, false);
+                gameObject = output.gameObject;
+                gameObject.name = $"Xeri UI Layer - {plan.LayerID}";
+                gameObject.SetActive(false);
+                output.Initialize(plan.LayerOrder);
+                var managedRoot = UGUIPresentationSurface.CreateRect
+                (
+                    $"Managed Root - {plan.LayerID}",
+                    output.Root
+                );
+                gameObject.SetActive(true);
+                var driver = new UGUIPresentationLayer(managedRoot);
+                release = ReleaseCreatedOutput;
                 return driver;
             }
             catch (Exception exception)
             {
                 try
                 {
-                    ReleaseGeneratedOutput
-                    (
-                        gameObject,
-                        () =>
-                        {
-                            if (output != null)
-                            {
-                                output.ReleaseOutputState();
-                            }
-                        }
-                    );
+                    ReleaseCreatedOutput();
                 }
                 catch (Exception cleanupException)
                 {
@@ -169,22 +203,32 @@ namespace inonego.Xeri.UI
             out Action release
         )
         {
-            if (panelSettingsTemplate == null)
+            GameObject gameObject = null;
+            UITKPresentationOutput output = null;
+
+            void ReleaseCreatedOutput()
             {
-                throw new InvalidOperationException
+                ReleaseGeneratedOutput
                 (
-                    $"UITK Layer '{plan.LayerID}'를 materialize할 PanelSettings Template이 없습니다."
+                    gameObject,
+                    () =>
+                    {
+                        if (output != null)
+                        {
+                            output.ReleaseOutputState();
+                        }
+                    }
                 );
             }
 
-            var gameObject = new GameObject($"Xeri UI Layer - {plan.LayerID}");
-            gameObject.SetActive(false);
-            gameObject.transform.SetParent(parent, false);
-            gameObject.AddComponent<PanelRenderer>();
-            var output = gameObject.AddComponent<UITKPresentationOutput>();
-
             try
             {
+                gameObject = new GameObject($"Xeri UI Layer - {plan.LayerID}");
+                gameObject.SetActive(false);
+                gameObject.transform.SetParent(parent, false);
+                gameObject.AddComponent<PanelRenderer>();
+                output = gameObject.AddComponent<UITKPresentationOutput>();
+
                 var layerRoot = UITKPresentationSurface.CreateRoot
                 (
                     $"xeri-layer-{plan.LayerID}"
@@ -198,34 +242,14 @@ namespace inonego.Xeri.UI
                 output.AttachLayerRoot(layerRoot);
                 gameObject.SetActive(true);
                 var driver = new UITKPresentationLayer(managedRoot);
-                release = () => ReleaseGeneratedOutput
-                (
-                    gameObject,
-                    () =>
-                    {
-                        if (output != null)
-                        {
-                            output.ReleaseOutputState();
-                        }
-                    }
-                );
+                release = ReleaseCreatedOutput;
                 return driver;
             }
             catch (Exception exception)
             {
                 try
                 {
-                    ReleaseGeneratedOutput
-                    (
-                        gameObject,
-                        () =>
-                        {
-                            if (output != null)
-                            {
-                                output.ReleaseOutputState();
-                            }
-                        }
-                    );
+                    ReleaseCreatedOutput();
                 }
                 catch (Exception cleanupException)
                 {

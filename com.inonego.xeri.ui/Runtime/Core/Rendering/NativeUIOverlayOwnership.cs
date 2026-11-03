@@ -1,6 +1,6 @@
 ﻿/* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : NativeUIOverlayOwnership.cs
-수정일 : 2026-10-18
+수정일 : 2026-11-02
 
 # 설명
 중복 SRP Feature가 공유하는 Unity Native UI Overlay 소유권 경계.

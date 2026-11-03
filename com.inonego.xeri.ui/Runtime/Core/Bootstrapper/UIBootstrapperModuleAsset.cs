@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : UIBootstrapperModuleAsset.cs
-수정일 : 2026-10-04
+수정일 : 2026-11-02
 # 설명
 Initial Scene 확정 뒤 App 단위 UI Host를 조립하고 Unity native UI output으로 초기화한다.
 Application startup policy는 Host 내부의 프로젝트 composition에 위임한다.

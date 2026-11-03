@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : UGUISafeAreaLayout.cs
-수정일 : 2026-10-03
+수정일 : 2026-11-05
 # 설명
 화면 크기와 Safe Area 변경을 감지해 명시적으로 연결된 RectTransform 경계를 갱신한다.
 ========================================================================= BLOCK_HEADER_END */
@@ -93,6 +93,8 @@ namespace inonego.Xeri.UI
         // --------------------------------------------------------------------------------
         private void NotifyLayoutChanged()
         {
+            if (isDisposed) return;
+
             var handlers = OnLayoutChanged;
             if (handlers == null) return;
 
@@ -100,6 +102,9 @@ namespace inonego.Xeri.UI
 
             foreach (Action handler in handlers.GetInvocationList())
             {
+                // 해제되면 기존 delegate snapshot의 나머지 알림도 중단한다.
+                if (isDisposed) break;
+
                 try
                 {
                     handler.Invoke();
@@ -172,8 +177,8 @@ namespace inonego.Xeri.UI
         {
             if (isDisposed) return;
 
-            OnLayoutChanged = null;
             isDisposed = true;
+            OnLayoutChanged = null;
             enabled = false;
         }
 

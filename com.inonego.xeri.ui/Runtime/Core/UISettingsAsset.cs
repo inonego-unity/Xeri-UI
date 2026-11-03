@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : UISettingsAsset.cs
-수정일 : 2026-10-19
+수정일 : 2026-11-02
 # 설명
 UI Runtime의 기본 PresentationLayout, app-wide Presentation destination, backend capability와 Input System 공통 설정을 정의한다.
 고정밀 출력과 후처리 참여 시점을 URP/HDRP 통합부에 제공한다.
@@ -206,11 +206,7 @@ namespace inonego.Xeri.UI
                 throw new InvalidOperationException("UI 기본 Presentation Layout이 설정되지 않았습니다.");
             }
 
-            if (uitkPanelSettingsTemplate == null)
-            {
-                throw new InvalidOperationException("UITK PanelSettings Template이 설정되지 않았습니다.");
-            }
-
+            // 생성형 출력의 Backend별 필수 자산은 실제 Layer Plan과 Host 구성이 확정된 뒤 검증한다.
             ValidatePresentationComposition();
 
             if (!Enum.IsDefined(typeof(UIPresentationPostProcessing), uiPostProcessing))

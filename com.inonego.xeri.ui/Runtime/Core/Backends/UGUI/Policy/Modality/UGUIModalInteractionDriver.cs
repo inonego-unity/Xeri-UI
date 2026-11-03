@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : UGUIModalInteractionDriver.cs
-수정일 : 2026-09-17
+수정일 : 2026-11-02
 # 설명
 Modality Policy의 Stack 상단 여부를 UGUI CanvasGroup 상호작용 상태에 적용한다.
 Dim 같은 시각 표현은 별도 Presentation으로 구성하고 이 Driver가 소유하지 않는다.

@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : IScreenDriver.cs
-수정일 : 2026-09-19
+수정일 : 2026-11-02
 # 설명
 Screen Navigation Policy가 사용하는 Presentation과 Interaction backend 계약을 정의한다.
 표현 상태와 상호작용 계약은 분리하되 실제 backend는 두 계약을 함께 구현할 수 있다.

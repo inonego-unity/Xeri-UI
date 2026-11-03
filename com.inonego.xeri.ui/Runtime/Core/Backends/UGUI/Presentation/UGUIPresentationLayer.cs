@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : UGUIPresentationLayer.cs
-수정일 : 2026-09-22
+수정일 : 2026-11-02
 
 # 설명
 UGUI Presentation Layer의 RectTransform View 배치 Root와 논리 활성 상태를 제공한다.
