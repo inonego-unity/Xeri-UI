@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : XeriWindowTitleBarManipulator.cs
-수정일 : 2026-10-28
+수정일 : 2026-11-02
 
 # 설명
 XeriWindowPanel titlebar drag와 double click 상태 전환을 처리하는 wrapper manipulator.
@@ -28,7 +28,7 @@ namespace inonego.Xeri.UI.Window
     public sealed class XeriWindowTitleBarManipulator
     {
 
-    #region 드래그와 클릭 상태
+    #region 필드
 
         private readonly XeriWindowPanel panel = null;
         private readonly XeriWindowController controller = null;
@@ -67,7 +67,7 @@ namespace inonego.Xeri.UI.Window
             XeriWindowPanel panel,
             XeriWindowController controller,
             DragDropCoordinator coordinator = null
-        ) : base()
+        )
         {
             this.panel = panel ?? throw new System.ArgumentNullException(nameof(panel));
             this.controller = controller ?? throw new System.ArgumentNullException(nameof(controller));
@@ -82,7 +82,7 @@ namespace inonego.Xeri.UI.Window
 
     #endregion
 
-    #region 메서드
+    #region 콜백 연결과 해제
 
         // ------------------------------------------------------------
         /// <summary>
@@ -122,10 +122,6 @@ namespace inonego.Xeri.UI.Window
             ResetTitleBarClickState();
             ThrowErrors("Window titlebar callback 해제", errors);
         }
-
-    #endregion
-
-    #region 내부 바인딩
 
         // ------------------------------------------------------------
         /// <summary>
@@ -185,9 +181,30 @@ namespace inonego.Xeri.UI.Window
             }
         }
 
+        // ----------------------------------------------------------------------
+        /// <summary>
+        /// 수집한 Titlebar 처리 오류를 원래 예외 또는 AggregateException으로 전달한다.
+        /// </summary>
+        // ----------------------------------------------------------------------
+        private static void ThrowErrors
+        (
+            string message,
+            ExceptionBuffer errors
+        )
+        {
+            if (errors.Count == 0) return;
+
+            if (errors.Count == 1)
+            {
+                throw errors[0];
+            }
+
+            throw errors.CreateAggregateException(message);
+        }
+
     #endregion
 
-    #region 이벤트 핸들러
+    #region 드래그 이동
 
         // ------------------------------------------------------------
         /// <summary>
@@ -258,7 +275,6 @@ namespace inonego.Xeri.UI.Window
                     new XeriWindowStateCommandRequest
                     (
                         XeriWindowStateCommandKind.ShowNormal,
-                        XeriWindowCommandSource.TitleBar,
                         new Rect(restoredPos, controller.Driver.Size),
                         false
                     )
@@ -288,6 +304,64 @@ namespace inonego.Xeri.UI.Window
             beginWindowPos = controller.Driver.Pos - delta;
             ThrowErrors("Titlebar drag 상태 복원", errors);
         }
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// Maximized 상태에서 window가 차지하는 부모 영역 크기를 구한다.
+        /// </summary>
+        // ------------------------------------------------------------
+        private Vector2 GetMaximizedSize()
+        {
+            var parent = panel.parent;
+            var fallback = panel.worldBound.size;
+
+            if (fallback.x <= 0f)
+            {
+                fallback.x = controller.Driver.Size.x;
+            }
+
+            if (fallback.y <= 0f)
+            {
+                fallback.y = controller.Driver.Size.y;
+            }
+
+            if (parent == null) return fallback;
+
+            var parentWidth = XeriWindowMaximizedDragCalculator.ResolvePositive
+            (
+                parent.resolvedStyle.width,
+                fallback.x
+            );
+            var parentHeight = XeriWindowMaximizedDragCalculator.ResolvePositive
+            (
+                parent.resolvedStyle.height,
+                fallback.y
+            );
+
+            return new Vector2
+            (
+                parentWidth,
+                parentHeight
+            );
+        }
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// Titlebar 높이를 구한다.
+        /// </summary>
+        // ------------------------------------------------------------
+        private float GetTitleBarHeight()
+        {
+            return XeriWindowMaximizedDragCalculator.ResolvePositive
+            (
+                panel.TitleBar.resolvedStyle.height,
+                DEFAULT_TITLE_BAR_HEIGHT
+            );
+        }
+
+    #endregion
+
+    #region 더블클릭 입력과 판별
 
         // ------------------------------------------------------------
         /// <summary>
@@ -349,15 +423,10 @@ namespace inonego.Xeri.UI.Window
             (
                 new XeriWindowStateCommandRequest
                 (
-                    kind,
-                    XeriWindowCommandSource.TitleBar
+                    kind
                 )
             );
         }
-
-    #endregion
-
-    #region 내부 메서드
 
         // ------------------------------------------------------------
         /// <summary>
@@ -460,81 +529,6 @@ namespace inonego.Xeri.UI.Window
         {
             hasPendingTitleBarClick = false;
             ClearTitleBarClick();
-        }
-
-        // ----------------------------------------------------------------------
-        /// <summary>
-        /// 수집한 Titlebar 처리 오류를 원래 예외 또는 AggregateException으로 전달한다.
-        /// </summary>
-        // ----------------------------------------------------------------------
-        private static void ThrowErrors
-        (
-            string message,
-            ExceptionBuffer errors
-        )
-        {
-            if (errors.Count == 0) return;
-
-            if (errors.Count == 1)
-            {
-                throw errors[0];
-            }
-
-            throw errors.CreateAggregateException(message);
-        }
-
-        // ------------------------------------------------------------
-        /// <summary>
-        /// Maximized 상태에서 window가 차지하는 부모 영역 크기를 구한다.
-        /// </summary>
-        // ------------------------------------------------------------
-        private Vector2 GetMaximizedSize()
-        {
-            var parent = panel.parent;
-            var fallback = panel.worldBound.size;
-
-            if (fallback.x <= 0f)
-            {
-                fallback.x = controller.Driver.Size.x;
-            }
-
-            if (fallback.y <= 0f)
-            {
-                fallback.y = controller.Driver.Size.y;
-            }
-
-            if (parent == null) return fallback;
-
-            var parentWidth = XeriWindowMaximizedDragCalculator.ResolvePositive
-            (
-                parent.resolvedStyle.width,
-                fallback.x
-            );
-            var parentHeight = XeriWindowMaximizedDragCalculator.ResolvePositive
-            (
-                parent.resolvedStyle.height,
-                fallback.y
-            );
-
-            return new Vector2
-            (
-                parentWidth,
-                parentHeight
-            );
-        }
-
-        // ------------------------------------------------------------
-        /// <summary>
-        /// Titlebar 높이를 구한다.
-        /// </summary>
-        // ------------------------------------------------------------
-        private float GetTitleBarHeight()
-        {
-            return XeriWindowMaximizedDragCalculator.ResolvePositive
-            (
-                panel.TitleBar.resolvedStyle.height,
-                DEFAULT_TITLE_BAR_HEIGHT
-            );
         }
 
     #endregion

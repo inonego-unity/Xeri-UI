@@ -350,12 +350,14 @@ namespace inonego.Xeri.UI.TEST.Window
             );
 
             focusController.Initialize();
+            // Input Driver는 비활성 Host에서 초기화될 수 없으므로 조립 후 Host를 활성화한다.
+            runtimeHost.SetActive(true);
             inputDriver.Initialize(inputModule, settings);
             transitioner = new DOTweenPresentationTransitioner();
             XeriWindowWorkspaceTestSupport.SetField(runtime, "transitioner", transitioner);
             XeriWindowWorkspaceTestSupport.SetField(runtime, "focusDriver", focusController);
             XeriWindowWorkspaceTestSupport.SetField(runtime, "inputDriver", inputDriver);
-            XeriWindowWorkspaceTestSupport.SetProperty(runtime, nameof(UIRuntime.IsInitialized), true);
+            XeriWindowWorkspaceTestSupport.SetRuntimeState(runtime, "Initialized");
 
             presentationRoot = new GameObject("TEST Presentation Root");
             panelSettings = ScriptableObject.CreateInstance<PanelSettings>();
@@ -463,8 +465,7 @@ namespace inonego.Xeri.UI.TEST.Window
             {
                 XeriWindowWorkspaceTestSupport.SetProperty(runtime, nameof(UIRuntime.Main), null);
                 XeriWindowWorkspaceTestSupport.SetProperty(runtime, nameof(UIRuntime.RootPresentation), null);
-                XeriWindowWorkspaceTestSupport.SetProperty(runtime, nameof(UIRuntime.IsInitialized), false);
-                XeriWindowWorkspaceTestSupport.SetProperty(runtime, nameof(UIRuntime.IsReleased), true);
+                XeriWindowWorkspaceTestSupport.SetRuntimeState(runtime, "Released");
             }
 
             if (settings != null)
@@ -561,6 +562,21 @@ namespace inonego.Xeri.UI.TEST.Window
                 BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic
             );
             property.SetValue(target, value);
+        }
+
+        // ----------------------------------------------------------------------
+        /// <summary>
+        /// 조립을 우회하는 Workspace 테스트 Runtime의 내부 수명 상태를 설정한다.
+        /// </summary>
+        // ----------------------------------------------------------------------
+        internal static void SetRuntimeState(UIRuntime runtime, string state)
+        {
+            var field = typeof(UIRuntime).GetField
+            (
+                "state",
+                BindingFlags.Instance | BindingFlags.NonPublic
+            );
+            field.SetValue(runtime, Enum.Parse(field.FieldType, state));
         }
 
         internal static XeriWindowSession OpenWindow

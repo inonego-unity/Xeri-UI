@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : UGUISpotlightGraphic.cs
-수정일 : 2026-09-17
+수정일 : 2026-11-06
 # 설명
 UGUI dim 영역을 여러 Spotlight 구멍으로 분할 렌더링하고 구멍 바깥 Raycast만 차단한다.
 ========================================================================= BLOCK_HEADER_END */
@@ -35,11 +35,10 @@ namespace inonego.Xeri.UI
         private readonly List<Rect> holes = new List<Rect>();
         private readonly List<float> xCoordinates = new List<float>();
         private readonly List<float> yCoordinates = new List<float>();
-        private bool blocksOutsideInput = false;
 
     #endregion
 
-    #region 메서드
+    #region 구멍 및 Raycast 상태
 
         // ------------------------------------------------------------
         /// <summary>
@@ -52,19 +51,33 @@ namespace inonego.Xeri.UI
             bool blocksOutsideInput
         )
         {
-            holes.Clear();
+            var count = nextHoles?.Count ?? 0;
+            var geometryChanged = holes.Count != count;
+            var nextRaycastTarget = count > 0 && blocksOutsideInput;
 
-            if (nextHoles != null)
+            for (var i = 0; !geometryChanged && i < count; i++)
             {
-                for (var i = 0; i < nextHoles.Count; i++)
+                geometryChanged = holes[i] != nextHoles[i];
+            }
+
+            if (!geometryChanged && raycastTarget == nextRaycastTarget)
+            {
+                return;
+            }
+
+            if (geometryChanged)
+            {
+                holes.Clear();
+
+                for (var i = 0; i < count; i++)
                 {
                     holes.Add(nextHoles[i]);
                 }
+
+                SetVerticesDirty();
             }
 
-            this.blocksOutsideInput = blocksOutsideInput;
-            raycastTarget = blocksOutsideInput;
-            SetVerticesDirty();
+            raycastTarget = nextRaycastTarget;
         }
 
         // ------------------------------------------------------------
@@ -74,10 +87,16 @@ namespace inonego.Xeri.UI
         // ------------------------------------------------------------
         public void ClearHoles()
         {
+            var hadHoles = holes.Count > 0;
+            if (!hadHoles && !raycastTarget) return;
+
             holes.Clear();
-            blocksOutsideInput = false;
             raycastTarget = false;
-            SetVerticesDirty();
+
+            if (hadHoles)
+            {
+                SetVerticesDirty();
+            }
         }
 
         // ------------------------------------------------------------
@@ -91,7 +110,7 @@ namespace inonego.Xeri.UI
             Camera eventCamera
         )
         {
-            if (!blocksOutsideInput) return false;
+            if (!raycastTarget || holes.Count == 0) return false;
 
             if
             (
@@ -110,6 +129,10 @@ namespace inonego.Xeri.UI
             return !Contains(localPoint);
         }
 
+    #endregion
+
+    #region Dim 메시 생성
+
         // ----------------------------------------------------------------------
         /// <summary>
         /// 전체 Rect를 구멍 경계 Grid로 나누고 구멍 밖 Cell만 Quad로 생성한다.
@@ -118,6 +141,7 @@ namespace inonego.Xeri.UI
         protected override void OnPopulateMesh(VertexHelper vertexHelper)
         {
             vertexHelper.Clear();
+            if (holes.Count == 0) return;
 
             var bounds = rectTransform.rect;
             BuildCoordinates(bounds);

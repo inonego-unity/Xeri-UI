@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : TEST_XeriWindowRegistry.cs
-수정일 : 2026-10-05
+수정일 : 2026-11-02
 
 # 설명
 Xeri 커스텀 윈도우 registry 테스트.
@@ -148,6 +148,33 @@ namespace inonego.Xeri.UI.TEST.Window
                     CreateController()
                 )
             );
+        }
+
+        // ----------------------------------------------------------------------
+        /// <summary>
+        /// 동일 Controller를 다른 ID로 재등록할 수 없으며 해제 후 재등록은 가능하다.
+        /// </summary>
+        // ----------------------------------------------------------------------
+        [Test]
+        public void TEST_XeriWindowRegistry_Register_동일Controller_중복거부()
+        {
+            var registry = new XeriWindowRegistry();
+            var controller = CreateController();
+            var first = registry.Register("first", controller);
+
+            Assert.Throws<InvalidOperationException>
+            (
+                () => registry.Register("second", controller)
+            );
+
+            Assert.AreEqual(1, registry.Records.Count);
+            Assert.IsTrue(registry.Contains(first));
+            Assert.IsFalse(registry.TryGetHandle("second", out _));
+
+            Assert.IsTrue(registry.Unregister(first));
+            var second = registry.Register("second", controller);
+
+            Assert.IsTrue(registry.Contains(second));
         }
 
     #endregion

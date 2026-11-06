@@ -1,9 +1,11 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : UIRuntime.cs
-수정일 : 2026-11-04
+수정일 : 2026-11-07
 # 설명
 App 단위 Singleton, Root PresentationSession, PresentationHost, Main UIContext와 Context Authority 조립·역순 해제를 소유한다.
 Top-level Layer materialization과 semantic destination Layer 획득을 분리하며 Context lifetime과 Focus/Input authority를 독립적으로 관리한다.
+이전 Context 권한 반환 실패 시 소유권 인계를 보류하고, 실제 Focus 권한을 보유한 활성 Context에만 이벤트를 전달한다.
+부분 활성화 실패 시 반환 대상을 고정하고, 입력 정책 Batch 중 막힌 권한 복원을 정책 안정화 이후 재시도한다.
 ========================================================================= BLOCK_HEADER_END */
 
 using System;
@@ -29,6 +31,12 @@ namespace inonego.Xeri.UI
     public sealed class UIRuntime : MonoSingleton<UIRuntime>
     {
 
+    #region 내부 데이터
+
+        private enum State { Created, Initialized, Releasing, Released }
+
+    #endregion
+
     #region 필드
 
         // ------------------------------------------------------------
@@ -36,21 +44,22 @@ namespace inonego.Xeri.UI
         /// Runtime 초기화가 완료됐는지 여부.
         /// </summary>
         // ------------------------------------------------------------
-        public bool IsInitialized { get; private set; }
+        public bool IsInitialized => state == State.Initialized;
 
         // ------------------------------------------------------------
         /// <summary>
         /// Runtime이 해제 중인지 여부.
         /// </summary>
         // ------------------------------------------------------------
-        public bool IsReleasing { get; private set; }
+        public bool IsReleasing => state == State.Releasing;
 
         // ------------------------------------------------------------
         /// <summary>
         /// Runtime Core 해제가 완료됐는지 여부.
         /// </summary>
         // ------------------------------------------------------------
-        public bool IsReleased { get; private set; }
+        public bool IsReleased => state == State.Released;
+        private State state = State.Created;
 
         // ------------------------------------------------------------
         /// <summary>
@@ -171,6 +180,7 @@ namespace inonego.Xeri.UI
         private UIContext baseContext = null;
         private bool isRefreshingContextAuthority = false;
         private bool contextAuthorityRefreshRequested = false;
+        private bool contextAuthorityRecoveryPending = false;
         private bool sceneLoadedSubscribed = false;
 
     #endregion
@@ -319,6 +329,7 @@ namespace inonego.Xeri.UI
 
                 transitioner = new DOTweenPresentationTransitioner();
                 inputDriver.Initialize(inputModule, settings);
+                inputDriver.OnPolicySettled += HandleInputPolicySettled;
                 focusDriver.Initialize();
                 focusDriver.OnFocusChanged += HandleFocusChanged;
                 sceneFadeSource.Initialize();
@@ -360,7 +371,7 @@ namespace inonego.Xeri.UI
                     inputDriver
                 );
                 baseContext = Main;
-                IsInitialized = true;
+                state = State.Initialized;
                 RefreshContextAuthority();
                 coreReady = true;
                 SubscribeSceneValidation();
@@ -394,7 +405,7 @@ namespace inonego.Xeri.UI
             }
             catch (Exception exception)
             {
-                IsInitialized = false;
+                // 완료 콜백에서 이미 종료됐다면 Released 상태를 다시 변경하지 않는다.
                 var cleanupErrors = Release(coreReady);
 
                 if (cleanupErrors.Count == 0)
@@ -563,7 +574,7 @@ namespace inonego.Xeri.UI
                 );
             }
 
-            if (inputDriver == null || !inputDriver.enabled)
+            if (inputDriver == null || !inputDriver.isActiveAndEnabled)
             {
                 throw new InvalidOperationException("활성 Input System Screen Input Driver가 연결되지 않았습니다.");
             }
@@ -857,7 +868,7 @@ namespace inonego.Xeri.UI
             LoadSceneMode mode
         )
         {
-            if (!IsInitialized || IsReleasing || IsReleased) return;
+            if (!IsInitialized) return;
 
             try
             {
@@ -945,8 +956,7 @@ namespace inonego.Xeri.UI
                 return errors.AsReadOnlyList();
             }
 
-            IsInitialized = false;
-            IsReleasing = true;
+            state = State.Releasing;
             UIPresentationOutputPolicy.Unbind(Settings);
             Unregister(this);
             var main = Main;
@@ -963,6 +973,11 @@ namespace inonego.Xeri.UI
             if (focusDriver != null)
             {
                 focusDriver.OnFocusChanged -= HandleFocusChanged;
+            }
+
+            if (input != null)
+            {
+                input.OnPolicySettled -= HandleInputPolicySettled;
             }
 
             if (main != null)
@@ -1006,6 +1021,7 @@ namespace inonego.Xeri.UI
             contextOverrides.Clear();
             activeContextPath.Clear();
             authorityCleanupContexts.Clear();
+            contextAuthorityRecoveryPending = false;
             // 권한 적용 콜백 안에서 Shutdown이 재진입했다면 작업 목록은
             // 바깥 갱신이 종료될 때 정리해 진행 중인 순회를 변경하지 않는다.
             if (!isRefreshingContextAuthority)
@@ -1025,8 +1041,7 @@ namespace inonego.Xeri.UI
                 RootPresentation = null;
             }
 
-            IsReleasing = false;
-            IsReleased = true;
+            state = State.Released;
             return errors.AsReadOnlyList();
         }
 
@@ -1208,7 +1223,7 @@ namespace inonego.Xeri.UI
 
     #endregion
 
-    #region 컨텍스트 권한과 입력 정책
+    #region 컨텍스트 권한 선택과 해제
 
         // ------------------------------------------------------------
         /// <summary>
@@ -1343,12 +1358,29 @@ namespace inonego.Xeri.UI
 
         internal bool IsEffectiveContext(UIContext context)
         {
-            return ReferenceEquals(GetEffectiveContext(), context);
+            return context != null && ReferenceEquals(GetActiveContext(), context);
         }
 
         internal bool IsContextOnActivePath(UIContext context)
         {
             return context != null && activeContextPath.Contains(context);
+        }
+
+    #endregion
+
+    #region 컨텍스트 권한 적용과 복구
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// 입력 정책이 안정화되면 중단됐던 Context 권한 복원을 재시도한다.
+        /// </summary>
+        // ------------------------------------------------------------
+        private void HandleInputPolicySettled()
+        {
+            if (!contextAuthorityRecoveryPending || !IsInitialized) return;
+
+            contextAuthorityRecoveryPending = false;
+            RefreshContextAuthority();
         }
 
         // --------------------------------------------------------------------------------
@@ -1407,9 +1439,26 @@ namespace inonego.Xeri.UI
         private void ApplyContextAuthority(ref ExceptionBuffer errors)
         {
             nextContextPath.Clear();
-            var effective = GetEffectiveContext();
+            var effective = GetRequestedAuthorityContext();
             effective?.AppendPathTo(nextContextPath);
             var cursorContext = FindCursorPolicyContext(nextContextPath);
+
+            // 새 경로의 입력 기여가 적용 불가능하다면 기존 경로의 권한을 먼저 반환하지 않는다.
+            // 최종 실제 적용에서도 검사를 반복해 외부 callback이 만든 상태 변화를 검증한다.
+            for (var index = 0; index < nextContextPath.Count; index++)
+            {
+                if (contextAuthorityRefreshRequested || IsReleased) return;
+
+                try
+                {
+                    nextContextPath[index].ValidateInputAuthorityActivation();
+                }
+                catch (Exception exception)
+                {
+                    errors.Add(exception);
+                    return;
+                }
+            }
 
             // 실패했던 반환은 성공할 때까지 추적하고, 이전 논리 경로도 정리 대상으로 합친다.
             authorityCleanupCandidates.Clear();
@@ -1453,7 +1502,10 @@ namespace inonego.Xeri.UI
 
             if (contextAuthorityRefreshRequested || IsReleased) return;
 
-            // 논리 경로는 backend 반환의 성공 여부와 독립적으로 최신 topology를 기록한다.
+            // 이전 Context의 권한 반환이 완료되기 전에는 다음 경로에 입력·Focus
+            // 소유권을 부여하지 않는다. 실패한 반환은 다음 Refresh에서 먼저 재시도한다.
+            if (authorityCleanupContexts.Count > 0) return;
+
             activeContextPath.Clear();
             activeContextPath.AddRange(nextContextPath);
 
@@ -1475,8 +1527,57 @@ namespace inonego.Xeri.UI
                 catch (Exception exception)
                 {
                     errors.Add(exception);
+
+                    // 적용 중 열린 Batch는 지금 롤백까지 막을 수 있으므로 안정화 뒤에 복구한다.
+                    if (inputDriver != null && inputDriver.IsPolicyDeferred)
+                    {
+                        contextAuthorityRecoveryPending = true;
+                    }
+
+                    // 일부만 적용된 경로를 정리하고, 실패한 반환은 후속 갱신에 남긴다.
+                    AbandonFailedContextActivation(ref errors);
+                    return;
                 }
             }
+
+            contextAuthorityRecoveryPending = false;
+        }
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// 실패한 활성화 경로의 backend 권한을 반환하고 미완료 반환을 추적한다.
+        /// </summary>
+        // ------------------------------------------------------------
+        private void AbandonFailedContextActivation(ref ExceptionBuffer errors)
+        {
+            // 종료·입력 콜백이 활성 경로를 변경할 수 있으므로 현재 반환 대상을 고정한다.
+            var abandonedPath = new List<UIContext>(activeContextPath);
+            AddUniqueContexts(authorityCleanupContexts, abandonedPath);
+
+            // 부분적으로 획득한 Input·Cursor·Focus도 반대 순서로 반환한다.
+            for (var index = abandonedPath.Count - 1; index >= 0; index--)
+            {
+                if (IsReleased) break;
+
+                var context = abandonedPath[index];
+
+                try
+                {
+                    context.SetAuthorityState(false, false, false);
+                    authorityCleanupContexts.Remove(context);
+                }
+                catch (Exception exception)
+                {
+                    errors.Add(exception);
+
+                    if (context.IsDisposed || context.IsDisposing)
+                    {
+                        authorityCleanupContexts.Remove(context);
+                    }
+                }
+            }
+
+            activeContextPath.Clear();
         }
 
         // ------------------------------------------------------------
@@ -1499,11 +1600,29 @@ namespace inonego.Xeri.UI
             }
         }
 
-        private UIContext GetEffectiveContext()
+    #endregion
+
+    #region 컨텍스트 권한 조회와 검증
+
+        private UIContext GetRequestedAuthorityContext()
         {
             return contextOverrides.Count > 0
                 ? contextOverrides[contextOverrides.Count - 1]
                 : baseContext;
+        }
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// 활성 경로 끝에서 실제 Focus 권한을 보유한 Context만 반환한다.
+        /// </summary>
+        // ------------------------------------------------------------
+        private UIContext GetActiveContext()
+        {
+            var count = activeContextPath.Count;
+            if (count == 0) return null;
+
+            var context = activeContextPath[count - 1];
+            return context != null && context.HasFocusAuthority ? context : null;
         }
 
         // ----------------------------------------------------------------------
@@ -1577,14 +1696,14 @@ namespace inonego.Xeri.UI
 
         // --------------------------------------------------------------------------------
         /// <summary>
-        /// native Focus 변경을 Effective Context의 logical Focus containment에 전달한다.
+        /// native Focus 변경을 권한 인계가 확정된 활성 Context의 Focus containment에 전달한다.
         /// </summary>
         // --------------------------------------------------------------------------------
         private void HandleFocusChanged(object current)
         {
-            if (!IsInitialized || IsReleasing || IsReleased) return;
+            if (!IsInitialized) return;
 
-            GetEffectiveContext()?.HandleNativeFocusChanged(current);
+            GetActiveContext()?.HandleNativeFocusChanged(current);
         }
 
         // ------------------------------------------------------------
@@ -1594,7 +1713,7 @@ namespace inonego.Xeri.UI
         // ------------------------------------------------------------
         private void ThrowIfUnavailable()
         {
-            if (!IsInitialized || IsReleasing || IsReleased)
+            if (!IsInitialized)
             {
                 throw new InvalidOperationException("UI Runtime이 사용 가능한 상태가 아닙니다.");
             }

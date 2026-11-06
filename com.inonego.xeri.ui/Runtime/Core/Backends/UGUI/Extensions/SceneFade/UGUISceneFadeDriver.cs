@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : UGUISceneFadeDriver.cs
-수정일 : 2026-09-19
+수정일 : 2026-11-02
 # 설명
 UGUI Image와 CanvasGroup을 Scene Fade Presentation State에 연결하고 Fade 색상을 적용한다.
 ========================================================================= BLOCK_HEADER_END */

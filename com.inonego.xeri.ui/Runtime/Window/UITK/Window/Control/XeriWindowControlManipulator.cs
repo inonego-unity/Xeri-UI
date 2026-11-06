@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : XeriWindowControlManipulator.cs
-수정일 : 2026-10-03
+수정일 : 2026-11-02
 
 # 설명
 XeriWindowPanel control button 입력을 controller 명령으로 연결한다.
@@ -43,7 +43,7 @@ namespace inonego.Xeri.UI.Window
         (
             XeriWindowPanel panel,
             XeriWindowController controller
-        ) : base()
+        )
         {
             this.panel = panel ?? throw new System.ArgumentNullException(nameof(panel));
             this.controller = controller ?? throw new System.ArgumentNullException(nameof(controller));
@@ -51,7 +51,7 @@ namespace inonego.Xeri.UI.Window
 
     #endregion
 
-    #region 메서드
+    #region 콜백 연결과 해제
 
         // ------------------------------------------------------------
         /// <summary>
@@ -90,10 +90,6 @@ namespace inonego.Xeri.UI.Window
             UnregisterCallbacks(ref errors);
             ThrowErrors("Window control callback 해제", errors);
         }
-
-    #endregion
-
-    #region 내부 메서드
 
         // ------------------------------------------------------------
         /// <summary>
@@ -162,7 +158,7 @@ namespace inonego.Xeri.UI.Window
 
     #endregion
 
-    #region 이벤트 핸들러
+    #region 컨트롤 입력
 
         // ------------------------------------------------------------
         /// <summary>
@@ -175,8 +171,7 @@ namespace inonego.Xeri.UI.Window
             (
                 new XeriWindowStateCommandRequest
                 (
-                    XeriWindowStateCommandKind.Minimize,
-                    XeriWindowCommandSource.ControlButton
+                    XeriWindowStateCommandKind.Minimize
                 )
             );
         }
@@ -196,8 +191,7 @@ namespace inonego.Xeri.UI.Window
             (
                 new XeriWindowStateCommandRequest
                 (
-                    kind,
-                    XeriWindowCommandSource.ControlButton
+                    kind
                 )
             );
         }
@@ -213,8 +207,7 @@ namespace inonego.Xeri.UI.Window
             (
                 new XeriWindowStateCommandRequest
                 (
-                    XeriWindowStateCommandKind.Close,
-                    XeriWindowCommandSource.ControlButton
+                    XeriWindowStateCommandKind.Close
                 )
             );
         }

@@ -1,6 +1,6 @@
 ﻿/* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : TEST_UIRuntime.cs
-수정일 : 2026-11-04
+수정일 : 2026-11-07
 
 # 설명
 UIRuntime의 Root Presentation, Context Authority, Scene 구성과 초기화·종료 실패 정리를 검증한다.
@@ -1462,6 +1462,43 @@ namespace inonego.Xeri.UI.TEST.Core
             Assert.DoesNotThrow(fixture.Runtime.Shutdown);
         }
 
+        // ------------------------------------------------------------
+        /// <summary>
+        /// <br/> 새 Focus 획득과 이전 Base 롤백이 연속 실패하면
+        /// <br/> 권한이 없는 Context를 유효한 활성 경로로 보고하지 않는다.
+        /// </summary>
+        // ------------------------------------------------------------
+        [Test]
+        public void TEST_UIRuntime_Base전환과RollbackFocus연속실패_활성경로미확정()
+        {
+            var fixture = CreateRuntimeFixture();
+            var focus = fixture.Runtime.gameObject.AddComponent<AuthorityFocusDriver>();
+            fixture.Runtime.Initialize(fixture.Settings);
+            var main = fixture.Runtime.Main;
+            var child = main.CreateChild();
+            // UIFocusDriver가 각 선택 실패 시 Native 선택 자체도 복원하므로
+            // 두 권한 전환에서 각각 선택·복원 실패를 발생시킨다.
+            focus.SelectFailureCount = 4;
+
+            Assert.Throws<AggregateException>(child.SetBaseAuthority);
+
+            Assert.IsFalse(main.IsEffective);
+            Assert.IsFalse(child.IsEffective);
+            Assert.IsFalse(main.IsOnActivePath);
+            Assert.IsFalse(child.IsOnActivePath);
+            Assert.IsFalse(main.Screens.IsInputContributionEnabled);
+            Assert.IsFalse(child.Screens.IsInputContributionEnabled);
+
+            Assert.DoesNotThrow(fixture.Runtime.RefreshContextAuthority);
+            Assert.IsTrue(main.IsEffective);
+            Assert.IsTrue(main.IsOnActivePath);
+            Assert.IsFalse(child.IsEffective);
+            Assert.IsFalse(child.IsOnActivePath);
+
+            child.Dispose();
+            Assert.DoesNotThrow(fixture.Runtime.Shutdown);
+        }
+
         // ----------------------------------------------------------------------
         /// <summary>
         /// <br/> Context Override 획득 실패는 Override topology를 제거하고
@@ -1499,6 +1536,362 @@ namespace inonego.Xeri.UI.TEST.Core
             Assert.IsFalse(overlay.IsEffective);
             overlay.Dispose();
             Assert.DoesNotThrow(fixture.Runtime.Shutdown);
+        }
+
+        // --------------------------------------------------------------------------------
+        /// <summary>
+        /// <br/> Input System 정책 적용 중 다른 Context의 기여를 되살리는 권한 변경은
+        /// <br/> 미적용 Gameplay 상태를 유효 권한으로 공개하지 않고 재시도할 수 있어야 한다.
+        /// </summary>
+        // --------------------------------------------------------------------------------
+        [Test]
+        public void TEST_UIRuntime_입력정책재진입Context활성화_미확정권한거부후재시도()
+        {
+            var fixture = CreateRuntimeFixture();
+            var gameplay = fixture.Settings.GameplayActionsAsset.FindActionMap("Player", false);
+            var move = gameplay.FindAction("Move", false);
+            gameplay.Enable();
+            fixture.Runtime.Initialize(fixture.Settings);
+            var main = fixture.Runtime.Main;
+            var child = main.CreateChild();
+
+            main.ScreenRegistry.Register
+            (
+                new ScreenOptions("Main Blocking", openDuration: 0.0f, closeDuration: 0.0f),
+                PresentationTarget.Local("Test"),
+                new TestScreenSource()
+            );
+            child.ScreenRegistry.Register
+            (
+                new ScreenOptions("Child Blocking", openDuration: 0.0f, closeDuration: 0.0f),
+                PresentationTarget.Local("Test"),
+                new TestScreenSource()
+            );
+
+            var mainOpen = main.Screens.Open("Main Blocking");
+            var childOpen = child.Screens.Open("Child Blocking");
+            Assert.IsTrue(mainOpen.Accepted);
+            Assert.IsTrue(childOpen.Accepted);
+            Assert.IsFalse(move.enabled);
+            Assert.IsFalse(child.IsEffective);
+            Assert.IsFalse(child.Screens.IsInputContributionEnabled);
+
+            Exception nestedFailure = null;
+            var called = 0;
+            var observedPrematureAuthority = false;
+            Action<object, InputActionChange> onChange = (changed, change) =>
+            {
+                if
+                (
+                    change != InputActionChange.ActionEnabled ||
+                    !ReferenceEquals(changed, move) ||
+                    called != 0
+                )
+                {
+                    return;
+                }
+
+                called++;
+
+                try
+                {
+                    child.SetBaseAuthority();
+                }
+                catch (Exception exception)
+                {
+                    nestedFailure = exception;
+                }
+
+                observedPrematureAuthority = child.IsEffective && move.enabled;
+            };
+
+            try
+            {
+                InputSystem.onActionChange += onChange;
+                Assert.IsTrue(mainOpen.Session.Close());
+
+                Assert.AreEqual(1, called);
+                Assert.IsNotNull(nestedFailure);
+                Assert.That(nestedFailure.ToString(), Does.Contain("입력 정책 적용 중"));
+                Assert.IsFalse(observedPrematureAuthority);
+                Assert.IsTrue(main.IsEffective);
+                Assert.IsFalse(child.IsEffective);
+                Assert.IsFalse(child.IsOnActivePath);
+                Assert.IsFalse(child.Screens.IsInputContributionEnabled);
+                Assert.IsTrue(move.enabled);
+
+                Assert.DoesNotThrow(child.SetBaseAuthority);
+                Assert.IsTrue(child.IsEffective);
+                Assert.IsFalse(move.enabled);
+            }
+            finally
+            {
+                InputSystem.onActionChange -= onChange;
+                fixture.Runtime.Shutdown();
+            }
+        }
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// <br/> 명시적 Input Batch가 열려 있어도 Context 입력 기여를
+        /// <br/> 적용 전에 확정하지 않으며, EndBatch 이후 재시도할 수 있다.
+        /// </summary>
+        // ------------------------------------------------------------
+        [TestCase(false)]
+        [TestCase(true)]
+        public void TEST_UIRuntime_입력Batch중Context활성화_거부후재시도(bool mainHasBlockingScreen)
+        {
+            var fixture = CreateRuntimeFixture();
+            var gameplay = fixture.Settings.GameplayActionsAsset.FindActionMap("Player", false);
+            gameplay.Enable();
+            fixture.Runtime.Initialize(fixture.Settings);
+            var main = fixture.Runtime.Main;
+            var child = main.CreateChild();
+            ScreenOpenResponse mainOpen = default;
+
+            if (mainHasBlockingScreen)
+            {
+                main.ScreenRegistry.Register
+                (
+                    new ScreenOptions("Main Blocking", openDuration: 0.0f, closeDuration: 0.0f),
+                    PresentationTarget.Local("Test"),
+                    new TestScreenSource()
+                );
+                mainOpen = main.Screens.Open("Main Blocking");
+                Assert.IsTrue(mainOpen.Accepted);
+            }
+
+            child.ScreenRegistry.Register
+            (
+                new ScreenOptions("Child Blocking", openDuration: 0.0f, closeDuration: 0.0f),
+                PresentationTarget.Local("Test"),
+                new TestScreenSource()
+            );
+            Assert.IsTrue(child.Screens.Open("Child Blocking").Accepted);
+            Assert.IsFalse(child.Screens.IsInputContributionEnabled);
+            Assert.AreEqual(!mainHasBlockingScreen, gameplay.enabled);
+
+            var input = (InputSystemScreenInputDriver)fixture.Runtime.InputDriver;
+
+            try
+            {
+                input.BeginBatch();
+
+                try
+                {
+                    var failure = Assert.Throws<InvalidOperationException>(child.SetBaseAuthority);
+                    Assert.That(failure.Message, Does.Contain("입력 정책 적용 중"));
+                    Assert.IsTrue(main.IsEffective);
+                    Assert.IsTrue(main.IsOnActivePath);
+                    Assert.IsTrue(main.Screens.IsInputContributionEnabled);
+                    Assert.IsFalse(child.IsOnActivePath);
+                    Assert.IsFalse(child.Screens.IsInputContributionEnabled);
+                    Assert.AreEqual(!mainHasBlockingScreen, gameplay.enabled);
+
+                    if (mainHasBlockingScreen)
+                    {
+                        Assert.IsTrue(mainOpen.Session.Resources.InputSession.IsContributionEnabled);
+                    }
+                }
+                finally
+                {
+                    input.EndBatch();
+                }
+
+                Assert.DoesNotThrow(child.SetBaseAuthority);
+                Assert.IsTrue(child.IsEffective);
+                Assert.IsTrue(child.Screens.IsInputContributionEnabled);
+                Assert.IsFalse(gameplay.enabled);
+            }
+            finally
+            {
+                fixture.Runtime.Shutdown();
+            }
+        }
+
+        // ----------------------------------------------------------------------
+        /// <summary>
+        /// <br/> 정책 적용 중 다른 Peer Context를 활성화할 수 없으면 이전 Context는
+        /// <br/> 기존 입력 기여와 권한 경로를 보존하고 이후 전환을 재시도할 수 있다.
+        /// </summary>
+        // ----------------------------------------------------------------------
+        [Test]
+        public void TEST_UIRuntime_입력재진입Peer전환실패_이전Context권한보존()
+        {
+            var fixture = CreateRuntimeFixture();
+            var gameplay = fixture.Settings.GameplayActionsAsset.FindActionMap("Player", false);
+            gameplay.Enable();
+            fixture.Runtime.Initialize(fixture.Settings);
+            var main = fixture.Runtime.Main;
+            var first = main.CreateChild();
+            var second = main.CreateChild();
+
+            first.ScreenRegistry.Register
+            (
+                new ScreenOptions("First Blocking", openDuration: 0.0f, closeDuration: 0.0f),
+                PresentationTarget.Local("Test"),
+                new TestScreenSource()
+            );
+            second.ScreenRegistry.Register
+            (
+                new ScreenOptions("Second Blocking", openDuration: 0.0f, closeDuration: 0.0f),
+                PresentationTarget.Local("Test"),
+                new TestScreenSource()
+            );
+
+            Assert.IsTrue(first.Screens.Open("First Blocking").Accepted);
+            Assert.IsTrue(second.Screens.Open("Second Blocking").Accepted);
+            first.SetBaseAuthority();
+            Assert.IsFalse(gameplay.enabled);
+
+            var input = (InputSystemScreenInputDriver)fixture.Runtime.InputDriver;
+            var ui = fixture.Runtime.gameObject.GetComponent<InputSystemUIInputModule>()
+                .actionsAsset.FindActionMap("UI", false);
+            ui.Disable();
+            Assert.IsFalse(ui.enabled);
+
+            Exception nestedFailure = null;
+            var calls = 0;
+            Action<object, InputActionChange> onChange = (changed, change) =>
+            {
+                if
+                (
+                    change != InputActionChange.ActionMapEnabled ||
+                    !ReferenceEquals(changed, ui) ||
+                    calls != 0
+                )
+                {
+                    return;
+                }
+
+                calls++;
+
+                try
+                {
+                    second.SetBaseAuthority();
+                }
+                catch (Exception exception)
+                {
+                    nestedFailure = exception;
+                }
+            };
+
+            ScreenInputSession trigger = null;
+
+            try
+            {
+                InputSystem.onActionChange += onChange;
+                trigger = input.Acquire(new ScreenOptions("Trigger", blocksGameplayInput: false));
+
+                Assert.AreEqual(1, calls);
+                Assert.IsNotNull(nestedFailure);
+                Assert.IsTrue(first.IsEffective);
+                Assert.IsTrue(first.IsOnActivePath);
+                Assert.IsTrue(first.Screens.IsInputContributionEnabled);
+                Assert.IsFalse(second.IsEffective);
+                Assert.IsFalse(second.IsOnActivePath);
+                Assert.IsFalse(gameplay.enabled);
+
+                Assert.DoesNotThrow(second.SetBaseAuthority);
+                Assert.IsTrue(second.IsEffective);
+                Assert.IsFalse(gameplay.enabled);
+            }
+            finally
+            {
+                InputSystem.onActionChange -= onChange;
+                trigger?.Release(false);
+                fixture.Runtime.Shutdown();
+            }
+        }
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// <br/> 이전 Context 기여 반환 중 Input Batch가 시작되면
+        /// <br/> 실패한 Peer 전환 뒤 기존 Focus와 입력 권한이 보존돼야 한다.
+        /// </summary>
+        // ------------------------------------------------------------
+        [Test]
+        public void TEST_UIRuntime_이전기여해제중Batch재진입_기존권한보존()
+        {
+            var fixture = CreateRuntimeFixture();
+            var gameplay = fixture.Settings.GameplayActionsAsset.FindActionMap("Player", false);
+            var move = gameplay.FindAction("Move", false);
+            gameplay.Enable();
+            fixture.Runtime.Initialize(fixture.Settings);
+            var main = fixture.Runtime.Main;
+            var first = main.CreateChild();
+            var second = main.CreateChild();
+
+            first.ScreenRegistry.Register
+            (
+                new ScreenOptions("First Blocking", openDuration: 0.0f, closeDuration: 0.0f),
+                PresentationTarget.Local("Test"),
+                new TestScreenSource()
+            );
+            second.ScreenRegistry.Register
+            (
+                new ScreenOptions("Second Blocking", openDuration: 0.0f, closeDuration: 0.0f),
+                PresentationTarget.Local("Test"),
+                new TestScreenSource()
+            );
+            Assert.IsTrue(first.Screens.Open("First Blocking").Accepted);
+            Assert.IsTrue(second.Screens.Open("Second Blocking").Accepted);
+            first.SetBaseAuthority();
+
+            Assert.IsTrue(first.IsEffective);
+            Assert.IsTrue(first.Screens.IsInputContributionEnabled);
+            Assert.IsFalse(second.Screens.IsInputContributionEnabled);
+            Assert.IsFalse(move.enabled);
+
+            var input = (InputSystemScreenInputDriver)fixture.Runtime.InputDriver;
+            var batchOpened = false;
+            var calls = 0;
+            Action<object, InputActionChange> onChange = (changed, change) =>
+            {
+                if
+                (
+                    change != InputActionChange.ActionEnabled ||
+                    !ReferenceEquals(changed, move) ||
+                    calls != 0
+                )
+                {
+                    return;
+                }
+
+                calls++;
+                input.BeginBatch();
+                batchOpened = true;
+            };
+
+            try
+            {
+                InputSystem.onActionChange += onChange;
+                var failure = Assert.Catch<Exception>(second.SetBaseAuthority);
+                Assert.AreEqual(1, calls);
+                Assert.That(failure.ToString(), Does.Contain("입력 정책 적용 중"));
+
+                input.EndBatch();
+                batchOpened = false;
+
+                Assert.IsTrue(first.IsEffective);
+                Assert.IsTrue(first.IsOnActivePath);
+                Assert.IsTrue(first.Screens.IsInputContributionEnabled);
+                Assert.IsFalse(second.IsEffective);
+                Assert.IsFalse(second.IsOnActivePath);
+                Assert.IsFalse(second.Screens.IsInputContributionEnabled);
+                Assert.IsFalse(move.enabled);
+            }
+            finally
+            {
+                InputSystem.onActionChange -= onChange;
+
+                if (batchOpened)
+                {
+                    input.EndBatch();
+                }
+
+                fixture.Runtime.Shutdown();
+            }
         }
 
         // ----------------------------------------------------------------------
@@ -1640,18 +2033,232 @@ namespace inonego.Xeri.UI.TEST.Core
             Assert.Throws<InvalidOperationException>(authority.Dispose);
 
             Assert.IsTrue(authority.IsDisposed);
-            Assert.IsTrue(main.IsEffective);
+            // 요청된 Base와 실제 권한 보유자가 다르면 현재 유효 권한은 활성 경로를 따른다.
+            Assert.IsFalse(main.IsEffective);
             Assert.IsTrue(main.IsOnActivePath);
-            Assert.IsFalse(overlay.IsEffective);
-            Assert.IsFalse(overlay.IsOnActivePath);
+            Assert.IsTrue(overlay.IsEffective);
+            // 이전 권한이 아직 반환되지 않았으므로 활성 경로에서는 제거하지 않는다.
+            Assert.IsTrue(overlay.IsOnActivePath);
             Assert.IsTrue(overlay.Screens.IsInputContributionEnabled);
 
             Assert.DoesNotThrow(fixture.Runtime.RefreshContextAuthority);
 
+            Assert.IsTrue(main.IsEffective);
+            Assert.IsFalse(overlay.IsEffective);
+            Assert.IsFalse(overlay.IsOnActivePath);
             Assert.IsFalse(overlay.Screens.IsInputContributionEnabled);
 
             overlay.Dispose();
             Assert.DoesNotThrow(fixture.Runtime.Shutdown);
+        }
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// <br/> 기존 Override의 Focus 반환과 복원이 모두 실패하면
+        /// <br/> Focus 없는 Context를 유효한 권한으로 표시하지 않는다.
+        /// </summary>
+        // ------------------------------------------------------------
+        [Test]
+        public void TEST_UIRuntime_OverrideFocus반환복원연속실패_유효권한보류()
+        {
+            var fixture = CreateRuntimeFixture();
+            var focus = fixture.Runtime.gameObject.AddComponent<AuthorityFocusDriver>();
+            fixture.Runtime.Initialize(fixture.Settings);
+            var main = fixture.Runtime.Main;
+            var overlay = main.CreateChild();
+            var authority = overlay.PushAuthorityOverride();
+
+            Assert.IsTrue(overlay.IsEffective);
+            Assert.IsTrue(overlay.Screens.IsInputContributionEnabled);
+
+            focus.CurrentFailureCount = 1;
+            focus.SelectFailureCount = 2;
+
+            Assert.Throws<AggregateException>(authority.Dispose);
+
+            Assert.IsTrue(authority.IsDisposed);
+            Assert.IsTrue(overlay.IsOnActivePath);
+            Assert.IsFalse(overlay.IsEffective);
+            Assert.IsFalse(main.IsEffective);
+            Assert.IsFalse(overlay.Screens.IsInputContributionEnabled);
+
+            Assert.DoesNotThrow(fixture.Runtime.RefreshContextAuthority);
+
+            Assert.IsTrue(main.IsEffective);
+            Assert.IsFalse(overlay.IsOnActivePath);
+            Assert.IsFalse(overlay.IsEffective);
+
+            overlay.Dispose();
+            Assert.DoesNotThrow(fixture.Runtime.Shutdown);
+        }
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// <br/> 활성화 실패를 정리하는 도중 Input 콜백이 Runtime을 종료해도
+        /// <br/> 제거된 활성 경로의 인덱스를 재사용하지 않는다.
+        /// </summary>
+        // ------------------------------------------------------------
+        [Test]
+        public void TEST_UIRuntime_활성화실패정리중Shutdown_변경된경로순회안전()
+        {
+            var fixture = CreateRuntimeFixture();
+            var focus = fixture.Runtime.gameObject.AddComponent<AuthorityFocusDriver>();
+            fixture.Runtime.Initialize(fixture.Settings);
+            var parent = fixture.Runtime.Main.CreateChild();
+            var child = parent.CreateChild();
+
+            parent.ScreenRegistry.Register
+            (
+                new ScreenOptions("Blocking", openDuration: 0.0f, closeDuration: 0.0f),
+                PresentationTarget.Local("Test"),
+                new TestScreenSource()
+            );
+
+            var response = parent.Screens.Open("Blocking");
+            Assert.IsTrue(response.Accepted);
+            var inputSession = response.Session.Resources.InputSession;
+            var callbackField = typeof(ScreenInputSession).GetField
+            (
+                "contributionChanged",
+                BindingFlags.Instance | BindingFlags.NonPublic
+            );
+            Assert.IsNotNull(callbackField);
+            var originalCallback = (Action<ScreenInputSession>)callbackField.GetValue(inputSession);
+            var shutdownCalled = false;
+
+            callbackField.SetValue
+            (
+                inputSession,
+                new Action<ScreenInputSession>
+                (
+                    session =>
+                    {
+                        originalCallback?.Invoke(session);
+
+                        if (session.IsContributionEnabled || shutdownCalled) return;
+
+                        shutdownCalled = true;
+                        fixture.Runtime.Shutdown();
+                    }
+                )
+            );
+
+            focus.SelectFailureCount = 1;
+
+            try
+            {
+                var failure = Assert.Catch<Exception>(child.SetBaseAuthority);
+                Assert.IsTrue(shutdownCalled);
+                Assert.IsTrue(fixture.Runtime.IsReleased);
+                Assert.That(failure.ToString(), Does.Contain("injected authority focus failure"));
+                Assert.That(failure.ToString(), Does.Not.Contain(nameof(ArgumentOutOfRangeException)));
+                Assert.That(failure.ToString(), Does.Not.Contain(nameof(IndexOutOfRangeException)));
+            }
+            finally
+            {
+                if (!fixture.Runtime.IsReleased)
+                {
+                    fixture.Runtime.Shutdown();
+                }
+            }
+        }
+
+        // ----------------------------------------------------------------------
+        /// <summary>
+        /// <br/> 이전 Context 입력 반환에 실패하면 새 권한 경로의 활성화를 보류한다.
+        /// <br/> 후속 Refresh가 반환을 완료한 다음에만 새 Context 입력 기여를 부여한다.
+        /// </summary>
+        // ----------------------------------------------------------------------
+        [Test]
+        public void TEST_UIRuntime_이전입력권한반환실패_새경로활성보류()
+        {
+            var fixture = CreateRuntimeFixture();
+            fixture.Runtime.Initialize(fixture.Settings);
+            var main = fixture.Runtime.Main;
+            var first = main.CreateChild();
+            var second = main.CreateChild();
+
+            second.SetBaseAuthority();
+            first.ScreenRegistry.Register
+            (
+                new ScreenOptions("Blocking", openDuration: 0.0f, closeDuration: 0.0f),
+                PresentationTarget.Local("Test"),
+                new TestScreenSource()
+            );
+            second.ScreenRegistry.Register
+            (
+                new ScreenOptions
+                (
+                    "Nonblocking",
+                    blocksGameplayInput: false,
+                    openDuration: 0.0f,
+                    closeDuration: 0.0f
+                ),
+                PresentationTarget.Local("Test"),
+                new TestScreenSource()
+            );
+
+            var firstResponse = first.Screens.Open("Blocking");
+            var secondResponse = second.Screens.Open("Nonblocking");
+            Assert.IsTrue(firstResponse.Accepted);
+            Assert.IsTrue(secondResponse.Accepted);
+            first.SetBaseAuthority();
+
+            var firstInput = firstResponse.Session.Resources.InputSession;
+            var callbackField = typeof(ScreenInputSession).GetField
+            (
+                "contributionChanged",
+                BindingFlags.Instance | BindingFlags.NonPublic
+            );
+            Assert.IsNotNull(callbackField);
+            var originalCallback = (Action<ScreenInputSession>)callbackField.GetValue(firstInput);
+            var cleanupFailures = 0;
+
+            callbackField.SetValue
+            (
+                firstInput,
+                new Action<ScreenInputSession>
+                (
+                    session =>
+                    {
+                        if (!session.IsContributionEnabled && cleanupFailures == 0)
+                        {
+                            cleanupFailures++;
+                            throw new InvalidOperationException("injected cleanup failure");
+                        }
+
+                        originalCallback?.Invoke(session);
+                    }
+                )
+            );
+
+            try
+            {
+                Assert.Throws<InvalidOperationException>(second.SetBaseAuthority);
+
+                Assert.AreEqual(1, cleanupFailures);
+                Assert.IsTrue(first.IsOnActivePath);
+                Assert.IsTrue(first.Screens.IsInputContributionEnabled);
+                Assert.IsFalse(second.IsOnActivePath);
+                Assert.IsFalse(second.Screens.IsInputContributionEnabled);
+
+                // SetBaseContext는 요청 실패 시 기존 Base를 복원하므로,
+                // 명시적으로 다시 선택해야 정리 완료 후 새 경로로 이동한다.
+                Assert.DoesNotThrow(fixture.Runtime.RefreshContextAuthority);
+                Assert.IsTrue(first.IsOnActivePath);
+                Assert.IsFalse(second.IsOnActivePath);
+
+                Assert.DoesNotThrow(second.SetBaseAuthority);
+                Assert.IsFalse(first.IsOnActivePath);
+                Assert.IsFalse(first.Screens.IsInputContributionEnabled);
+                Assert.IsTrue(second.IsOnActivePath);
+                Assert.IsTrue(second.Screens.IsInputContributionEnabled);
+            }
+            finally
+            {
+                callbackField.SetValue(firstInput, originalCallback);
+                fixture.Runtime.Shutdown();
+            }
         }
 
         // ------------------------------------------------------------
@@ -1753,7 +2360,12 @@ namespace inonego.Xeri.UI.TEST.Core
             {
                 Assert.Throws<InvalidOperationException>(authority.Dispose);
                 Assert.IsTrue(first.Screens.IsInputContributionEnabled);
-                Assert.IsTrue(second.Screens.IsInputContributionEnabled);
+                Assert.IsTrue(first.IsOnActivePath);
+                Assert.IsFalse(first.Screens.IsCursorPolicyEnabled);
+                // 이전 Context 반환 실패 시 새 경로의 입력·Cursor 소유권을 확정하지 않는다.
+                Assert.IsFalse(second.IsOnActivePath);
+                Assert.IsFalse(second.Screens.IsInputContributionEnabled);
+                Assert.IsFalse(second.Screens.IsCursorPolicyEnabled);
 
                 third.SetBaseAuthority();
 
@@ -1835,6 +2447,55 @@ namespace inonego.Xeri.UI.TEST.Core
     #endregion
 
     #region C-1: Runtime 초기화와 Scene 구성 검증
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// 비활성 자식에 놓인 입력 Driver를 Host 조립 전에 거부한다.
+        /// </summary>
+        // ------------------------------------------------------------
+        [Test]
+        public void TEST_UIRuntime_비활성자식InputDriver_조립전거부()
+        {
+            var fixture = CreateRuntimeFixture();
+            var child = new GameObject("Inactive Input Driver Child");
+            child.transform.SetParent(fixture.Runtime.transform, false);
+            child.SetActive(false);
+
+            var driver = child.AddComponent<InputSystemScreenInputDriver>();
+            SetField(fixture.Runtime, "inputDriver", driver);
+
+            var validateHost = typeof(UIRuntime).GetMethod
+            (
+                "ValidateHost",
+                BindingFlags.Instance | BindingFlags.NonPublic
+            );
+            Assert.IsNotNull(validateHost);
+
+            var exception = Assert.Throws<TargetInvocationException>
+            (
+                () => validateHost.Invoke
+                (
+                    fixture.Runtime,
+                    new object[]
+                    {
+                        fixture.Settings,
+                    }
+                )
+            );
+
+            Assert.IsInstanceOf<InvalidOperationException>
+            (
+                exception.InnerException
+            );
+            StringAssert.Contains
+            (
+                "활성 Input System Screen Input Driver",
+                exception.InnerException.Message
+            );
+            Assert.IsFalse(fixture.Runtime.IsInitialized);
+            Assert.AreEqual(0, fixture.PresentationRoot.childCount);
+            Assert.AreEqual(0, fixture.FadeProvider.AcquireCount);
+        }
 
         // ----------------------------------------------------------------------
         /// <summary>

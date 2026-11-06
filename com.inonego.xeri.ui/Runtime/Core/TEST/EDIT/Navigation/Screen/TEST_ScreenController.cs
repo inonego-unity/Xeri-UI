@@ -1,9 +1,9 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : TEST_ScreenController.cs
-수정일 : 2026-11-02
+수정일 : 2026-11-07
 
 # 설명
-Screen 수명·상태 훅 정리, Focus 복원과 닫기 입력 장벽 계약을 검증한다.
+Screen 수명·상태 훅 정리, Focus 복원과 입력 정책 적용 완료 전 활성화 경계를 검증한다.
 
 # 테스트 구성
  N: 정상 Open·Close 수명과 Scope 전달
@@ -27,6 +27,8 @@ using System.Text.RegularExpressions;
 
 using UnityEngine;
 using UnityEngine.EventSystems;
+using UnityEngine.InputSystem;
+using UnityEngine.InputSystem.UI;
 using UnityEngine.TestTools;
 
 using NUnit;
@@ -1030,6 +1032,395 @@ namespace inonego.Xeri.UI.TEST.Core
             Assert.AreEqual(0, controller.Count);
             Assert.IsFalse(controller.IsAvailable);
             Assert.IsFalse(presentation.Session.LayerRegistry.HasConsumers);
+        }
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// <br/> 정책 복원 중 Screen은 적용 후에만 Active가 되고,
+        /// <br/> 중도 Close·전체 해제 후에는 OnOpened를 호출하지 않는다.
+        /// </summary>
+        // ------------------------------------------------------------
+        [TestCase(0)]
+        [TestCase(1)]
+        [TestCase(2)]
+        public void TEST_ScreenController_입력정책재진입Open_적용완료와종료정리(int cleanupMode)
+        {
+            var host = new GameObject("Screen Policy Reentry");
+            var inputModule = host.AddComponent<InputSystemUIInputModule>();
+            var realInput = host.AddComponent<InputSystemScreenInputDriver>();
+            var actions = ScriptableObject.CreateInstance<InputActionAsset>();
+            var settings = ScriptableObject.CreateInstance<UISettingsAsset>();
+            ownedObjects.Add(host);
+            ownedObjects.Add(actions);
+            ownedObjects.Add(settings);
+
+            var ui = new InputActionMap("UI");
+            ui.AddAction("Cancel", InputActionType.Button);
+            var gameplay = new InputActionMap("Player");
+            var move = gameplay.AddAction("Move", InputActionType.Value);
+            gameplay.AddAction("Attack", InputActionType.Button);
+            actions.AddActionMap(ui);
+            actions.AddActionMap(gameplay);
+            gameplay.Enable();
+            inputModule.actionsAsset = actions;
+            SetField(settings, "uiActionMap", "UI");
+            SetField(settings, "gameplayActionsAsset", actions);
+            SetField(settings, "gameplayActionMap", "Player");
+            SetField(settings, "releaseActionNames", Array.Empty<string>());
+            realInput.Initialize(inputModule, settings);
+
+            controller.Clear();
+            controller = new ScreenController
+            (
+                screenRegistry,
+                target => presentation.Session.AcquireLayer(target.ID),
+                new ImmediateTransitioner(),
+                focusController,
+                realInput
+            );
+            controller.Activate();
+
+            var openedCount = 0;
+            var openedWithGameplayEnabled = false;
+            var openedInsideCallback = false;
+            var closedDuringCallback = false;
+            var releasedDuringCallback = false;
+            var actionCallbacks = 0;
+            var handler = new TestStateHandler
+            {
+                Opened = _ =>
+                {
+                    openedCount++;
+                    openedWithGameplayEnabled = move.enabled;
+                },
+            };
+            Register("NestedBlocking", new TestScreenSource(new object(), handler));
+            var owner = realInput.Acquire(new ScreenOptions("DirectOwner"));
+            Assert.IsFalse(move.enabled);
+
+            ScreenOpenResponse nestedResponse = default;
+            Action<object, InputActionChange> onActionChange = (changed, change) =>
+            {
+                if
+                (
+                    change != InputActionChange.ActionEnabled ||
+                    !ReferenceEquals(changed, move) ||
+                    actionCallbacks != 0
+                )
+                {
+                    return;
+                }
+
+                actionCallbacks++;
+                nestedResponse = controller.Open("NestedBlocking");
+                openedInsideCallback = openedCount > 0;
+
+                if (cleanupMode == 1 && nestedResponse.Accepted)
+                {
+                    closedDuringCallback = nestedResponse.Session.Close();
+                }
+                else if (cleanupMode == 2 && nestedResponse.Accepted)
+                {
+                    realInput.ForceReleaseAll();
+                    releasedDuringCallback = true;
+                }
+            };
+
+            try
+            {
+                InputSystem.onActionChange += onActionChange;
+                owner.Release(false);
+
+                Assert.AreEqual(1, actionCallbacks);
+                Assert.IsTrue(nestedResponse.Accepted);
+                Assert.IsFalse(openedInsideCallback);
+
+                if (cleanupMode != 0)
+                {
+                    if (cleanupMode == 1)
+                    {
+                        Assert.IsTrue(closedDuringCallback);
+                    }
+                    else
+                    {
+                        Assert.IsTrue(releasedDuringCallback);
+                    }
+
+                    Assert.AreEqual(0, openedCount);
+                    Assert.AreEqual(ScreenState.Closed, nestedResponse.Session.State);
+                    Assert.AreEqual(0, controller.Count);
+                    Assert.IsTrue(move.enabled);
+                    Assert.IsFalse(presentation.Session.LayerRegistry.HasConsumers);
+                }
+                else
+                {
+                    Assert.AreEqual(1, openedCount);
+                    Assert.IsFalse(openedWithGameplayEnabled);
+                    Assert.IsFalse(move.enabled);
+                    Assert.AreSame(nestedResponse.Session, controller.Top);
+                }
+            }
+            finally
+            {
+                InputSystem.onActionChange -= onActionChange;
+                controller.Clear();
+                realInput.Dispose();
+            }
+        }
+
+        // ----------------------------------------------------------------------
+        /// <summary>
+        /// 입력 Batch 중 수락된 Screen의 열기는 EndBatch 적용 이후에만 완료한다.
+        /// </summary>
+        // ----------------------------------------------------------------------
+        [TestCase(false)]
+        [TestCase(true)]
+        public void TEST_ScreenController_입력Batch중Open_최종적용과Close(bool closeBeforeEnd)
+        {
+            var host = new GameObject("Screen Input Batch");
+            var inputModule = host.AddComponent<InputSystemUIInputModule>();
+            var realInput = host.AddComponent<InputSystemScreenInputDriver>();
+            var actions = ScriptableObject.CreateInstance<InputActionAsset>();
+            var settings = ScriptableObject.CreateInstance<UISettingsAsset>();
+            ownedObjects.Add(host);
+            ownedObjects.Add(actions);
+            ownedObjects.Add(settings);
+
+            var ui = new InputActionMap("UI");
+            ui.AddAction("Cancel", InputActionType.Button);
+            var gameplay = new InputActionMap("Player");
+            gameplay.AddAction("Move", InputActionType.Value);
+            actions.AddActionMap(ui);
+            actions.AddActionMap(gameplay);
+            gameplay.Enable();
+            inputModule.actionsAsset = actions;
+            SetField(settings, "uiActionMap", "UI");
+            SetField(settings, "gameplayActionsAsset", actions);
+            SetField(settings, "gameplayActionMap", "Player");
+            SetField(settings, "releaseActionNames", Array.Empty<string>());
+            realInput.Initialize(inputModule, settings);
+
+            controller.Clear();
+            controller = new ScreenController
+            (
+                screenRegistry,
+                target => presentation.Session.AcquireLayer(target.ID),
+                new ImmediateTransitioner(),
+                focusController,
+                realInput
+            );
+            controller.Activate();
+
+            var opened = 0;
+            var handler = new TestStateHandler
+            {
+                Opened = _ => opened++,
+            };
+            var source = new TestScreenSource(new object(), handler);
+            Register("BatchBlocking", source);
+            realInput.BeginBatch();
+
+            try
+            {
+                var response = controller.Open("BatchBlocking");
+                Assert.IsTrue(response.Accepted);
+                Assert.AreEqual(ScreenState.Opening, response.Session.State);
+                Assert.AreEqual(0, opened);
+                Assert.IsTrue(gameplay.enabled);
+
+                if (closeBeforeEnd)
+                {
+                    Assert.IsTrue(response.Session.Close());
+                    Assert.AreEqual(ScreenState.Closed, response.Session.State);
+                }
+
+                realInput.EndBatch();
+
+                if (closeBeforeEnd)
+                {
+                    Assert.AreEqual(0, opened);
+                    Assert.AreEqual(1, source.ReleaseCount);
+                    Assert.AreEqual(0, controller.Count);
+                    Assert.IsTrue(gameplay.enabled);
+                    Assert.IsFalse(presentation.Session.LayerRegistry.HasConsumers);
+                }
+                else
+                {
+                    Assert.AreEqual(1, opened);
+                    Assert.AreEqual(ScreenState.Active, response.Session.State);
+                    Assert.IsFalse(gameplay.enabled);
+                }
+            }
+            finally
+            {
+                controller.Clear();
+                realInput.Dispose();
+            }
+        }
+
+        // ----------------------------------------------------------------------
+        /// <summary>
+        /// <br/> 공유 입력 Driver의 두 Screen이 적용 대기 중일 때 첫 완료 훅에서
+        /// <br/> Batch를 열어도 EndBatch 후 두 번째 Screen을 활성화한다.
+        /// </summary>
+        // ----------------------------------------------------------------------
+        [TestCase(false)]
+        [TestCase(true)]
+        public void TEST_ScreenController_공유InputBatch중잔여Pending_종료후열기재개(bool closePending)
+        {
+            var host = new GameObject("Shared Screen Input Batch");
+            var inputModule = host.AddComponent<InputSystemUIInputModule>();
+            var realInput = host.AddComponent<InputSystemScreenInputDriver>();
+            var actions = ScriptableObject.CreateInstance<InputActionAsset>();
+            var settings = ScriptableObject.CreateInstance<UISettingsAsset>();
+            ownedObjects.Add(host);
+            ownedObjects.Add(actions);
+            ownedObjects.Add(settings);
+
+            var ui = new InputActionMap("UI");
+            ui.AddAction("Cancel", InputActionType.Button);
+            var gameplay = new InputActionMap("Player");
+            var move = gameplay.AddAction("Move", InputActionType.Value);
+            actions.AddActionMap(ui);
+            actions.AddActionMap(gameplay);
+            gameplay.Enable();
+            inputModule.actionsAsset = actions;
+            SetField(settings, "uiActionMap", "UI");
+            SetField(settings, "gameplayActionsAsset", actions);
+            SetField(settings, "gameplayActionMap", "Player");
+            SetField(settings, "releaseActionNames", Array.Empty<string>());
+            realInput.Initialize(inputModule, settings);
+
+            controller.Clear();
+            controller = new ScreenController
+            (
+                screenRegistry,
+                target => presentation.Session.AcquireLayer(target.ID),
+                new ImmediateTransitioner(),
+                focusController,
+                realInput
+            );
+            controller.Activate();
+
+            var secondRegistry = new ScreenRegistry();
+            var secondController = new ScreenController
+            (
+                secondRegistry,
+                target => presentation.Session.AcquireLayer(target.ID),
+                new ImmediateTransitioner(),
+                new FocusController(new TestFocusDriver()),
+                realInput
+            );
+            secondController.Activate();
+            secondController.SetCursorPolicyEnabled(false);
+
+            var firstOpened = 0;
+            var secondOpened = 0;
+            var batchOpen = false;
+            var calls = 0;
+            var secondHandler = new TestStateHandler
+            {
+                Opened = _ => secondOpened++,
+            };
+            var secondSource = new TestScreenSource(new object(), secondHandler);
+            var secondRegistration = secondRegistry.Register
+            (
+                new ScreenOptions("Second", openDuration: 0.0f),
+                PresentationTarget.Local("Screen"),
+                secondSource
+            );
+            var firstSource = new TestScreenSource
+            (
+                new object(),
+                new TestStateHandler
+                {
+                    Opened = _ =>
+                    {
+                        firstOpened++;
+                        realInput.BeginBatch();
+                        batchOpen = true;
+                    },
+                }
+            );
+            Register("First", firstSource);
+
+            ScreenOpenResponse firstResponse = default;
+            ScreenOpenResponse secondResponse = default;
+            controller.OnStackChanged += () =>
+            {
+                if (secondResponse.Accepted || secondResponse.Session != null) return;
+
+                secondResponse = secondController.Open("Second");
+            };
+
+            var owner = realInput.Acquire(new ScreenOptions("Owner"));
+            Assert.IsFalse(move.enabled);
+
+            Action<object, InputActionChange> onActionChange = (changed, change) =>
+            {
+                if
+                (
+                    change != InputActionChange.ActionEnabled ||
+                    !ReferenceEquals(changed, move) ||
+                    calls != 0
+                )
+                {
+                    return;
+                }
+
+                calls++;
+                firstResponse = controller.Open("First");
+            };
+
+            try
+            {
+                InputSystem.onActionChange += onActionChange;
+                owner.Release(false);
+
+                Assert.AreEqual(1, calls);
+                Assert.IsTrue(firstResponse.Accepted);
+                Assert.IsTrue(secondResponse.Accepted);
+                Assert.AreEqual(1, firstOpened);
+                Assert.AreEqual(0, secondOpened);
+                Assert.AreEqual(ScreenState.Opening, secondResponse.Session.State);
+
+                if (closePending)
+                {
+                    Assert.IsTrue(secondResponse.Session.Close());
+                    Assert.AreEqual(ScreenState.Closed, secondResponse.Session.State);
+                }
+
+                realInput.EndBatch();
+                batchOpen = false;
+
+                if (closePending)
+                {
+                    Assert.AreEqual(0, secondOpened);
+                    Assert.AreEqual(1, secondSource.ReleaseCount);
+                    Assert.AreEqual(0, secondController.Count);
+                }
+                else
+                {
+                    Assert.AreEqual(1, secondOpened);
+                    Assert.AreEqual(ScreenState.Active, secondResponse.Session.State);
+                }
+
+                Assert.IsFalse(move.enabled);
+            }
+            finally
+            {
+                InputSystem.onActionChange -= onActionChange;
+
+                if (batchOpen)
+                {
+                    realInput.EndBatch();
+                }
+
+                secondController.Clear();
+                controller.Clear();
+                secondRegistration.Dispose();
+                realInput.Dispose();
+            }
         }
 
     #endregion

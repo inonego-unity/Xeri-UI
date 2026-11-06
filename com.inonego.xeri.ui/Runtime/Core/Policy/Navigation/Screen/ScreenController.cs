@@ -1,8 +1,9 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : ScreenController.cs
-수정일 : 2026-11-02
+수정일 : 2026-11-07
 # 설명
 Screen Open·Close·Replace·Clear 명령과 Stack, 상태 훅, Transition과 대칭 수명을 중재한다.
+재진입 입력 획득에서는 정책 적용 완료 후에만 Screen 열기 전환을 시작한다.
 Screen lifecycle Alpha는 PresentationAlpha Base로 전환해 외부 Modifier와 독립적으로 합성한다.
 Screen 표시 위치는 Registry의 PresentationTarget을 local Session 또는 app-wide Host Layer Lease로 resolve한다.
 ========================================================================= BLOCK_HEADER_END */
@@ -145,6 +146,21 @@ namespace inonego.Xeri.UI
             if (isActive) return;
 
             isActive = true;
+        }
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// Context 경로 변경 전 살아 있는 입력 Session의 재활성화를 검증한다.
+        /// </summary>
+        // ------------------------------------------------------------
+        internal void ValidateInputContributionActivation()
+        {
+            if (inputContributionEnabled) return;
+
+            for (var index = 0; index < liveSessions.Count; index++)
+            {
+                liveSessions[index].Resources.InputSession?.ValidateContributionActivation();
+            }
         }
 
         // --------------------------------------------------------------------------------
@@ -843,9 +859,31 @@ namespace inonego.Xeri.UI
                     );
                 }
 
-                // Stack이 소유권을 수락한 뒤에는 동기 완료 callback도 일반 공개 명령을 사용할 수 있다.
+                // 정책 적용 중 재진입으로 획득했다면 Gameplay 차단이 확정된 후 열기를 시작한다.
+                // 이미 확정된 일반 획득은 기존처럼 동기 열기·실패 반환 계약을 유지한다.
                 isOpening = false;
-                StartOpening(session);
+                var inputSession = session.Resources.InputSession;
+
+                if (inputSession.IsReleased)
+                {
+                    throw new InvalidOperationException("Screen 입력 Session이 열기 전에 반환됐습니다.");
+                }
+
+                if (inputSession.IsPolicyPending)
+                {
+                    inputSession.WhenPolicyApplied
+                    (
+                        applied => ContinueOpeningAfterPolicy(session, previous, applied)
+                    );
+                }
+                else if (!inputSession.IsPolicyApplied)
+                {
+                    throw new InvalidOperationException("Screen 입력 정책이 적용되지 않아 열기를 시작할 수 없습니다.");
+                }
+                else
+                {
+                    StartOpening(session);
+                }
             }
             catch (Exception exception)
             {
@@ -902,6 +940,58 @@ namespace inonego.Xeri.UI
             }
 
             return false;
+        }
+
+        // ----------------------------------------------------------------------
+        /// <summary>
+        /// 지연된 정책 적용의 성공 또는 반환에 따라 수락된 Screen의 열기를 확정한다.
+        /// </summary>
+        // ----------------------------------------------------------------------
+        private void ContinueOpeningAfterPolicy
+        (
+            ScreenSession session,
+            ScreenSession previous,
+            bool applied
+        )
+        {
+            // 지연 중 Close·Clear·Replace가 실행되면 이전 열기 요청은 다시 시작하지 않는다.
+            if
+            (
+                !IsAvailable ||
+                !session.IsAccepted ||
+                session.State != ScreenState.Opening ||
+                !liveSessions.Contains(session) ||
+                !ReferenceEquals(Top, session)
+            )
+            {
+                return;
+            }
+
+            try
+            {
+                if (!applied)
+                {
+                    RollbackOpen(session, previous);
+                    return;
+                }
+
+                StartOpening(session);
+            }
+            catch (Exception exception)
+            {
+                Debug.LogException(exception);
+
+                if (!liveSessions.Contains(session) || session.State == ScreenState.Closed) return;
+
+                try
+                {
+                    RollbackOpen(session, previous);
+                }
+                catch (Exception cleanupException)
+                {
+                    Debug.LogException(cleanupException);
+                }
+            }
         }
 
         // ----------------------------------------------------------------------

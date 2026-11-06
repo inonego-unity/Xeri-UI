@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : InputSystemScreenInputDriver.cs
-수정일 : 2026-10-03
+수정일 : 2026-11-07
 # 설명
 Screen 입력 정책을 active Context contribution만 사용해 Action Map과 Cursor 상태에 합성하고 입력 해제 장벽을 갱신한다.
 ========================================================================= BLOCK_HEADER_END */
@@ -68,6 +68,13 @@ namespace inonego.Xeri.UI
         // ------------------------------------------------------------
         public bool IsInitialized { get; private set; }
 
+        // ------------------------------------------------------------
+        /// <summary>
+        /// 현재 입력 정책이 적용 중이거나 Batch가 열려 있는지 여부.
+        /// </summary>
+        // ------------------------------------------------------------
+        internal bool IsPolicyDeferred => isApplyingPolicy || batchDepth > 0;
+
         // ----------------------------------------------------------------------
         /// <summary>
         /// 구성된 UI·Gameplay Action Map에서 가장 최근 수행된 Action의 장치.
@@ -89,13 +96,13 @@ namespace inonego.Xeri.UI
         private bool baselineCursorVisible = false;
         private CursorLockMode baselineCursorLockMode = CursorLockMode.None;
 
-        private bool appliedUIEnabled = false;
-        private bool appliedGameplayEnabled = false;
         private bool appliedCursorVisible = false;
         private CursorLockMode appliedCursorLockMode = CursorLockMode.None;
 
         private int batchDepth = 0;
         private bool applyPending = false;
+        private bool isApplyingPolicy = false;
+        private int policyRevision = 0;
         private ScreenInputSession retainedCursorOwner = null;
         private bool isDisposed = false;
 
@@ -109,6 +116,13 @@ namespace inonego.Xeri.UI
         /// </summary>
         // ------------------------------------------------------------
         public event Action<InputDevice> OnLastInputDeviceChanged = null;
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// 모든 입력 정책 적용과 Batch가 안정화된 시점을 통지한다.
+        /// </summary>
+        // ------------------------------------------------------------
+        internal event Action OnPolicySettled = null;
 
     #endregion
 
@@ -133,6 +147,15 @@ namespace inonego.Xeri.UI
             if (isDisposed)
             {
                 throw new ObjectDisposedException(nameof(InputSystemScreenInputDriver));
+            }
+
+            // 비활성 컴포넌트는 입력 해제 장벽을 Update에서 처리할 수 없다.
+            if (!isActiveAndEnabled)
+            {
+                throw new InvalidOperationException
+                (
+                    "활성 Input System Screen Input Driver만 초기화할 수 있습니다."
+                );
             }
 
             if (settings == null)
@@ -218,9 +241,14 @@ namespace inonego.Xeri.UI
 
             if (sessionsReadyForRelease.Count == 0) return;
 
-            for (var i = 0; i < sessionsReadyForRelease.Count; i++)
+            // 외부 callback 전에 처리 목록을 분리한다. OnDisable/Dispose의 목록 정리가
+            // 현재 Update에서 아직 종결하지 않은 Session을 버리지 않도록 한다.
+            var readySessions = new List<SessionState>(sessionsReadyForRelease);
+            sessionsReadyForRelease.Clear();
+
+            for (var i = 0; i < readySessions.Count; i++)
             {
-                var sessionState = sessionsReadyForRelease[i];
+                var sessionState = readySessions[i];
                 sessions.Remove(sessionState);
 
                 if (ReferenceEquals(retainedCursorOwner, sessionState.Session))
@@ -238,13 +266,13 @@ namespace inonego.Xeri.UI
                 ResetApplyStateAfterFailure();
                 var errors = new ExceptionBuffer(exception);
 
-                for (var i = 0; i < sessionsReadyForRelease.Count; i++)
+                for (var i = 0; i < readySessions.Count; i++)
                 {
                     try
                     {
                         ReleaseSession
                         (
-                            sessionsReadyForRelease[i],
+                            readySessions[i],
                             removeFromSessions: false
                         );
                     }
@@ -253,8 +281,6 @@ namespace inonego.Xeri.UI
                         errors.Add(releaseException);
                     }
                 }
-
-                sessionsReadyForRelease.Clear();
 
                 if (errors.Count == 1)
                 {
@@ -269,13 +295,13 @@ namespace inonego.Xeri.UI
 
             List<Exception> releaseErrors = null;
 
-            for (var i = 0; i < sessionsReadyForRelease.Count; i++)
+            for (var i = 0; i < readySessions.Count; i++)
             {
                 try
                 {
                     ReleaseSession
                     (
-                        sessionsReadyForRelease[i],
+                        readySessions[i],
                         removeFromSessions: false
                     );
                 }
@@ -286,8 +312,6 @@ namespace inonego.Xeri.UI
                 }
             }
 
-            sessionsReadyForRelease.Clear();
-
             if (releaseErrors != null)
             {
                 throw new AggregateException
@@ -296,6 +320,18 @@ namespace inonego.Xeri.UI
                     releaseErrors
                 );
             }
+        }
+
+        // ----------------------------------------------------------------------
+        /// <summary>
+        /// 비활성화된 Driver가 입력 해제 대기 Session을 유지하지 않도록 수명을 종료한다.
+        /// </summary>
+        // ----------------------------------------------------------------------
+        private void OnDisable()
+        {
+            if (!IsInitialized || isDisposed) return;
+
+            Dispose();
         }
 
         // ------------------------------------------------------------
@@ -340,7 +376,9 @@ namespace inonego.Xeri.UI
                 options,
                 RequestSessionRelease,
                 HandleContributionChanged,
-                contributionEnabled
+                contributionEnabled,
+                policyPending: true,
+                validateContributionEnable: ValidateContributionActivation
             );
             var sessionState = new SessionState(session);
             sessions.Add(sessionState);
@@ -348,11 +386,29 @@ namespace inonego.Xeri.UI
             try
             {
                 RequestApply();
+                // callback에서 전체 반환한 Session도 정상 획득 결과가 될 수 없다.
+                ThrowIfUnavailable();
+
+                if (session.IsReleased)
+                {
+                    throw new InvalidOperationException
+                    (
+                        "입력 정책 획득 중 Screen Input Session 소유권이 반환됐습니다."
+                    );
+                }
+
                 return session;
             }
             catch (Exception exception)
             {
                 sessions.Remove(sessionState);
+                session.MarkReleased(invokeCompletionCallback: false);
+
+                // Dispose가 이미 전체 소유권과 baseline을 종료했으면 획득 롤백으로 다시 적용하지 않는다.
+                if (isDisposed)
+                {
+                    throw;
+                }
 
                 try
                 {
@@ -385,7 +441,7 @@ namespace inonego.Xeri.UI
 
         // ------------------------------------------------------------
         /// <summary>
-        /// 배치 해제 뒤 최종 입력 상태를 한 번 적용한다.
+        /// Batch 종료 시 정책 적용과 보류된 Session 완료를 확정한다.
         /// </summary>
         // ------------------------------------------------------------
         public void EndBatch()
@@ -399,9 +455,10 @@ namespace inonego.Xeri.UI
 
             batchDepth--;
 
-            if (batchDepth == 0 && applyPending)
+            if (batchDepth == 0)
             {
-                ApplyEffectiveState();
+                // 정책 자체가 이미 적용됐더라도 Batch에서 보류한 Session 완료를 재개한다.
+                ApplyPendingPolicy();
             }
         }
 
@@ -481,7 +538,12 @@ namespace inonego.Xeri.UI
                 }
                 catch
                 {
-                    sessions.RemoveAt(index);
+                    if (isDisposed)
+                    {
+                        throw;
+                    }
+
+                    sessions.Remove(sessionState);
 
                     if (ReferenceEquals(retainedCursorOwner, session))
                     {
@@ -514,6 +576,8 @@ namespace inonego.Xeri.UI
             }
             catch
             {
+                // 목록에서 먼저 분리한 Session은 Dispose의 snapshot에 포함되지 않는다.
+                // 현재 Release 작업이 종료 책임을 끝까지 가진다.
                 ResetApplyStateAfterFailure();
                 ReleaseSession
                 (
@@ -578,6 +642,25 @@ namespace inonego.Xeri.UI
             RequestApply();
         }
 
+        // --------------------------------------------------------------------------------
+        /// <summary>
+        /// <br/> 기여를 재활성화하는 Context 권한 변경은 현재 정책의 적용 완료가 필요하다.
+        /// <br/> 재진입이나 Batch 중이면 상위 권한 트랜잭션이 롤백할 수 있도록 즉시 거부한다.
+        /// </summary>
+        // --------------------------------------------------------------------------------
+        private void ValidateContributionActivation()
+        {
+            ThrowIfUnavailable();
+
+            if (IsPolicyDeferred)
+            {
+                throw new InvalidOperationException
+                (
+                    "입력 정책 적용 중에는 기존 Screen Session의 Context 입력 기여를 활성화할 수 없습니다."
+                );
+            }
+        }
+
         // ------------------------------------------------------------
         /// <summary>
         /// 현재 입력 정책 적용 또는 Batch 종료 시점 적용을 요청한다.
@@ -585,11 +668,86 @@ namespace inonego.Xeri.UI
         // ------------------------------------------------------------
         private void RequestApply()
         {
-            applyPending = true;
-
-            if (batchDepth == 0)
+            // 외부 Input Action callback이 정책 소유권을 바꾸면 이전 적용 결과는 폐기한다.
+            unchecked
             {
-                ApplyEffectiveState();
+                policyRevision++;
+            }
+
+            applyPending = true;
+            ApplyPendingPolicy();
+        }
+
+        // --------------------------------------------------------------------------------
+        /// <summary>
+        /// 외부 Action callback이 다시 정책을 요청해도 현재 적용을 끝낸 뒤 최종 정책만 반영한다.
+        /// </summary>
+        // --------------------------------------------------------------------------------
+        private void ApplyPendingPolicy()
+        {
+            if (isApplyingPolicy || batchDepth > 0) return;
+
+            isApplyingPolicy = true;
+            var failed = true;
+
+            try
+            {
+                while (applyPending && batchDepth == 0 && !isDisposed)
+                {
+                    applyPending = false;
+                    ApplyEffectiveState();
+                }
+
+                failed = false;
+            }
+            finally
+            {
+                isApplyingPolicy = false;
+
+                // 중첩 획득은 마지막 정책이 실제 backend에 적용된 뒤에만 열기를 재개한다.
+                if (failed)
+                {
+                    ResolvePendingAcquisitions(false);
+                }
+                else if (!isDisposed && batchDepth == 0 && !applyPending)
+                {
+                    ResolvePendingAcquisitions(true);
+                }
+
+                // Context 권한 전환이 중간에 실패했다면 확정된 정책 이후에만 복원을 재시도한다.
+                if (!failed && !isDisposed && batchDepth == 0 && !applyPending)
+                {
+                    OnPolicySettled?.Invoke();
+                }
+            }
+        }
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// 정책 적용이 확정된 Session의 대기 중인 Screen 열기를 재개한다.
+        /// </summary>
+        // ------------------------------------------------------------
+        private void ResolvePendingAcquisitions(bool applied)
+        {
+            // 열기 callback이 새 입력 Session을 획득해도 이번 완료 집합은 변하지 않는다.
+            var snapshot = new List<SessionState>(sessions);
+
+            for (var index = 0; index < snapshot.Count; index++)
+            {
+                if (isDisposed) return;
+                if (applied && (applyPending || batchDepth > 0)) return;
+
+                var session = snapshot[index].Session;
+                if (session.IsReleased || !session.IsPolicyPending) continue;
+
+                try
+                {
+                    session.MarkPolicyApplied(applied);
+                }
+                catch (Exception exception)
+                {
+                    Debug.LogException(exception);
+                }
             }
         }
 
@@ -604,13 +762,19 @@ namespace inonego.Xeri.UI
             applyPending = false;
         }
 
-        // ----------------------------------------------------------------------
+        // ------------------------------------------------------------
         /// <summary>
-        /// 모든 입력 Session 소유권을 먼저 분리하고 기준 상태 적용 뒤 역순으로 종결한다.
+        /// 입력 Session 소유권을 분리하고 역순으로 종결한다.
         /// </summary>
-        // ----------------------------------------------------------------------
+        // ------------------------------------------------------------
         private IReadOnlyList<Exception> ReleaseAllSessions()
         {
+            // Dispose뿐 아니라 ForceReleaseAll도 진행 중인 정책 적용의 세대를 종료한다.
+            unchecked
+            {
+                policyRevision++;
+            }
+
             var errors = new ExceptionBuffer();
             var releasingSessions = new List<SessionState>(sessions.Count);
 
@@ -625,17 +789,23 @@ namespace inonego.Xeri.UI
             batchDepth = 0;
             applyPending = true;
 
-            try
+            // 이미 진행 중인 정책 적용이 있으면 여기서 Action Map을 중첩 복원하지 않는다.
+            // Dispose는 남은 적용을 이어받을 호출자가 없으므로 직접 복원한다.
+            if (!isApplyingPolicy || isDisposed)
             {
-                ApplyBaselineState();
-            }
-            catch (Exception exception)
-            {
-                errors.Add(exception);
-                ResetApplyStateAfterFailure();
+                try
+                {
+                    ApplyBaselineState();
+                }
+                catch (Exception exception)
+                {
+                    errors.Add(exception);
+                    ResetApplyStateAfterFailure();
+                }
             }
 
-            // 입력 적용 성공 여부와 관계없이 분리된 Session은 Terminal 완료를 소유자에게 알린다.
+            // 완료 callback은 Session 수명의 종료를 의미한다.
+            // 재진입 시 Action Map은 진행 중인 정책 적용이 끝난 뒤 기준 상태로 복원된다.
             for (var i = 0; i < releasingSessions.Count; i++)
             {
                 try
@@ -662,6 +832,8 @@ namespace inonego.Xeri.UI
         // ------------------------------------------------------------
         private void ApplyEffectiveState()
         {
+            var revision = policyRevision;
+
             if (!baselineCaptured)
             {
                 applyPending = false;
@@ -711,7 +883,12 @@ namespace inonego.Xeri.UI
             if (!hasContribution)
             {
                 ApplyCapturedBaselineState();
-                applyPending = false;
+
+                if (revision == policyRevision)
+                {
+                    applyPending = false;
+                }
+
                 return;
             }
 
@@ -740,15 +917,19 @@ namespace inonego.Xeri.UI
                 ? effectiveCursorOwner.Options.CursorLockMode
                 : baselineCursorLockMode;
 
-            ApplyState
+            if
             (
-                true,
-                hasReleaseBarrier || blocksGameplay ? false : baselineGameplayEnabled,
-                cursorVisible,
-                cursorLockMode
-            );
-
-            applyPending = false;
+                ApplyState
+                (
+                    hasReleaseBarrier || blocksGameplay ? false : baselineGameplayEnabled,
+                    cursorVisible,
+                    cursorLockMode,
+                    revision
+                )
+            )
+            {
+                applyPending = false;
+            }
         }
 
         // --------------------------------------------------------------------------------
@@ -759,52 +940,68 @@ namespace inonego.Xeri.UI
         private void ApplyCapturedBaselineState()
         {
             var errors = new ExceptionBuffer();
+            var wasDisposing = isDisposed;
+            var revision = policyRevision;
 
             try
             {
-                RestoreActionStates(uiActionMap, baselineUIActionsEnabled);
+                RestoreActionStates
+                (
+                    uiActionMap,
+                    baselineUIActionsEnabled,
+                    revision
+                );
             }
             catch (Exception exception)
             {
                 errors.Add(exception);
             }
 
-            appliedUIEnabled = AreAllActionsEnabled(uiActionMap);
-
-            try
-            {
-                RestoreActionStates(gameplayActionMap, baselineGameplayActionsEnabled);
-            }
-            catch (Exception exception)
-            {
-                errors.Add(exception);
-            }
-
-            appliedGameplayEnabled = gameplayActionMap.enabled;
-
-            if (baselineCursorVisible != appliedCursorVisible)
+            // 일반 정책 복원 중 Dispose가 재진입했다면 이후 기준 상태는 Dispose가 소유한다.
+            // Dispose 자신이 시작한 복원은 끝까지 진행하며, 수집한 오류는 아래에서 보고한다.
+            if ((wasDisposing || !isDisposed) && revision == policyRevision)
             {
                 try
                 {
-                    Cursor.visible = baselineCursorVisible;
-                    appliedCursorVisible = baselineCursorVisible;
+                    RestoreActionStates
+                    (
+                        gameplayActionMap,
+                        baselineGameplayActionsEnabled,
+                        revision
+                    );
                 }
                 catch (Exception exception)
                 {
                     errors.Add(exception);
                 }
-            }
 
-            if (baselineCursorLockMode != appliedCursorLockMode)
-            {
-                try
+                if ((wasDisposing || !isDisposed) && revision == policyRevision)
                 {
-                    Cursor.lockState = baselineCursorLockMode;
-                    appliedCursorLockMode = baselineCursorLockMode;
-                }
-                catch (Exception exception)
-                {
-                    errors.Add(exception);
+                    if (baselineCursorVisible != appliedCursorVisible)
+                    {
+                        try
+                        {
+                            Cursor.visible = baselineCursorVisible;
+                            appliedCursorVisible = baselineCursorVisible;
+                        }
+                        catch (Exception exception)
+                        {
+                            errors.Add(exception);
+                        }
+                    }
+
+                    if (baselineCursorLockMode != appliedCursorLockMode)
+                    {
+                        try
+                        {
+                            Cursor.lockState = baselineCursorLockMode;
+                            appliedCursorLockMode = baselineCursorLockMode;
+                        }
+                        catch (Exception exception)
+                        {
+                            errors.Add(exception);
+                        }
+                    }
                 }
             }
 
@@ -834,7 +1031,12 @@ namespace inonego.Xeri.UI
                 return;
             }
 
+            var revision = policyRevision;
             ApplyCapturedBaselineState();
+
+            // 중첩 callback의 신규 소유권이 기준 상태를 다시 캡처했다면 보존한다.
+            if (revision != policyRevision) return;
+
             baselineCaptured = false;
             baselineUIActionsEnabled = null;
             baselineGameplayActionsEnabled = null;
@@ -878,13 +1080,31 @@ namespace inonego.Xeri.UI
 
         // ------------------------------------------------------------
         /// <summary>
+        /// 현재 Gameplay Action별 상태가 캡처한 기준값과 일치하는지 확인한다.
+        /// </summary>
+        // ------------------------------------------------------------
+        private static bool MatchesActionStates(InputActionMap map, bool[] states)
+        {
+            var actions = map.actions;
+
+            for (var i = 0; i < actions.Count; i++)
+            {
+                if (actions[i].enabled != states[i]) return false;
+            }
+
+            return true;
+        }
+
+        // ------------------------------------------------------------
+        /// <summary>
         /// 캡처한 Action별 활성 상태를 Action Map에 복원한다.
         /// </summary>
         // ------------------------------------------------------------
-        private static void RestoreActionStates
+        private void RestoreActionStates
         (
             InputActionMap map,
-            bool[] states
+            bool[] states,
+            int revision
         )
         {
             var errors = new ExceptionBuffer();
@@ -902,6 +1122,8 @@ namespace inonego.Xeri.UI
 
             for (var i = 0; i < actions.Count; i++)
             {
+                // 재진입 정책이 생겼다면 이전 복원 작업은 남은 Action을 건드리지 않는다.
+                if (revision != policyRevision) break;
                 if (!states[i]) continue;
 
                 try
@@ -932,56 +1154,81 @@ namespace inonego.Xeri.UI
         /// 변경된 값만 실제 Action Map과 Cursor에 반영한다.
         /// </summary>
         // ------------------------------------------------------------
-        private void ApplyState
+        private bool ApplyState
         (
-            bool uiEnabled,
             bool gameplayEnabled,
             bool cursorVisible,
-            CursorLockMode cursorLockMode
+            CursorLockMode cursorLockMode,
+            int revision
         )
         {
             var errors = new ExceptionBuffer();
+            var superseded = false;
 
-            if (uiEnabled != appliedUIEnabled)
+            // 개별 Action 활성 상태가 진실의 원천이다. 이전 정책의 bool cache를 신뢰하지 않는다.
+            if (!AreAllActionsEnabled(uiActionMap))
             {
                 try
                 {
-                    SetMapEnabled(uiActionMap, uiEnabled);
-                    appliedUIEnabled = uiEnabled;
+                    SetMapEnabled(uiActionMap, true);
+                    ThrowIfUnavailable();
                 }
                 catch (Exception exception)
                 {
-                    // 부분 적용 여부를 bool cache로 추정하지 않고 다음 요청에서 같은 목표를 다시 적용한다.
-                    appliedUIEnabled = !uiEnabled;
+                    if (isDisposed)
+                    {
+                        throw;
+                    }
+
                     errors.Add(exception);
                 }
+
+                superseded = revision != policyRevision;
             }
 
-            if (gameplayEnabled != appliedGameplayEnabled)
+            if
+            (
+                !superseded &&
+                (
+                    gameplayEnabled
+                        ? !MatchesActionStates(gameplayActionMap, baselineGameplayActionsEnabled)
+                        : gameplayActionMap.enabled
+                )
+            )
             {
                 try
                 {
                     if (gameplayEnabled)
                     {
                         // 차단 해제 시 Map 전체가 아니라 Session 직전의 Action별 상태를 복원한다.
-                        RestoreActionStates(gameplayActionMap, baselineGameplayActionsEnabled);
+                        RestoreActionStates
+                        (
+                            gameplayActionMap,
+                            baselineGameplayActionsEnabled,
+                            revision
+                        );
                     }
                     else
                     {
                         SetMapEnabled(gameplayActionMap, false);
                     }
 
-                    appliedGameplayEnabled = gameplayEnabled;
+                    ThrowIfUnavailable();
                 }
                 catch (Exception exception)
                 {
-                    // baseline은 Action별 상태이므로 map.enabled만으로 복원 성공을 판정할 수 없다.
-                    appliedGameplayEnabled = !gameplayEnabled;
+                    if (isDisposed)
+                    {
+                        throw;
+                    }
+
                     errors.Add(exception);
                 }
+
+                superseded = revision != policyRevision;
             }
 
-            if (cursorVisible != appliedCursorVisible)
+            if (!superseded && cursorVisible != appliedCursorVisible)
             {
                 try
                 {
@@ -995,7 +1242,7 @@ namespace inonego.Xeri.UI
                 }
             }
 
-            if (cursorLockMode != appliedCursorLockMode)
+            if (!superseded && cursorLockMode != appliedCursorLockMode)
             {
                 try
                 {
@@ -1009,7 +1256,7 @@ namespace inonego.Xeri.UI
                 }
             }
 
-            if (errors.Count == 0) return;
+            if (errors.Count == 0) return !superseded;
 
             if (errors.Count == 1)
             {
@@ -1056,8 +1303,6 @@ namespace inonego.Xeri.UI
             baselineCursorVisible = Cursor.visible;
             baselineCursorLockMode = Cursor.lockState;
 
-            appliedUIEnabled = AreAllActionsEnabled(uiActionMap);
-            appliedGameplayEnabled = baselineGameplayEnabled;
             appliedCursorVisible = baselineCursorVisible;
             appliedCursorLockMode = baselineCursorLockMode;
             baselineCaptured = true;
@@ -1272,6 +1517,7 @@ namespace inonego.Xeri.UI
             uiActionMap = null;
             gameplayActionMap = null;
             OnLastInputDeviceChanged = null;
+            OnPolicySettled = null;
             IsInitialized = false;
 
             if (errors.Count > 0)

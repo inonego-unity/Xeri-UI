@@ -1,10 +1,11 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : UIContext.cs
-수정일 : 2026-11-02
+수정일 : 2026-11-07
 
 # 설명
 독립 Screen/Modal/Focus/Input state와 PresentationSession 참조를 소유한다.
 Context lifetime과 Base/Override authority를 분리하며 Parent가 Child Context lifetime을 재귀적으로 소유한다.
+비활성 Context의 Cursor 소유권을 먼저 반환하고, Focus 복원 실패 시 입력 기여를 잘못 재획득하지 않는다.
 ========================================================================= BLOCK_HEADER_END */
 
 using System;
@@ -24,6 +25,12 @@ namespace inonego.Xeri.UI
     public sealed class UIContext : IDisposable
     {
 
+    #region 내부 데이터
+
+        private enum State { Active, Disposing, Disposed }
+
+    #endregion
+
     #region 필드
 
         // ------------------------------------------------------------
@@ -31,14 +38,15 @@ namespace inonego.Xeri.UI
         /// 소유 상태와 콘텐츠를 반환 중인지 여부.
         /// </summary>
         // ------------------------------------------------------------
-        public bool IsDisposing { get; private set; }
+        public bool IsDisposing => state == State.Disposing;
 
         // ------------------------------------------------------------
         /// <summary>
         /// Context 수명이 종료되었는지 여부.
         /// </summary>
         // ------------------------------------------------------------
-        public bool IsDisposed { get; private set; }
+        public bool IsDisposed => state == State.Disposed;
+        private State state = State.Active;
 
         // ------------------------------------------------------------
         /// <summary>
@@ -91,8 +99,9 @@ namespace inonego.Xeri.UI
         /// </summary>
         // ------------------------------------------------------------
         internal UIContext Parent => parent;
-
         private UIContext parent = null;
+
+        internal bool HasFocusAuthority => focusController.HasAuthority;
 
         // ------------------------------------------------------------
         /// <summary>
@@ -586,6 +595,16 @@ namespace inonego.Xeri.UI
 
         // ------------------------------------------------------------
         /// <summary>
+        /// 기존 권한 반환 전에 새 경로의 입력 기여 활성화를 검증한다.
+        /// </summary>
+        // ------------------------------------------------------------
+        internal void ValidateInputAuthorityActivation()
+        {
+            Screens.ValidateInputContributionActivation();
+        }
+
+        // ------------------------------------------------------------
+        /// <summary>
         /// 활성 경로에 따라 Focus와 Input 기여를 변경한다.
         /// </summary>
         // ------------------------------------------------------------
@@ -610,8 +629,8 @@ namespace inonego.Xeri.UI
 
                 // 종료 중에는 이전 권한으로 rollback하지 않고 독립 반환을 끝까지 시도한다.
                 var errors = new ExceptionBuffer();
-                TryRestoreAuthority(() => Screens.SetInputContributionEnabled(false), ref errors);
                 TryRestoreAuthority(() => Screens.SetCursorPolicyEnabled(false), ref errors);
+                TryRestoreAuthority(() => Screens.SetInputContributionEnabled(false), ref errors);
                 TryRestoreAuthority(focusController.Suspend, ref errors);
 
                 if (errors.Count == 1)
@@ -633,8 +652,18 @@ namespace inonego.Xeri.UI
 
             try
             {
+                // 이전 경로의 Cursor 소유권을 먼저 반환해야 새 경로와 중복되지 않는다.
+                if (!onActivePath)
+                {
+                    Screens.SetCursorPolicyEnabled(false);
+                }
+
                 Screens.SetInputContributionEnabled(onActivePath);
-                Screens.SetCursorPolicyEnabled(hasCursorAuthority);
+
+                if (onActivePath)
+                {
+                    Screens.SetCursorPolicyEnabled(hasCursorAuthority);
+                }
 
                 if (isEffective)
                 {
@@ -664,14 +693,26 @@ namespace inonego.Xeri.UI
                     },
                     ref errors
                 );
+
+                // 이전 경로의 Cursor 권한은 다른 복원 실패와 관계없이 되살리지 않는다.
+                if (onActivePath)
+                {
+                    TryRestoreAuthority
+                    (
+                        () => Screens.SetCursorPolicyEnabled(previousCursor),
+                        ref errors
+                    );
+                }
+
+                // 실제 Focus 복원에도 실패한 유효 Context의 Input 기여는
+                // 다시 켜지 않고, Runtime의 권한 반환 재시도 경계로 남긴다.
+                var restoreInput = onActivePath || !previousFocus || focusController.HasAuthority
+                    ? previousInput
+                    : false;
+
                 TryRestoreAuthority
                 (
-                    () => Screens.SetCursorPolicyEnabled(previousCursor),
-                    ref errors
-                );
-                TryRestoreAuthority
-                (
-                    () => Screens.SetInputContributionEnabled(previousInput),
+                    () => Screens.SetInputContributionEnabled(restoreInput),
                     ref errors
                 );
 
@@ -715,7 +756,7 @@ namespace inonego.Xeri.UI
         // ----------------------------------------------------------------------
         private void HandleScreenStackChanged()
         {
-            if (IsDisposing || IsDisposed) return;
+            if (state != State.Active) return;
 
             owner.RefreshContextAuthority();
         }
@@ -764,7 +805,7 @@ namespace inonego.Xeri.UI
         // ------------------------------------------------------------
         internal void HandleNativeFocusChanged(object target)
         {
-            if (IsDisposing || IsDisposed || !IsEffective) return;
+            if (state != State.Active || !IsEffective) return;
 
             focusController.HandleNativeFocusChanged(target);
         }
@@ -840,9 +881,9 @@ namespace inonego.Xeri.UI
         {
             var errors = new ExceptionBuffer();
 
-            if (IsDisposed || IsDisposing) return errors.AsReadOnlyList();
+            if (state != State.Active) return errors.AsReadOnlyList();
 
-            IsDisposing = true;
+            state = State.Disposing;
 
             // 어떤 종료 진입점이든 부모의 소유 목록에서 먼저 분리한다.
             parent?.children.Remove(this);
@@ -896,8 +937,7 @@ namespace inonego.Xeri.UI
 
             DisposeScreenRegistry(ScreenRegistry, ref errors);
             parent = null;
-            IsDisposing = false;
-            IsDisposed = true;
+            state = State.Disposed;
             return errors.AsReadOnlyList();
         }
 
@@ -908,7 +948,7 @@ namespace inonego.Xeri.UI
         // ------------------------------------------------------------
         private void ThrowIfUnavailable()
         {
-            if (IsDisposing || IsDisposed)
+            if (state != State.Active)
             {
                 throw new ObjectDisposedException(nameof(UIContext));
             }
@@ -973,10 +1013,6 @@ namespace inonego.Xeri.UI
             }
         }
 
-    #endregion
-
-    #region 수명 해제
-
         // ------------------------------------------------------------
         /// <summary>
         /// 부모 추적에서 분리하고 소유 상태를 반환한다.
@@ -984,7 +1020,7 @@ namespace inonego.Xeri.UI
         // ------------------------------------------------------------
         public void Dispose()
         {
-            if (IsDisposed || IsDisposing) return;
+            if (state != State.Active) return;
 
             if (parent == null)
             {

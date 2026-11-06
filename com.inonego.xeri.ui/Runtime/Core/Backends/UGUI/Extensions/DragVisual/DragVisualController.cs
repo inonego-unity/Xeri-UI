@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : DragVisualController.cs
-수정일 : 2026-10-07
+수정일 : 2026-11-02
 # 설명
 UGUI Drag Visual의 PresentationTarget Layer Lease, 일시적 계층 재배치와 기존 Draggable 연결을 소유한다.
 ========================================================================= BLOCK_HEADER_END */
@@ -107,7 +107,8 @@ namespace inonego.Xeri.UI
             ThrowIfDisposed();
             ValidateParameters(parameters);
             ThrowIfLayerAcquirerMissing();
-            var layerLease = acquireLayer(parameters.TargetPresentation);
+            var layerLease = acquireLayer(parameters.TargetPresentation) ??
+                throw new InvalidOperationException("Drag Visual Layer resolver가 null Lease를 반환했습니다.");
 
             if (layerLease.Layer is not IPresentationLayerDriver<RectTransform> layerCanvas)
             {

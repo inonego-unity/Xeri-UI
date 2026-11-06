@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : TEST_XeriWindowController.cs
-수정일 : 2026-10-04
+수정일 : 2026-11-02
 
 # 설명
 Xeri 커스텀 윈도우 controller와 core 옵션 테스트.
@@ -699,16 +699,14 @@ namespace inonego.Xeri.UI.TEST.Window
             (
                 new XeriWindowStateCommandRequest
                 (
-                    XeriWindowStateCommandKind.Maximize,
-                    XeriWindowCommandSource.API
+                    XeriWindowStateCommandKind.Maximize
                 )
             );
             var showNormal = controller.RequestStateCommand
             (
                 new XeriWindowStateCommandRequest
                 (
-                    XeriWindowStateCommandKind.ShowNormal,
-                    XeriWindowCommandSource.API
+                    XeriWindowStateCommandKind.ShowNormal
                 )
             );
 
@@ -880,7 +878,6 @@ namespace inonego.Xeri.UI.TEST.Window
                 new XeriWindowStateCommandRequest
                 (
                     XeriWindowStateCommandKind.ShowNormal,
-                    XeriWindowCommandSource.TitleBar,
                     targetBounds
                 )
             );
@@ -1037,8 +1034,7 @@ namespace inonego.Xeri.UI.TEST.Window
                 (
                     new XeriWindowStateCommandRequest
                     (
-                        XeriWindowStateCommandKind.Minimize,
-                        XeriWindowCommandSource.API
+                        XeriWindowStateCommandKind.Minimize
                     )
                 );
             };
@@ -1067,8 +1063,7 @@ namespace inonego.Xeri.UI.TEST.Window
                 (
                     new XeriWindowStateCommandRequest
                     (
-                        XeriWindowStateCommandKind.Minimize,
-                        XeriWindowCommandSource.API
+                        XeriWindowStateCommandKind.Minimize
                     )
                 );
             };

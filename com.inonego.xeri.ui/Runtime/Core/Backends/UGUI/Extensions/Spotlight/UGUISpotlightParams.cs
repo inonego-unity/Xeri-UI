@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : UGUISpotlightParams.cs
-수정일 : 2026-09-17
+수정일 : 2026-11-02
 # 설명
 여러 UGUI Spotlight 대상과 바깥 입력 차단 여부를 불변 호출 인자로 정의한다.
 ========================================================================= BLOCK_HEADER_END */
@@ -23,12 +23,12 @@ namespace inonego.Xeri.UI
 
         // ------------------------------------------------------------
         /// <summary>
-        /// 동시에 표시할 실제 Focus 대상 목록.
+        /// 동시에 표시할 실제 Spotlight 대상 목록.
         /// </summary>
         // ------------------------------------------------------------
         public IReadOnlyList<UGUISpotlightTarget> Targets => targets;
 
-        private readonly UGUISpotlightTarget[] targets = null;
+        private readonly IReadOnlyList<UGUISpotlightTarget> targets = null;
 
         // ------------------------------------------------------------
         /// <summary>
@@ -62,7 +62,7 @@ namespace inonego.Xeri.UI
                 throw new ArgumentException("UGUI Spotlight 대상이 비어 있습니다.", nameof(targets));
             }
 
-            this.targets = new UGUISpotlightTarget[targets.Count];
+            var copy = new UGUISpotlightTarget[targets.Count];
 
             for (var i = 0; i < targets.Count; i++)
             {
@@ -75,9 +75,10 @@ namespace inonego.Xeri.UI
                     );
                 }
 
-                this.targets[i] = targets[i];
+                copy[i] = targets[i];
             }
 
+            this.targets = Array.AsReadOnly(copy);
             BlocksOutsideInput = blocksOutsideInput;
         }
 

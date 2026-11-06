@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : UGUISceneFadeSource.cs
-수정일 : 2026-09-17
+수정일 : 2026-11-02
 # 설명
 IGameObjectProvider 기반 UGUI Scene Fade View를 Runtime Fade Source 계약으로 제공한다.
 ========================================================================= BLOCK_HEADER_END */

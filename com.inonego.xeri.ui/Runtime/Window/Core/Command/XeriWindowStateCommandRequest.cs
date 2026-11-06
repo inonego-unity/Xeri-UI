@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : XeriWindowStateCommandRequest.cs
-수정일 : 2026-09-20
+수정일 : 2026-11-02
 
 # 설명
 Xeri 커스텀 윈도우 상태 전환 요청 데이터.
@@ -32,13 +32,6 @@ namespace inonego.Xeri.UI.Window
 
         // ------------------------------------------------------------
         /// <summary>
-        /// 명령 발생 원인.
-        /// </summary>
-        // ------------------------------------------------------------
-        public readonly XeriWindowCommandSource Source;
-
-        // ------------------------------------------------------------
-        /// <summary>
         /// 명령이 요구하는 명시적 target bounds.
         /// </summary>
         // ------------------------------------------------------------
@@ -63,13 +56,11 @@ namespace inonego.Xeri.UI.Window
         public XeriWindowStateCommandRequest
         (
             XeriWindowStateCommandKind kind,
-            XeriWindowCommandSource source,
             Rect? targetBounds = null,
             bool animate = true
         )
         {
             Kind = kind;
-            Source = source;
             TargetBounds = targetBounds;
             Animate = animate;
         }

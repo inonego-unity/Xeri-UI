@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : TEST_UIPresentation.cs
-수정일 : 2026-11-05
+수정일 : 2026-11-07
 
 # 설명
 실제 Runtime Panel과 Canvas에서 UGUI·UITK 표시와 mixed Focus의 대표 경로를 검증한다.
@@ -9,7 +9,7 @@
  I: Input System Map·해제 장벽·Context contribution
  P: DOTween Presentation Transition
  U: UGUI Layer·Screen·Modal·Fade·Layout
- T: UITK Panel·Focus·Screen·Modal·Fade·Spotlight
+ T: UITK Panel·Focus·Screen·Modal·Fade
  M: UGUI·UITK mixed Focus
  O: UITK·UGUI Native 출력 순서
 ========================================================================= BLOCK_HEADER_END */
@@ -208,6 +208,76 @@ namespace inonego.Xeri.UI.TEST.Core
             public void Set(float value)
             {
                 Value = value;
+            }
+        }
+
+        // ============================================================
+        /// <summary>
+        /// 시작 또는 종료 값 적용에 실패하는 Transition Target.
+        /// </summary>
+        // ============================================================
+        private sealed class FailingTransitionTarget : IValueSetter<float>
+        {
+            public bool FailOnStart { get; }
+            public int SetCount { get; private set; }
+
+            public FailingTransitionTarget(bool failOnStart)
+            {
+                FailOnStart = failOnStart;
+            }
+
+            public void Set(float value)
+            {
+                SetCount++;
+
+                if (value == (FailOnStart ? 0f : 1f))
+                {
+                    throw new InvalidOperationException("injected transition target failure");
+                }
+            }
+        }
+
+        // ======================================================================
+        /// <summary>
+        /// 진행 값 적용 중 Transitioner 수명을 재진입 종료하는 테스트 Target.
+        /// </summary>
+        // ======================================================================
+        private sealed class DisposingTransitionTarget : IValueSetter<float>
+        {
+            private readonly DOTweenPresentationTransitioner transitioner;
+            private readonly float disposeAt;
+            private readonly bool throwAfterDispose;
+
+            public int SetCount { get; private set; }
+
+            public int DisposeCount { get; private set; }
+
+            public DisposingTransitionTarget
+            (
+                DOTweenPresentationTransitioner transitioner,
+                float disposeAt,
+                bool throwAfterDispose = false
+            )
+            {
+                this.transitioner = transitioner;
+                this.disposeAt = disposeAt;
+                this.throwAfterDispose = throwAfterDispose;
+            }
+
+            public void Set(float value)
+            {
+                SetCount++;
+
+                if (value == disposeAt)
+                {
+                    DisposeCount++;
+                    transitioner.Dispose();
+
+                    if (throwAfterDispose)
+                    {
+                        throw new InvalidOperationException("injected disposal target failure");
+                    }
+                }
             }
         }
 
@@ -622,10 +692,433 @@ namespace inonego.Xeri.UI.TEST.Core
 
         // --------------------------------------------------------------------------------
         /// <summary>
+        /// 같은 Update에서 첫 해제 callback이 Driver를 종료해도 남은 해제 Session이 종결된다.
+        /// </summary>
+        // --------------------------------------------------------------------------------
+        [UnityTest]
+        public IEnumerator TEST_InputSystemScreenInputDriver_해제Callback에서비활성화_잔여Session종결()
+        {
+            var host = new GameObject("Reentrant Input Host");
+            var inputModule = host.AddComponent<InputSystemUIInputModule>();
+            var driver = host.AddComponent<InputSystemScreenInputDriver>();
+            var actions = ScriptableObject.CreateInstance<InputActionAsset>();
+            var settings = ScriptableObject.CreateInstance<UISettingsAsset>();
+            Keyboard keyboard = null;
+            var firstCompleted = 0;
+            var secondCompleted = 0;
+
+            try
+            {
+                keyboard = InputSystem.AddDevice<Keyboard>();
+                var ui = new InputActionMap("UI");
+                ui.AddAction("Cancel", InputActionType.Button)
+                    .AddBinding("<Keyboard>/escape");
+                var gameplay = new InputActionMap("Player");
+                gameplay.AddAction("Cancel", InputActionType.Button)
+                    .AddBinding("<Keyboard>/escape");
+                actions.AddActionMap(ui);
+                actions.AddActionMap(gameplay);
+                inputModule.actionsAsset = actions;
+                SetField(settings, "uiActionMap", "UI");
+                SetField(settings, "gameplayActionsAsset", actions);
+                SetField(settings, "gameplayActionMap", "Player");
+                var releaseActionNames = new[]
+                {
+                    "Cancel",
+                };
+                SetField(settings, "releaseActionNames", releaseActionNames);
+                driver.Initialize(inputModule, settings);
+
+                var lower = driver.Acquire(new ScreenOptions("Lower"));
+                var upper = driver.Acquire(new ScreenOptions("Upper"));
+
+                InputSystem.QueueStateEvent(keyboard, new KeyboardState(Key.Escape));
+                InputSystem.Update();
+                lower.Release
+                (
+                    waitForInputRelease: true,
+                    onReleaseCompleted: () => secondCompleted++
+                );
+                upper.Release
+                (
+                    waitForInputRelease: true,
+                    onReleaseCompleted: () =>
+                    {
+                        firstCompleted++;
+                        driver.enabled = false;
+                    }
+                );
+                Assert.IsTrue(lower.IsAwaitingRelease);
+                Assert.IsTrue(upper.IsAwaitingRelease);
+
+                InputSystem.QueueStateEvent(keyboard, new KeyboardState());
+                InputSystem.Update();
+                yield return null;
+                yield return null;
+                yield return null;
+
+                Assert.IsTrue(upper.IsReleased);
+                Assert.IsTrue(lower.IsReleased);
+                Assert.AreEqual(1, firstCompleted);
+                Assert.AreEqual(1, secondCompleted);
+                Assert.IsFalse(driver.IsInitialized);
+            }
+            finally
+            {
+                driver.Dispose();
+
+                if (keyboard != null)
+                {
+                    InputSystem.RemoveDevice(keyboard);
+                }
+
+                UnityEngine.Object.Destroy(host);
+                UnityEngine.Object.Destroy(actions);
+                UnityEngine.Object.Destroy(settings);
+            }
+        }
+
+        // ----------------------------------------------------------------------
+        /// <summary>
+        /// 입력 Action callback의 재진입 종료 중 기준 상태와 획득 결과를 검증한다.
+        /// </summary>
+        // ----------------------------------------------------------------------
+        [Test]
+        public void TEST_InputSystemScreenInputDriver_획득중Disable재진입_기준상태와획득거부()
+        {
+            var baselineCursorVisible = UnityCursor.visible;
+            var baselineCursorLockMode = UnityCursor.lockState;
+            var host = new GameObject("Reentrant Acquire Host");
+            var inputModule = host.AddComponent<InputSystemUIInputModule>();
+            var driver = host.AddComponent<InputSystemScreenInputDriver>();
+            var actions = ScriptableObject.CreateInstance<InputActionAsset>();
+            var settings = ScriptableObject.CreateInstance<UISettingsAsset>();
+            Action<object, InputActionChange> onActionChange = null;
+            var disabledCallbacks = 0;
+
+            try
+            {
+                var ui = new InputActionMap("UI");
+                ui.AddAction("Cancel", InputActionType.Button);
+                var gameplay = new InputActionMap("Player");
+                gameplay.AddAction("Move", InputActionType.Value);
+                actions.AddActionMap(ui);
+                actions.AddActionMap(gameplay);
+                gameplay.Enable();
+                inputModule.actionsAsset = actions;
+                SetField(settings, "uiActionMap", "UI");
+                SetField(settings, "gameplayActionsAsset", actions);
+                SetField(settings, "gameplayActionMap", "Player");
+                SetField(settings, "releaseActionNames", Array.Empty<string>());
+                driver.Initialize(inputModule, settings);
+
+                var owner = driver.Acquire
+                (
+                    new ScreenOptions
+                    (
+                        "Owner",
+                        blocksGameplayInput: false,
+                        showsCursor: !baselineCursorVisible,
+                        cursorLockMode: baselineCursorLockMode
+                    )
+                );
+                owner.SetCursorPolicyEnabled(true);
+                Assert.AreEqual(!baselineCursorVisible, UnityCursor.visible);
+
+                onActionChange = (changedObject, change) =>
+                {
+                    if
+                    (
+                        change != InputActionChange.ActionMapDisabled ||
+                        !ReferenceEquals(changedObject, gameplay)
+                    )
+                    {
+                        return;
+                    }
+
+                    disabledCallbacks++;
+                    driver.enabled = false;
+                };
+                InputSystem.onActionChange += onActionChange;
+
+                Assert.Throws<ObjectDisposedException>
+                (
+                    () => driver.Acquire(new ScreenOptions("Blocking"))
+                );
+
+                Assert.GreaterOrEqual(disabledCallbacks, 1);
+                Assert.IsTrue(owner.IsReleased);
+                Assert.IsFalse(driver.IsInitialized);
+                Assert.AreEqual(baselineCursorVisible, UnityCursor.visible);
+                Assert.AreEqual(baselineCursorLockMode, UnityCursor.lockState);
+                Assert.IsTrue(gameplay.enabled);
+            }
+            finally
+            {
+                if (onActionChange != null)
+                {
+                    InputSystem.onActionChange -= onActionChange;
+                }
+
+                driver.Dispose();
+                UnityCursor.visible = baselineCursorVisible;
+                UnityCursor.lockState = baselineCursorLockMode;
+                UnityEngine.Object.Destroy(host);
+                UnityEngine.Object.Destroy(actions);
+                UnityEngine.Object.Destroy(settings);
+            }
+        }
+
+        // --------------------------------------------------------------------------------
+        /// <summary>
+        /// 획득 중 전체 해제 callback이 실행되면 해제된 Session과 이전 정책을 반환하지 않는다.
+        /// </summary>
+        // --------------------------------------------------------------------------------
+        [Test]
+        public void TEST_InputSystemScreenInputDriver_획득중전체해제재진입_해제Session반환거부()
+        {
+            var originalCursorVisible = UnityCursor.visible;
+            var originalCursorLockMode = UnityCursor.lockState;
+            var host = new GameObject("Reentrant Force Release Host");
+            var inputModule = host.AddComponent<InputSystemUIInputModule>();
+            var driver = host.AddComponent<InputSystemScreenInputDriver>();
+            var actions = ScriptableObject.CreateInstance<InputActionAsset>();
+            var settings = ScriptableObject.CreateInstance<UISettingsAsset>();
+            Action<object, InputActionChange> onActionChange = null;
+            var releaseCallbacks = 0;
+
+            try
+            {
+                var ui = new InputActionMap("UI");
+                ui.AddAction("Cancel", InputActionType.Button);
+                var gameplay = new InputActionMap("Player");
+                gameplay.AddAction("Move", InputActionType.Value);
+                actions.AddActionMap(ui);
+                actions.AddActionMap(gameplay);
+                gameplay.Enable();
+                inputModule.actionsAsset = actions;
+                SetField(settings, "uiActionMap", "UI");
+                SetField(settings, "gameplayActionsAsset", actions);
+                SetField(settings, "gameplayActionMap", "Player");
+                SetField(settings, "releaseActionNames", Array.Empty<string>());
+                driver.Initialize(inputModule, settings);
+
+                var owner = driver.Acquire
+                (
+                    new ScreenOptions
+                    (
+                        "Owner",
+                        blocksGameplayInput: false,
+                        showsCursor: !originalCursorVisible,
+                        cursorLockMode: originalCursorLockMode
+                    )
+                );
+                owner.SetCursorPolicyEnabled(true);
+                Assert.AreEqual(!originalCursorVisible, UnityCursor.visible);
+
+                onActionChange = (changedObject, change) =>
+                {
+                    if
+                    (
+                        change != InputActionChange.ActionMapDisabled ||
+                        !ReferenceEquals(changedObject, gameplay) ||
+                        releaseCallbacks != 0
+                    )
+                    {
+                        return;
+                    }
+
+                    releaseCallbacks++;
+                    driver.ForceReleaseAll();
+                };
+                InputSystem.onActionChange += onActionChange;
+
+                Assert.Throws<InvalidOperationException>
+                (
+                    () => driver.Acquire(new ScreenOptions("Blocking"))
+                );
+
+                Assert.AreEqual(1, releaseCallbacks);
+                Assert.IsTrue(owner.IsReleased);
+                Assert.IsTrue(driver.IsInitialized);
+                Assert.IsTrue(gameplay.enabled);
+                Assert.AreEqual(originalCursorVisible, UnityCursor.visible);
+                Assert.AreEqual(originalCursorLockMode, UnityCursor.lockState);
+            }
+            finally
+            {
+                if (onActionChange != null)
+                {
+                    InputSystem.onActionChange -= onActionChange;
+                }
+
+                driver.Dispose();
+                UnityCursor.visible = originalCursorVisible;
+                UnityCursor.lockState = originalCursorLockMode;
+                UnityEngine.Object.Destroy(host);
+                UnityEngine.Object.Destroy(actions);
+                UnityEngine.Object.Destroy(settings);
+            }
+        }
+
+        // ----------------------------------------------------------------------
+        /// <summary>
+        /// 해제 정책 적용 중 Driver가 종료돼도 분리된 Session을 최종 종결한다.
+        /// </summary>
+        // ----------------------------------------------------------------------
+        [Test]
+        public void TEST_InputSystemScreenInputDriver_해제중Disable재진입_분리Session종결()
+        {
+            var host = new GameObject("Reentrant Release Host");
+            var inputModule = host.AddComponent<InputSystemUIInputModule>();
+            var driver = host.AddComponent<InputSystemScreenInputDriver>();
+            var actions = ScriptableObject.CreateInstance<InputActionAsset>();
+            var settings = ScriptableObject.CreateInstance<UISettingsAsset>();
+            Action<object, InputActionChange> onActionChange = null;
+            var disabledCallbacks = 0;
+
+            try
+            {
+                var ui = new InputActionMap("UI");
+                ui.AddAction("Cancel", InputActionType.Button);
+                var gameplay = new InputActionMap("Player");
+                gameplay.AddAction("Move", InputActionType.Value);
+                actions.AddActionMap(ui);
+                actions.AddActionMap(gameplay);
+                gameplay.Enable();
+                inputModule.actionsAsset = actions;
+                SetField(settings, "uiActionMap", "UI");
+                SetField(settings, "gameplayActionsAsset", actions);
+                SetField(settings, "gameplayActionMap", "Player");
+                SetField(settings, "releaseActionNames", Array.Empty<string>());
+                driver.Initialize(inputModule, settings);
+
+                var session = driver.Acquire(new ScreenOptions("Blocking"));
+                Assert.IsTrue(ui.enabled);
+
+                onActionChange = (changedObject, change) =>
+                {
+                    if
+                    (
+                        change != InputActionChange.ActionMapDisabled ||
+                        !ReferenceEquals(changedObject, ui)
+                    )
+                    {
+                        return;
+                    }
+
+                    disabledCallbacks++;
+                    driver.enabled = false;
+                };
+                InputSystem.onActionChange += onActionChange;
+
+                Assert.DoesNotThrow(() => session.Release(false));
+                Assert.GreaterOrEqual(disabledCallbacks, 1);
+                Assert.IsFalse(driver.IsInitialized);
+                Assert.IsTrue(session.IsReleased);
+            }
+            finally
+            {
+                if (onActionChange != null)
+                {
+                    InputSystem.onActionChange -= onActionChange;
+                }
+
+                driver.Dispose();
+                UnityEngine.Object.Destroy(host);
+                UnityEngine.Object.Destroy(actions);
+                UnityEngine.Object.Destroy(settings);
+            }
+        }
+
+        // --------------------------------------------------------------------------------
+        /// <summary>
         /// <br/> 전체 해제 callback에서 획득한 새 Session을 계속 추적하고,
         /// <br/> 마지막 해제 뒤 Gameplay Action별 기준 활성 상태를 정확히 복원하는지 검증한다.
         /// </summary>
         // --------------------------------------------------------------------------------
+        [Test]
+        public void TEST_InputSystemScreenInputDriver_Action복원중재진입_차단유지()
+        {
+            var host = new GameObject("Reentrant Action Restore Host");
+            var inputModule = host.AddComponent<InputSystemUIInputModule>();
+            var driver = host.AddComponent<InputSystemScreenInputDriver>();
+            var actions = ScriptableObject.CreateInstance<InputActionAsset>();
+            var settings = ScriptableObject.CreateInstance<UISettingsAsset>();
+            Action<object, InputActionChange> onChange = null;
+            ScreenInputSession nested = null;
+            var callbackCount = 0;
+
+            try
+            {
+                var ui = new InputActionMap("UI");
+                ui.AddAction("Cancel", InputActionType.Button);
+                var gameplay = new InputActionMap("Player");
+                var move = gameplay.AddAction("Move", InputActionType.Value);
+                var attack = gameplay.AddAction("Attack", InputActionType.Button);
+                actions.AddActionMap(ui);
+                actions.AddActionMap(gameplay);
+                gameplay.Enable();
+                inputModule.actionsAsset = actions;
+                SetField(settings, "uiActionMap", "UI");
+                SetField(settings, "gameplayActionsAsset", actions);
+                SetField(settings, "gameplayActionMap", "Player");
+                SetField(settings, "releaseActionNames", Array.Empty<string>());
+                driver.Initialize(inputModule, settings);
+
+                var background = driver.Acquire
+                (
+                    new ScreenOptions("Background", blocksGameplayInput: false)
+                );
+                var blocking = driver.Acquire(new ScreenOptions("Blocking"));
+                Assert.IsFalse(move.enabled);
+                Assert.IsFalse(attack.enabled);
+
+                onChange = (changed, change) =>
+                {
+                    if
+                    (
+                        change != InputActionChange.ActionEnabled ||
+                        !ReferenceEquals(changed, move) ||
+                        callbackCount != 0
+                    )
+                    {
+                        return;
+                    }
+
+                    callbackCount++;
+                    nested = driver.Acquire(new ScreenOptions("NestedBlocking"));
+                };
+                InputSystem.onActionChange += onChange;
+
+                blocking.Release(false);
+
+                Assert.AreEqual(1, callbackCount);
+                Assert.IsNotNull(nested);
+                Assert.IsFalse(nested.IsReleased);
+                Assert.IsTrue(blocking.IsReleased);
+                Assert.IsFalse(move.enabled);
+                Assert.IsFalse(attack.enabled);
+
+                nested.Release(false);
+                background.Release(false);
+                Assert.IsTrue(move.enabled);
+                Assert.IsTrue(attack.enabled);
+            }
+            finally
+            {
+                if (onChange != null)
+                {
+                    InputSystem.onActionChange -= onChange;
+                }
+
+                driver.Dispose();
+                UnityEngine.Object.Destroy(host);
+                UnityEngine.Object.Destroy(actions);
+                UnityEngine.Object.Destroy(settings);
+            }
+        }
+
         [UnityTest]
         public IEnumerator TEST_InputSystemScreenInputDriver_전체해제재진입_Action별기준상태복원()
         {
@@ -1022,6 +1515,121 @@ namespace inonego.Xeri.UI.TEST.Core
             yield return null;
         }
 
+        // ----------------------------------------------------------------------
+        /// <summary>
+        /// Host의 입력 드라이버를 개별 비활성화하면 입력 Session과 기준 상태를 해제한다.
+        /// </summary>
+        // ----------------------------------------------------------------------
+        [UnityTest]
+        public IEnumerator TEST_InputSystemScreenInputDriver_비활성화_세션해제와기준복원()
+        {
+            var host = new GameObject("Disabled Input Host");
+            var inputModule = host.AddComponent<InputSystemUIInputModule>();
+            var driver = host.AddComponent<InputSystemScreenInputDriver>();
+            var actions = ScriptableObject.CreateInstance<InputActionAsset>();
+            var settings = ScriptableObject.CreateInstance<UISettingsAsset>();
+
+            try
+            {
+                var ui = new InputActionMap("UI");
+                ui.AddAction("Cancel", InputActionType.Button);
+                var gameplay = new InputActionMap("Player");
+                gameplay.AddAction("Move", InputActionType.Value);
+                actions.AddActionMap(ui);
+                actions.AddActionMap(gameplay);
+                gameplay.Enable();
+                inputModule.actionsAsset = actions;
+                SetField(settings, "uiActionMap", "UI");
+                SetField(settings, "gameplayActionsAsset", actions);
+                SetField(settings, "gameplayActionMap", "Player");
+                SetField(settings, "releaseActionNames", Array.Empty<string>());
+                driver.Initialize(inputModule, settings);
+
+                var session = driver.Acquire
+                (
+                    new ScreenOptions("Blocking", blocksGameplayInput: true)
+                );
+
+                Assert.IsFalse(gameplay.enabled);
+                driver.enabled = false;
+
+                Assert.IsTrue(session.IsReleased);
+                Assert.IsTrue(gameplay.enabled);
+                Assert.IsFalse(driver.IsInitialized);
+                Assert.Throws<ObjectDisposedException>
+                (
+                    () => driver.Acquire(new ScreenOptions("After Disable"))
+                );
+            }
+            finally
+            {
+                driver.Dispose();
+                UnityEngine.Object.Destroy(host);
+                UnityEngine.Object.Destroy(actions);
+                UnityEngine.Object.Destroy(settings);
+            }
+
+            yield return null;
+        }
+
+        // --------------------------------------------------------------------------------
+        /// <summary>
+        /// 비활성 Host와 비활성 컴포넌트는 입력 Session을 생성할 수 없도록 초기화를 거부한다.
+        /// </summary>
+        // --------------------------------------------------------------------------------
+        [TestCase(true)]
+        [TestCase(false)]
+        public void TEST_InputSystemScreenInputDriver_비활성Host_초기화거부(bool deactivateHost)
+        {
+            var host = new GameObject("Inactive Input Host");
+            var inputModule = host.AddComponent<InputSystemUIInputModule>();
+            var driver = host.AddComponent<InputSystemScreenInputDriver>();
+            var actions = ScriptableObject.CreateInstance<InputActionAsset>();
+            var settings = ScriptableObject.CreateInstance<UISettingsAsset>();
+
+            try
+            {
+                var ui = new InputActionMap("UI");
+                ui.AddAction("Cancel", InputActionType.Button);
+                var gameplay = new InputActionMap("Player");
+                gameplay.AddAction("Move", InputActionType.Value);
+                actions.AddActionMap(ui);
+                actions.AddActionMap(gameplay);
+                inputModule.actionsAsset = actions;
+                SetField(settings, "uiActionMap", "UI");
+                SetField(settings, "gameplayActionsAsset", actions);
+                SetField(settings, "gameplayActionMap", "Player");
+                SetField(settings, "releaseActionNames", Array.Empty<string>());
+
+                if (deactivateHost)
+                {
+                    host.SetActive(false);
+                }
+                else
+                {
+                    driver.enabled = false;
+                }
+
+                Assert.Throws<InvalidOperationException>
+                (
+                    () => driver.Initialize(inputModule, settings)
+                );
+                Assert.IsFalse(driver.IsInitialized);
+
+                host.SetActive(true);
+                driver.enabled = true;
+                driver.Initialize(inputModule, settings);
+                Assert.IsTrue(driver.IsInitialized);
+            }
+            finally
+            {
+                driver.Dispose();
+                UnityEngine.Object.Destroy(host);
+                UnityEngine.Object.Destroy(actions);
+                UnityEngine.Object.Destroy(settings);
+            }
+        }
+
     #endregion
 
     #region P-1: DOTween 프레젠테이션 전환
@@ -1075,6 +1683,246 @@ namespace inonego.Xeri.UI.TEST.Core
             }
         }
 
+        // ----------------------------------------------------------------------
+        /// <summary>
+        /// 즉시 전환에서 Target 오류는 완료 대신 실패 Handle과 callback으로 끝난다.
+        /// </summary>
+        // ----------------------------------------------------------------------
+        [TestCase(true)]
+        [TestCase(false)]
+        public void TEST_DOTweenPresentationTransitioner_즉시전환_Target오류_실패종결(bool failOnStart)
+        {
+            var transitioner = new DOTweenPresentationTransitioner();
+            var target = new FailingTransitionTarget(failOnStart);
+            var completed = 0;
+            var failed = 0;
+            Exception observed = null;
+
+            try
+            {
+                var handle = transitioner.Play
+                (
+                    new PresentationTransitionParams(target, 0f, 1f, 0f, true),
+                    () => completed++,
+                    exception =>
+                    {
+                        failed++;
+                        observed = exception;
+                    }
+                );
+
+                Assert.IsTrue(handle.IsFailed);
+                Assert.IsFalse(handle.IsPending);
+                Assert.AreEqual(0, completed);
+                Assert.AreEqual(1, failed);
+                Assert.IsInstanceOf<InvalidOperationException>(observed);
+                Assert.AreEqual(failOnStart ? 1 : 2, target.SetCount);
+            }
+            finally
+            {
+                transitioner.Dispose();
+            }
+        }
+
+        // ----------------------------------------------------------------------
+        /// <summary>
+        /// 시작 값 적용 중 Backend가 종료되면 즉시·비동기 Tween 어느 쪽도 생성하지 않는다.
+        /// </summary>
+        // ----------------------------------------------------------------------
+        [TestCase(0f)]
+        [TestCase(0.08f)]
+        public void TEST_DOTweenPresentationTransitioner_시작값적용중Dispose_새전환거부(float duration)
+        {
+            var transitioner = new DOTweenPresentationTransitioner();
+            var target = new DisposingTransitionTarget(transitioner, 0f);
+            var completed = 0;
+            var failed = 0;
+
+            try
+            {
+                Assert.Throws<ObjectDisposedException>
+                (
+                    () => transitioner.Play
+                    (
+                        new PresentationTransitionParams(target, 0f, 1f, duration, true),
+                        () => completed++,
+                        _ => failed++
+                    )
+                );
+
+                Assert.AreEqual(1, target.SetCount);
+                Assert.AreEqual(0, completed);
+                Assert.AreEqual(0, failed);
+            }
+            finally
+            {
+                transitioner.Dispose();
+            }
+        }
+
+        // ----------------------------------------------------------------------
+        /// <summary>
+        /// 즉시 종료 값 적용 중 Backend가 종료되면 완료 callback을 발행하지 않는다.
+        /// </summary>
+        // ----------------------------------------------------------------------
+        [Test]
+        public void TEST_DOTweenPresentationTransitioner_종료값적용중Dispose_완료거부()
+        {
+            var transitioner = new DOTweenPresentationTransitioner();
+            var target = new DisposingTransitionTarget(transitioner, 1f);
+            var completed = 0;
+            var failed = 0;
+
+            try
+            {
+                Assert.Throws<ObjectDisposedException>
+                (
+                    () => transitioner.Play
+                    (
+                        new PresentationTransitionParams(target, 0f, 1f, 0f, true),
+                        () => completed++,
+                        _ => failed++
+                    )
+                );
+
+                Assert.AreEqual(2, target.SetCount);
+                Assert.AreEqual(0, completed);
+                Assert.AreEqual(0, failed);
+            }
+            finally
+            {
+                transitioner.Dispose();
+            }
+        }
+
+        // --------------------------------------------------------------------------------
+        /// <summary>
+        /// Tween 갱신 중 Dispose가 먼저 Cancel한 뒤 Target이 던진 예외는 로그에 남긴다.
+        /// </summary>
+        // --------------------------------------------------------------------------------
+        [UnityTest]
+        public IEnumerator TEST_DOTweenPresentationTransitioner_갱신중Dispose와예외_취소유지와기록()
+        {
+            var transitioner = new DOTweenPresentationTransitioner();
+            var target = new DisposingTransitionTarget(transitioner, 1f, true);
+            PresentationTransitionHandle handle = null;
+            var completed = 0;
+            var failed = 0;
+
+            try
+            {
+                LogAssert.Expect
+                (
+                    LogType.Exception,
+                    new Regex("injected disposal target failure")
+                );
+
+                handle = transitioner.Play
+                (
+                    new PresentationTransitionParams(target, 0f, 1f, 0.05f, true),
+                    () => completed++,
+                    _ => failed++
+                );
+
+                yield return new WaitForSecondsRealtime(0.1f);
+
+                Assert.IsTrue(handle.IsCancelled);
+                Assert.IsFalse(handle.IsPending);
+                Assert.AreEqual(0, completed);
+                Assert.AreEqual(0, failed);
+                Assert.GreaterOrEqual(target.SetCount, 2);
+                Assert.AreEqual(1, target.DisposeCount);
+            }
+            finally
+            {
+                handle?.Cancel();
+                transitioner.Dispose();
+            }
+        }
+
+        // ----------------------------------------------------------------------
+        /// <summary>
+        /// 외부에서 Tween을 종료해도 Transition Handle이 대기 상태로 남지 않는다.
+        /// </summary>
+        // ----------------------------------------------------------------------
+        [Test]
+        public void TEST_DOTweenPresentationTransitioner_외부Tween종료_Handle취소()
+        {
+            var transitioner = new DOTweenPresentationTransitioner();
+            var target = new TestTransitionTarget();
+            PresentationTransitionHandle handle = null;
+            var completed = 0;
+            var failed = 0;
+
+            try
+            {
+                handle = transitioner.Play
+                (
+                    new PresentationTransitionParams(target, 0f, 1f, 2f, true),
+                    () => completed++,
+                    _ => failed++
+                );
+
+                // Test assembly는 DOTween을 직접 참조하지 않으므로 실제 tween만 Reflection으로 조회한다.
+                var activeField = typeof(DOTweenPresentationTransitioner).GetField
+                (
+                    "active",
+                    BindingFlags.Instance | BindingFlags.NonPublic
+                );
+                Assert.IsNotNull(activeField);
+                var active = (IDictionary)activeField.GetValue(transitioner);
+                Assert.AreEqual(1, active.Count);
+                object tween = null;
+
+                foreach (DictionaryEntry entry in active)
+                {
+                    tween = entry.Value;
+                }
+
+                Assert.IsNotNull(tween);
+                var extensions = tween.GetType().Assembly.GetType("DG.Tweening.TweenExtensions");
+                Assert.IsNotNull(extensions);
+                MethodInfo kill = null;
+
+                foreach (var method in extensions.GetMethods(BindingFlags.Public | BindingFlags.Static))
+                {
+                    var args = method.GetParameters();
+
+                    if
+                    (
+                        method.Name != "Kill" ||
+                        args.Length != 2 ||
+                        !args[0].ParameterType.IsInstanceOfType(tween) ||
+                        args[1].ParameterType != typeof(bool)
+                    )
+                    {
+                        continue;
+                    }
+
+                    kill = method;
+                    break;
+                }
+
+                Assert.IsNotNull(kill);
+                var killArguments = new object[]
+                {
+                    tween,
+                    false,
+                };
+                kill.Invoke(null, killArguments);
+
+                Assert.IsTrue(handle.IsCancelled);
+                Assert.IsFalse(handle.IsPending);
+                Assert.AreEqual(0, completed);
+                Assert.AreEqual(0, failed);
+            }
+            finally
+            {
+                handle?.Cancel();
+                transitioner.Dispose();
+            }
+        }
+
     #endregion
 
     #region U-1: UGUI 런타임
@@ -1118,81 +1966,6 @@ namespace inonego.Xeri.UI.TEST.Core
                 Assert.IsTrue(root.activeSelf);
                 Assert.IsTrue(canvasGroup.blocksRaycasts);
                 lease.Dispose();
-            }
-            finally
-            {
-                UnityEngine.Object.Destroy(host);
-            }
-        }
-
-        // ------------------------------------------------------------
-        /// <summary>
-        /// <br/> Spotlight 대상이 비활성화되면 dim과 입력 차단을 비우고,
-        /// <br/> Driver 비활성화 시 별도 표시 Root까지 닫는다.
-        /// </summary>
-        // ------------------------------------------------------------
-        [UnityTest]
-        public IEnumerator TEST_UGUISpotlightDriver_대상과Driver비활성_표시입력정리()
-        {
-            var host = new GameObject("UGUI Spotlight Driver");
-            host.SetActive(false);
-            var root = new GameObject
-            (
-                "Spotlight Root",
-                typeof(RectTransform),
-                typeof(CanvasRenderer),
-                typeof(UGUISpotlightGraphic)
-            );
-            root.transform.SetParent(host.transform, false);
-            var target = new GameObject("Spotlight Target", typeof(RectTransform));
-            target.transform.SetParent(host.transform, false);
-            var graphic = root.GetComponent<UGUISpotlightGraphic>();
-            var driver = host.AddComponent<UGUISpotlightDriver>();
-            SetField(driver, "root", root);
-            SetField(driver, "graphic", graphic);
-
-            try
-            {
-                host.SetActive(true);
-                driver.Show
-                (
-                    new UGUISpotlightParams
-                    (
-                        new[]
-                        {
-                            new UGUISpotlightTarget
-                            (
-                                target.GetComponent<RectTransform>()
-                            ),
-                        }
-                    )
-                );
-                yield return null;
-
-                Assert.IsTrue(root.activeSelf);
-                Assert.IsTrue(graphic.enabled);
-                Assert.AreEqual(1, graphic.HoleCount);
-                Assert.IsTrue(graphic.raycastTarget);
-
-                target.SetActive(false);
-                yield return null;
-
-                Assert.IsFalse(graphic.enabled);
-                Assert.AreEqual(0, graphic.HoleCount);
-                Assert.IsFalse(graphic.raycastTarget);
-
-                target.SetActive(true);
-                yield return null;
-
-                Assert.IsTrue(graphic.enabled);
-                Assert.AreEqual(1, graphic.HoleCount);
-                Assert.IsTrue(graphic.raycastTarget);
-
-                driver.enabled = false;
-
-                Assert.IsFalse(root.activeSelf);
-                Assert.AreEqual(0, graphic.HoleCount);
-                Assert.IsFalse(graphic.raycastTarget);
             }
             finally
             {
@@ -1406,187 +2179,6 @@ namespace inonego.Xeri.UI.TEST.Core
     #endregion
 
     #region T-1: UITK 런타임
-
-        // ----------------------------------------------------------------------
-        /// <summary>
-        /// <br/> 실제 Panel의 Spotlight가 대상 구멍에서는 Pointer를 통과시키고,
-        /// <br/> dim 영역만 차단하며 대상이 숨겨지면 전체 입력 잠금 없이
-        /// <br/> 표시와 Picking을 함께 비우는지 검증한다.
-        /// </summary>
-        // ----------------------------------------------------------------------
-        [UnityTest]
-        public IEnumerator TEST_UITKSpotlight_구멍통과와대상숨김_입력차단해제()
-        {
-            var host = new GameObject("UITK Spotlight Panel");
-            var panelSettings = ScriptableObject.CreateInstance<PanelSettings>();
-            UITKTestPanelSettings.ApplyDefaultRuntimeTheme(panelSettings);
-            var output = CreatePanelOutput(host, panelSettings);
-            var container = new VisualElement
-            {
-                name = "Spotlight Layer",
-            };
-            container.style.width = 400.0f;
-            container.style.height = 300.0f;
-            var target = new Button
-            {
-                name = "Spotlight Target",
-            };
-            target.style.position = Position.Absolute;
-            target.style.left = 50.0f;
-            target.style.top = 40.0f;
-            target.style.width = 120.0f;
-            target.style.height = 60.0f;
-            var element = new UITKSpotlightElement();
-            container.Add(target);
-            container.Add(element);
-            var spotlight = new UITKSpotlight();
-            Lease lease = null;
-
-            try
-            {
-                yield return null;
-                yield return null;
-
-                var panelRoot = output.RequireRoot();
-                panelRoot.Add(container);
-                yield return null;
-
-                lease = spotlight.Show
-                (
-                    element,
-                    new UITKSpotlightParams
-                    (
-                        new[]
-                        {
-                            new UITKSpotlightTarget(target),
-                        }
-                    )
-                );
-                yield return null;
-
-                var targetCenter = element.WorldToLocal(target.worldBound.center);
-                var dimPoint = new Vector2
-                (
-                    element.localBound.xMax - 5.0f,
-                    element.localBound.yMax - 5.0f
-                );
-                Assert.AreEqual(1, element.HoleCount);
-                Assert.IsFalse(element.ContainsPoint(targetCenter));
-                Assert.IsTrue(element.ContainsPoint(dimPoint));
-
-                target.style.display = DisplayStyle.None;
-                yield return null;
-
-                Assert.AreEqual(0, element.HoleCount);
-                Assert.AreEqual(PickingMode.Ignore, element.pickingMode);
-            }
-            finally
-            {
-                lease?.Dispose();
-                spotlight.Dispose();
-                UnityEngine.Object.Destroy(host);
-                UnityEngine.Object.Destroy(panelSettings);
-            }
-        }
-
-        // ----------------------------------------------------------------------
-        /// <summary>
-        /// 스크롤과 조상 이동 뒤 보이는 대상 영역만 Spotlight 구멍으로 유지한다.
-        /// </summary>
-        // ----------------------------------------------------------------------
-        [UnityTest]
-        public IEnumerator TEST_UITKSpotlight_스크롤과조상이동_좌표추적과ViewportClip()
-        {
-            var host = new GameObject("Scrolling Spotlight Panel");
-            var settings = ScriptableObject.CreateInstance<PanelSettings>();
-            UITKTestPanelSettings.ApplyDefaultRuntimeTheme(settings);
-            var output = CreatePanelOutput(host, settings);
-            var container = new VisualElement();
-            container.style.width = 400f;
-            container.style.height = 300f;
-            var scroll = new ScrollView();
-            scroll.style.width = 300f;
-            scroll.style.height = 120f;
-            scroll.contentContainer.style.height = 600f;
-            var target = new VisualElement();
-            target.style.position = Position.Absolute;
-            target.style.left = 40f;
-            target.style.top = 80f;
-            target.style.width = 100f;
-            target.style.height = 60f;
-            scroll.Add(target);
-            var spotlight = new UITKSpotlightElement();
-            container.Add(scroll);
-            container.Add(spotlight);
-
-            try
-            {
-                yield return null;
-                yield return null;
-                output.RequireRoot().Add(container);
-                yield return null;
-                yield return null;
-                spotlight.Show
-                (
-                    new UITKSpotlightParams
-                    (
-                        new[]
-                        {
-                            new UITKSpotlightTarget(target),
-                        }
-                    )
-                );
-
-                var oldPoint = target.ChangeCoordinatesTo(spotlight, new Vector2(50f, 10f));
-                var clippedPoint = target.ChangeCoordinatesTo(spotlight, new Vector2(50f, 55f));
-                Assert.IsFalse(spotlight.ContainsPoint(oldPoint));
-                Assert.IsTrue(spotlight.ContainsPoint(clippedPoint));
-
-                scroll.scrollOffset = new Vector2(0f, 60f);
-                yield return null;
-                yield return null;
-                var newPoint = target.ChangeCoordinatesTo(spotlight, new Vector2(50f, 10f));
-                Assert.IsFalse(spotlight.ContainsPoint(newPoint));
-                Assert.IsTrue(spotlight.ContainsPoint(oldPoint));
-
-                scroll.style.translate = new Translate(160f, 0f);
-                yield return null;
-                yield return null;
-                Assert.IsTrue(spotlight.ContainsPoint(newPoint));
-                Assert.IsFalse
-                (
-                    spotlight.ContainsPoint(target.ChangeCoordinatesTo(spotlight, new Vector2(50f, 10f)))
-                );
-
-                scroll.scrollOffset = new Vector2(0f, 250f);
-                // Panel 예약은 밀리초 기준이므로 빠른 batch 프레임 수로 갱신을 가정하지 않는다.
-                var refreshDeadline = Time.realtimeSinceStartupAsDouble + 1.0;
-                while (spotlight.HoleCount != 0 && Time.realtimeSinceStartupAsDouble < refreshDeadline)
-                {
-                    yield return null;
-                }
-
-                Assert.AreEqual(0, spotlight.HoleCount);
-                Assert.AreEqual(PickingMode.Ignore, spotlight.pickingMode);
-
-                scroll.scrollOffset = Vector2.zero;
-                refreshDeadline = Time.realtimeSinceStartupAsDouble + 1.0;
-                while (spotlight.HoleCount != 1 && Time.realtimeSinceStartupAsDouble < refreshDeadline)
-                {
-                    yield return null;
-                }
-
-                Assert.AreEqual(1, spotlight.HoleCount);
-                spotlight.Hide();
-                Assert.AreEqual(0, spotlight.HoleCount);
-            }
-            finally
-            {
-                spotlight.Hide();
-                UnityEngine.Object.Destroy(host);
-                UnityEngine.Object.Destroy(settings);
-            }
-        }
 
         // ----------------------------------------------------------------------
         /// <summary>

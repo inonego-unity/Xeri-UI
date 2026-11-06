@@ -1,8 +1,8 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : UITKSpotlightElement.cs
-수정일 : 2026-10-05
+수정일 : 2026-11-06
 # 설명
-UI Toolkit dim을 여러 Spotlight 구멍으로 렌더링하고 구멍 바깥 Pointer 입력만 차단한다.
+UI Toolkit dim을 대상의 가시·클리핑 영역 밖에 렌더링하고 Spotlight 구멍 바깥 Pointer 입력만 차단한다.
 ========================================================================= BLOCK_HEADER_END */
 
 using System;
@@ -61,7 +61,6 @@ namespace inonego.Xeri.UI
         private readonly List<Rect> nextHoles = new List<Rect>();
         private readonly IVisualElementScheduledItem refreshItem;
         private UITKSpotlightParams activeParams = null;
-        private bool blocksOutsideInput = false;
 
     #endregion
 
@@ -92,7 +91,7 @@ namespace inonego.Xeri.UI
 
     #endregion
 
-    #region 스포트라이트 드라이버 구현
+    #region 표시 요청 및 해제
 
         // ------------------------------------------------------------
         /// <summary>
@@ -168,7 +167,7 @@ namespace inonego.Xeri.UI
 
     #endregion
 
-    #region VisualElement 동작
+    #region Pointer 입력 판정
 
         // ------------------------------------------------------------
         /// <summary>
@@ -178,14 +177,14 @@ namespace inonego.Xeri.UI
         public override bool ContainsPoint(Vector2 localPoint)
         {
             return
-                blocksOutsideInput &&
+                pickingMode == PickingMode.Position &&
                 base.ContainsPoint(localPoint) &&
                 !ContainsHole(localPoint);
         }
 
     #endregion
 
-    #region 메서드
+    #region 대상 영역 갱신 및 검증
 
         // ----------------------------------------------------------------------
         /// <summary>
@@ -230,7 +229,8 @@ namespace inonego.Xeri.UI
                 hole.yMin -= target.Padding.z;
                 hole.yMax += target.Padding.w;
 
-                // 조상 ScrollView의 이동과 clip을 현재 Panel 좌표에서 함께 반영한다.
+                // USS clip은 Target이 명시한 경계를, 인라인 clip은 실제 스타일을 따른다.
+                var matchedClips = 0;
                 for (var ancestor = element.parent; ancestor != null; ancestor = ancestor.parent)
                 {
                     if (ancestor.resolvedStyle.display == DisplayStyle.None)
@@ -239,12 +239,43 @@ namespace inonego.Xeri.UI
                         break;
                     }
 
+                    var hasClip = ancestor.style.overflow.value == Overflow.Hidden;
+                    var clipBox = ancestor.style.unityOverflowClipBox.value;
+                    for (var clipIndex = 0; clipIndex < target.Clips.Count; clipIndex++)
+                    {
+                        var declared = target.Clips[clipIndex];
+                        if (declared.Element != ancestor) continue;
+
+                        hasClip = true;
+                        clipBox = declared.Box;
+                        matchedClips++;
+                    }
+
+                    if (hasClip)
+                    {
+                        // 기본 clip box는 border를 제외하고 padding까지 포함한다.
+                        var clip = ancestor.contentRect;
+
+                        if (clipBox != OverflowClipBox.ContentBox)
+                        {
+                            clip.xMin -= ancestor.resolvedStyle.paddingLeft;
+                            clip.xMax += ancestor.resolvedStyle.paddingRight;
+                            clip.yMin -= ancestor.resolvedStyle.paddingTop;
+                            clip.yMax += ancestor.resolvedStyle.paddingBottom;
+                        }
+
+                        hole = Clamp(hole, ancestor.ChangeCoordinatesTo(this, clip));
+                    }
+
                     if (ancestor is ScrollView scroll)
                     {
                         var viewport = scroll.contentViewport;
                         hole = Clamp(hole, viewport.ChangeCoordinatesTo(this, viewport.contentRect));
                     }
                 }
+
+                // 표시 중 reparent로 선언된 clip을 잃으면 입력 통과 구멍도 폐기한다.
+                if (matchedClips != target.Clips.Count) continue;
 
                 hole = Clamp(hole, contentRect);
                 if (hole.width <= 0.0f || hole.height <= 0.0f) continue;
@@ -272,8 +303,9 @@ namespace inonego.Xeri.UI
                 MarkDirtyRepaint();
             }
 
-            blocksOutsideInput = activeParams.BlocksOutsideInput;
-            pickingMode = blocksOutsideInput ? PickingMode.Position : PickingMode.Ignore;
+            pickingMode = activeParams.BlocksOutsideInput
+                ? PickingMode.Position
+                : PickingMode.Ignore;
             style.visibility = Visibility.Visible;
         }
 
@@ -290,28 +322,49 @@ namespace inonego.Xeri.UI
                 MarkDirtyRepaint();
             }
 
-            blocksOutsideInput = false;
             pickingMode = PickingMode.Ignore;
             style.visibility = Visibility.Hidden;
         }
 
         // ------------------------------------------------------------
         /// <summary>
-        /// 모든 Target이 현재 Spotlight와 같은 Panel에 연결됐는지 검증한다.
+        /// Target의 Panel과 명시한 클리핑 요소의 조상 관계를 검증한다.
         /// </summary>
         // ------------------------------------------------------------
         private void ValidateTargets(UITKSpotlightParams parameters)
         {
             for (var i = 0; i < parameters.Targets.Count; i++)
             {
-                if (parameters.Targets[i].Target.panel == panel) continue;
+                var target = parameters.Targets[i];
+                if (target.Target.panel != panel)
+                {
+                    throw new InvalidOperationException
+                    (
+                        $"UITK Spotlight 대상 {i}가 같은 Panel에 연결되지 않았습니다."
+                    );
+                }
 
-                throw new InvalidOperationException
-                (
-                    $"UITK Spotlight 대상 {i}가 같은 Panel에 연결되지 않았습니다."
-                );
+                for (var j = 0; j < target.Clips.Count; j++)
+                {
+                    var ancestor = target.Target.parent;
+                    while (ancestor != null && ancestor != target.Clips[j].Element)
+                    {
+                        ancestor = ancestor.parent;
+                    }
+
+                    if (ancestor != null) continue;
+
+                    throw new InvalidOperationException
+                    (
+                        $"UITK Spotlight 대상 {i}의 clip {j}가 실제 조상에 없습니다."
+                    );
+                }
             }
         }
+
+    #endregion
+
+    #region Dim 메시 생성
 
         // ------------------------------------------------------------
         /// <summary>

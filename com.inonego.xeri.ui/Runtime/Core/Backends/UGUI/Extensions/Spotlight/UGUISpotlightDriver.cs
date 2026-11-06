@@ -1,8 +1,8 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : UGUISpotlightDriver.cs
-수정일 : 2026-10-03
+수정일 : 2026-11-06
 # 설명
-실제 RectTransform 대상의 현재 World Corner를 UGUI Spotlight Graphic의 여러 로컬 구멍으로 갱신한다.
+실제 RectTransform 대상의 Canvas 표시 상태와 RectMask2D 클리핑을 반영해 Spotlight Graphic 구멍을 갱신한다.
 ========================================================================= BLOCK_HEADER_END */
 
 using System;
@@ -10,6 +10,7 @@ using System.Collections;
 using System.Collections.Generic;
 
 using UnityEngine;
+using UnityEngine.UI;
 
 namespace inonego.Xeri.UI
 {
@@ -42,7 +43,7 @@ namespace inonego.Xeri.UI
 
     #endregion
 
-    #region Unity 이벤트
+    #region Unity 수명주기
 
         // ------------------------------------------------------------
         /// <summary>
@@ -79,7 +80,7 @@ namespace inonego.Xeri.UI
 
     #endregion
 
-    #region 스포트라이트 드라이버 구현
+    #region 표시 요청 및 해제
 
         // ------------------------------------------------------------
         /// <summary>
@@ -186,11 +187,11 @@ namespace inonego.Xeri.UI
 
     #endregion
 
-    #region 메서드
+    #region 대상 영역 갱신
 
         // ------------------------------------------------------------
         /// <summary>
-        /// 실제 대상 World Corner를 Graphic 로컬 사각 구멍으로 변환한다.
+        /// 현재 대상의 표시 가능 영역을 구멍으로 갱신한다.
         /// </summary>
         // ------------------------------------------------------------
         private void Refresh()
@@ -201,36 +202,13 @@ namespace inonego.Xeri.UI
 
             for (var i = 0; i < activeParams.Targets.Count; i++)
             {
-                var target = activeParams.Targets[i];
-
-                if
-                (
-                    target.Target == null ||
-                    !target.Target.gameObject.activeInHierarchy
-                )
+                if (TryGetVisibleHole(activeParams.Targets[i], out var hole))
                 {
-                    continue;
+                    holes.Add(hole);
                 }
-
-                target.Target.GetWorldCorners(corners);
-                var min = new Vector2(float.PositiveInfinity, float.PositiveInfinity);
-                var max = new Vector2(float.NegativeInfinity, float.NegativeInfinity);
-
-                for (var cornerIndex = 0; cornerIndex < corners.Length; cornerIndex++)
-                {
-                    var local = graphic.rectTransform.InverseTransformPoint(corners[cornerIndex]);
-                    min = Vector2.Min(min, local);
-                    max = Vector2.Max(max, local);
-                }
-
-                min.x -= target.Padding.x;
-                max.x += target.Padding.y;
-                max.y += target.Padding.z;
-                min.y -= target.Padding.w;
-                holes.Add(Rect.MinMaxRect(min.x, min.y, max.x, max.y));
             }
 
-            // 유효한 대상이 없으면 dim과 Raycast를 모두 비워 전체 입력 잠금을 만들지 않는다.
+            // 표시 가능한 대상이 없다면 dim과 입력 차단도 함께 해제한다.
             if (holes.Count == 0)
             {
                 graphic.ClearHoles();
@@ -240,6 +218,151 @@ namespace inonego.Xeri.UI
 
             graphic.enabled = true;
             graphic.SetHoles(holes, activeParams.BlocksOutsideInput);
+        }
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// <br/> 대상·Canvas·RectMask2D의 표시 계약을 적용한다.
+        /// <br/> 최종 영역은 Spotlight Graphic의 로컬 사각형으로 제한한다.
+        /// </summary>
+        // ------------------------------------------------------------
+        private bool TryGetVisibleHole(UGUISpotlightTarget target, out Rect hole)
+        {
+            hole = Rect.zero;
+            var rect = target.Target;
+
+            if (rect == null || !rect.gameObject.activeInHierarchy) return false;
+
+            hole = GetLocalRect(rect);
+            hole.xMin -= target.Padding.x;
+            hole.xMax += target.Padding.y;
+            hole.yMax += target.Padding.z;
+            hole.yMin -= target.Padding.w;
+
+            // Graphic 자체가 masking을 거부하면 조상 RectMask2D도 적용하지 않는다.
+            var clipAncestors =
+                !rect.TryGetComponent<MaskableGraphic>(out var targetGraphic) ||
+                targetGraphic.maskable;
+
+            for (Transform ancestor = rect; ancestor != null; ancestor = ancestor.parent)
+            {
+                if
+                (
+                    ancestor.TryGetComponent<CanvasGroup>(out var group) &&
+                    group.isActiveAndEnabled &&
+                    group.alpha <= 0.0f
+                )
+                {
+                    return false;
+                }
+
+                if (ancestor.TryGetComponent<Canvas>(out var canvas))
+                {
+                    if (!canvas.isActiveAndEnabled) return false;
+                }
+
+                if
+                (
+                    clipAncestors &&
+                    ancestor != rect &&
+                    ancestor.TryGetComponent<RectMask2D>(out var mask) &&
+                    mask.isActiveAndEnabled
+                )
+                {
+                    var maskCanvas = mask.GetComponentInParent<Canvas>();
+                    if (maskCanvas != null)
+                    {
+                        hole = Clamp
+                        (
+                            hole,
+                            GetLocalMaskRect(mask, maskCanvas.rootCanvas.transform)
+                        );
+
+                        if (hole.width <= 0.0f || hole.height <= 0.0f) return false;
+                    }
+                }
+
+                // overrideSorting은 마스크 상속만 끊고 Canvas 표시 상태 검사는 유지한다.
+                if (canvas != null && canvas.overrideSorting)
+                {
+                    clipAncestors = false;
+                }
+            }
+
+            hole = Clamp(hole, graphic.rectTransform.rect);
+            return hole.width > 0.0f && hole.height > 0.0f;
+        }
+
+    #endregion
+
+    #region 좌표 및 마스크 변환
+
+        // ----------------------------------------------------------------------
+        /// <summary>
+        /// 현재 RectTransform의 World Corner를 Graphic 로컬 Rect로 변환한다.
+        /// </summary>
+        // ----------------------------------------------------------------------
+        private Rect GetLocalRect(RectTransform rect)
+        {
+            rect.GetWorldCorners(corners);
+            return GetLocalWorldCornersRect();
+        }
+
+        // ----------------------------------------------------------------------
+        /// <summary>
+        /// RectMask2D의 Canvas clip과 padding을 Graphic 좌표계로 변환한다.
+        /// </summary>
+        // ----------------------------------------------------------------------
+        private Rect GetLocalMaskRect(RectMask2D mask, Transform canvas)
+        {
+            var clip = mask.canvasRect;
+            var padding = mask.padding;
+            var xMin = clip.xMin + padding.x;
+            var xMax = clip.xMax - padding.z;
+            var yMin = clip.yMin + padding.y;
+            var yMax = clip.yMax - padding.w;
+
+            if (xMin >= xMax || yMin >= yMax) return Rect.zero;
+
+            corners[0] = canvas.TransformPoint(new Vector3(xMin, yMin));
+            corners[1] = canvas.TransformPoint(new Vector3(xMin, yMax));
+            corners[2] = canvas.TransformPoint(new Vector3(xMax, yMax));
+            corners[3] = canvas.TransformPoint(new Vector3(xMax, yMin));
+            return GetLocalWorldCornersRect();
+        }
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// 확보한 World Corner 네 개를 Graphic 로컬 사각형으로 변환한다.
+        /// </summary>
+        // ------------------------------------------------------------
+        private Rect GetLocalWorldCornersRect()
+        {
+            var min = new Vector2(float.PositiveInfinity, float.PositiveInfinity);
+            var max = new Vector2(float.NegativeInfinity, float.NegativeInfinity);
+
+            for (var i = 0; i < corners.Length; i++)
+            {
+                var local = graphic.rectTransform.InverseTransformPoint(corners[i]);
+                min = Vector2.Min(min, local);
+                max = Vector2.Max(max, local);
+            }
+
+            return Rect.MinMaxRect(min.x, min.y, max.x, max.y);
+        }
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// Graphic 좌표계에서 대상 Rect를 상위 Mask 영역 안으로 제한한다.
+        /// </summary>
+        // ------------------------------------------------------------
+        private static Rect Clamp(Rect value, Rect bounds)
+        {
+            var xMin = Mathf.Clamp(value.xMin, bounds.xMin, bounds.xMax);
+            var xMax = Mathf.Clamp(value.xMax, bounds.xMin, bounds.xMax);
+            var yMin = Mathf.Clamp(value.yMin, bounds.yMin, bounds.yMax);
+            var yMax = Mathf.Clamp(value.yMax, bounds.yMin, bounds.yMax);
+            return Rect.MinMaxRect(xMin, yMin, xMax, yMax);
         }
 
     #endregion

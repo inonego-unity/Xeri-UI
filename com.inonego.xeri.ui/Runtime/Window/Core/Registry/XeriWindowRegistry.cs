@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : XeriWindowRegistry.cs
-수정일 : 2026-10-28
+수정일 : 2026-11-02
 
 # 설명
 Xeri 커스텀 윈도우 controller와 저장 record를 관리하는 registry.
@@ -170,6 +170,18 @@ namespace inonego.Xeri.UI.Window
                 (
                     $"이미 등록된 Window ID입니다. ID: {id}"
                 );
+            }
+
+            // Controller 하나에 두 ID를 할당하면 상태 구독과 Record 소유권이 중복된다.
+            foreach (var current in entries.Values)
+            {
+                if (ReferenceEquals(current.Controller, controller))
+                {
+                    throw new InvalidOperationException
+                    (
+                        "이미 등록된 Window Controller입니다."
+                    );
+                }
             }
 
             var storedRecord = record?.CreateSnapshot() ?? new XeriWindowRecord();

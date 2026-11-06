@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : UGUIDragVisualBinding.cs
-수정일 : 2026-10-03
+수정일 : 2026-11-02
 # 설명
 기존 DraggableUI의 Begin·End·Cancel 수명에 UGUI Drag Visual Handle을 연결한다.
 ========================================================================= BLOCK_HEADER_END */

@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : DOTweenPresentationTransitioner.cs
-수정일 : 2026-09-17
+수정일 : 2026-11-07
 # 설명
 Core Presentation Transition 계약을 DOTween float tween과 취소 Handle로 구현한다.
 ========================================================================= BLOCK_HEADER_END */
@@ -47,18 +47,39 @@ namespace inonego.Xeri.UI
             Action<Exception> onFailed
         )
         {
-            if (isDisposed)
+            ThrowIfDisposed();
+
+            try
             {
-                throw new ObjectDisposedException(nameof(DOTweenPresentationTransitioner));
+                parameters.Target.Set(parameters.StartValue);
+            }
+            catch (Exception exception)
+            {
+                var failedHandle = new PresentationTransitionHandle(null);
+                failedHandle.Fail();
+                InvokeFailed(onFailed, exception);
+                return failedHandle;
             }
 
-            parameters.Target.Set(parameters.StartValue);
+            // Target이 적용 중 Backend를 해제해도 종료 후 Tween을 생성하지 않는다.
+            ThrowIfDisposed();
 
             if (parameters.Duration <= 0.0f)
             {
-                parameters.Target.Set(parameters.EndValue);
-
                 var immediate = new PresentationTransitionHandle(null);
+
+                try
+                {
+                    parameters.Target.Set(parameters.EndValue);
+                }
+                catch (Exception exception)
+                {
+                    immediate.Fail();
+                    InvokeFailed(onFailed, exception);
+                    return immediate;
+                }
+
+                ThrowIfDisposed();
                 immediate.Complete();
                 InvokeCompleted(onCompleted);
                 return immediate;
@@ -85,7 +106,7 @@ namespace inonego.Xeri.UI
 
             void ApplyValue(float next)
             {
-                if (failed) return;
+                if (failed || (handle != null && !handle.IsPending)) return;
 
                 value = next;
 
@@ -96,12 +117,20 @@ namespace inonego.Xeri.UI
                 catch (Exception exception)
                 {
                     failed = true;
+
+                    // OnKill은 외부 취소로 처리하므로 적용 실패를 먼저 확정한다.
+                    var didFail = handle != null && handle.Fail();
                     tween?.Kill(false);
 
-                    if (handle != null && handle.Fail())
+                    if (didFail)
                     {
                         active.Remove(handle);
                         InvokeFailed(onFailed, exception);
+                    }
+                    else
+                    {
+                        // Dispose가 먼저 Cancel한 경우에도 실제 Target 오류를 숨기지 않는다.
+                        Debug.LogException(exception);
                     }
                 }
             }
@@ -120,6 +149,9 @@ namespace inonego.Xeri.UI
             (
                 () =>
                 {
+                    // 최종 Tween 갱신 중 이미 취소·실패한 Handle에는 종료 값을 다시 적용하지 않는다.
+                    if (!handle.IsPending) return;
+
                     try
                     {
                         parameters.Target.Set(parameters.EndValue);
@@ -131,6 +163,10 @@ namespace inonego.Xeri.UI
                             active.Remove(handle);
                             InvokeFailed(onFailed, exception);
                         }
+                        else
+                        {
+                            Debug.LogException(exception);
+                        }
 
                         return;
                     }
@@ -140,10 +176,40 @@ namespace inonego.Xeri.UI
                     active.Remove(handle);
                     InvokeCompleted(onCompleted);
                 }
+            )
+            .OnKill
+            (
+                () =>
+                {
+                    if (handle.IsPending)
+                    {
+                        // 외부 Kill은 더 이상 실행할 Tween이 없으므로 재차 Kill하지 않는다.
+                        tween = null;
+                        handle.Cancel();
+                    }
+
+                    if (!isDisposed)
+                    {
+                        active.Remove(handle);
+                    }
+                }
             );
 
             active.Add(handle, tween);
             return handle;
+        }
+
+        // ----------------------------------------------------------------------
+        /// <summary>
+        /// Backend 종료 뒤 동기 Target callback에서 돌아온 Play를 중단한다.
+        /// </summary>
+        // ----------------------------------------------------------------------
+        private void ThrowIfDisposed()
+        {
+            if (isDisposed)
+            {
+                throw new ObjectDisposedException(nameof(DOTweenPresentationTransitioner));
+            }
         }
 
         // ------------------------------------------------------------
