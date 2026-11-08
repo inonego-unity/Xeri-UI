@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : TEST_XeriUIViewResolver.cs
-수정일 : 2026-09-21
+수정일 : 2026-11-09
 
 # 설명
 공통 UI view source resolver 테스트.
@@ -48,7 +48,7 @@ namespace inonego.Xeri.UI.TEST.Window.View
         /// 테스트용 view source.
         /// </summary>
         // ============================================================
-        private sealed class TestViewSource : IXeriUIViewSource
+        private sealed class TestViewSource : IXeriUIViewSource, IXeriUIViewSessionPersistence
         {
 
         #region 필드
@@ -149,6 +149,28 @@ namespace inonego.Xeri.UI.TEST.Window.View
 
             Assert.IsTrue(found);
             Assert.AreSame(source, result);
+        }
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// 세션 영속화 없이도 View Source를 등록·획득·반환할 수 있다.
+        /// </summary>
+        // ------------------------------------------------------------
+        [Test]
+        public void TEST_XeriUIViewResolver_Register_세션없는ViewSource_획득반환()
+        {
+            var resolver = new XeriUIViewResolver();
+            var source = new inonego.Xeri.UI.TEST.Window.TestViewOnlySource("plain.view");
+            resolver.Register(source);
+
+            Assert.IsTrue(resolver.TryGetViewSource(source.ID, out var resolved));
+
+            var scope = new XeriUIViewScope(source.ID, string.Empty, null);
+            var view = resolved.AcquireView(scope);
+            resolved.ReleaseView(scope, view);
+
+            Assert.AreEqual(1, source.AcquireCount);
+            Assert.AreEqual(1, source.ReleaseCount);
         }
 
         // ------------------------------------------------------------

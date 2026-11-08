@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : URPDirectOutputInstaller.cs
-수정일 : 2026-10-28
+수정일 : 2026-11-08
 
 # 설명
 프로젝트의 URP Native UI 출력 설정을 적용·해제하고 소유 변경과 Undo를 함께 관리한다.
@@ -389,9 +389,17 @@ namespace inonego.Xeri.UI.URP.Editor
 
             var state = URPDirectOutputInstallationState.instance;
             var guid = AssetDatabase.AssetPathToGUID(AssetDatabase.GetAssetPath(renderer));
-            // 하위 자산 생성 뒤에 기록해야 Redo가 기능과 소유 기록을 함께 복원한다.
+            // 동일한 Feature의 재활성화는 원래 생성 소유권을 변경하지 않는다.
+            if (state.FeatureChanges.Exists
+            (
+                record => record.RendererGuid == guid && record.FeatureLocalId == localId
+            ))
+            {
+                return feature;
+            }
+
+            // 최초 소유 기록은 하위 자산 생성 뒤에 남겨 Undo/Redo와 함께 복원한다.
             state.RecordChange("Xeri 출력 기능 소유 기록");
-            state.FeatureChanges.RemoveAll(record => record.RendererGuid == guid && record.FeatureLocalId == localId);
             state.FeatureChanges.Add
             (
                 new URPDirectOutputInstallationState.FeatureChange

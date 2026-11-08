@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : XeriDefaultWindowAnimationTargetProvider.cs
-수정일 : 2026-09-20
+수정일 : 2026-11-02
 
 # 설명
 Xeri window 기본 animation target bounds provider.

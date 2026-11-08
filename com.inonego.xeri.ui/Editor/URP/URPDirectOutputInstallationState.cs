@@ -1,6 +1,6 @@
 ﻿/* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : URPDirectOutputInstallationState.cs
-수정일 : 2026-10-28
+수정일 : 2026-11-02
 
 # 설명
 프로젝트 URP Direct Output 설치가 실제로 변경한 Asset 값과 Feature 소유권을 영속 기록한다.

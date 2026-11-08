@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : TEST_HDRPNativeOutputInstaller.cs
-수정일 : 2026-10-28
+수정일 : 2026-11-02
 
 # 설명
 복제한 HDRP Global Settings와 전용 자산에서 제품 설치·복원·Undo의 소유 계약을 검증한다.

@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : XeriUIViewScope.cs
-수정일 : 2026-09-20
+수정일 : 2026-11-08
 
 # 설명
 UITK view 생성, session 저장, session 로드에 필요한 stable ID와 UI session 범위.
@@ -59,7 +59,7 @@ namespace inonego.Xeri.UI.Window
             string viewSourceID,
             string viewDataKey,
             IXeriUISession uiSession
-        ) : base()
+        )
         {
             this.viewSourceID = viewSourceID ?? string.Empty;
             this.viewDataKey = viewDataKey ?? string.Empty;

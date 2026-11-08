@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : XeriWindowWorkspace.cs
-수정일 : 2026-10-28
+수정일 : 2026-11-09
 
 # 설명
 UI Core Child Context의 단일 Screen 위에 Xeri Window Container와 Window Session을 조립한다.
@@ -202,7 +202,6 @@ namespace inonego.Xeri.UI.Window
         private ScreenRegistrationHandle registration = null;
         private ScreenSession screenSession = null;
         private XeriWindowSession focusedSession = null;
-        private bool isRegistryActiveBound = false;
         private bool isClosingScreen = false;
 
     #endregion
@@ -291,26 +290,11 @@ namespace inonego.Xeri.UI.Window
                     target,
                     containerSource
                 );
-                isRegistryActiveBound = true;
                 this.registry.OnActiveChange += OnRegistryActiveChange;
             }
             catch (Exception exception)
             {
                 var errors = new ExceptionBuffer(exception);
-
-                if (isRegistryActiveBound)
-                {
-                    isRegistryActiveBound = false;
-
-                    try
-                    {
-                        this.registry.OnActiveChange -= OnRegistryActiveChange;
-                    }
-                    catch (Exception cleanupException)
-                    {
-                        errors.Add(cleanupException);
-                    }
-                }
 
                 try
                 {
@@ -602,7 +586,12 @@ namespace inonego.Xeri.UI.Window
                 if (resolveViewSource)
                 {
                     viewScope = CreateViewScope(record);
-                    viewSource.LoadSession(viewScope);
+
+                    if (viewSource is IXeriUIViewSessionPersistence persistence)
+                    {
+                        persistence.LoadSession(viewScope);
+                    }
+
                     ThrowIfDisposed();
                     view = viewSource.AcquireView(viewScope);
                     ThrowIfDisposed();
@@ -902,12 +891,11 @@ namespace inonego.Xeri.UI.Window
         // ----------------------------------------------------------------------
         public XeriWindowTraySource CreateTraySource
         (
-            XeriWindowTrayStateMask includedStates = XeriWindowTrayStateMask.All,
-            XeriWindowTrayMapper mapper = null
+            XeriWindowTrayStateMask includedStates = XeriWindowTrayStateMask.All
         )
         {
             ThrowIfDisposed();
-            return new XeriWindowTraySource(registry, includedStates, mapper);
+            return new XeriWindowTraySource(registry, includedStates);
         }
 
         // ----------------------------------------------------------------------
@@ -1676,18 +1664,13 @@ namespace inonego.Xeri.UI.Window
             isDisposed = true;
             var errors = new ExceptionBuffer();
 
-            if (isRegistryActiveBound)
+            try
             {
-                isRegistryActiveBound = false;
-
-                try
-                {
-                    registry.OnActiveChange -= OnRegistryActiveChange;
-                }
-                catch (Exception exception)
-                {
-                    errors.Add(exception);
-                }
+                registry.OnActiveChange -= OnRegistryActiveChange;
+            }
+            catch (Exception exception)
+            {
+                errors.Add(exception);
             }
 
             try

@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : XeriTrayController.cs
-수정일 : 2026-10-28
+수정일 : 2026-11-09
 
 # 설명
 Tray source와 renderer를 연결하고 entry 선택/닫기 흐름을 외부 이벤트로 전달한다.
@@ -25,9 +25,6 @@ namespace inonego.Xeri.UI.Tray
         private readonly IXeriTraySource source = null;
         private readonly IXeriTrayRenderer renderer = null;
         private readonly XeriTrayOptions options = null;
-        private bool isSourceBound = false;
-        private bool isSelectBound = false;
-        private bool isCloseBound = false;
         private bool isDisposed = false;
 
     #endregion
@@ -68,8 +65,7 @@ namespace inonego.Xeri.UI.Tray
 
         // ------------------------------------------------------------
         /// <summary>
-        /// <br/> Source와 Renderer 이벤트를 구독해 Tray 동작을 연결한다.
-        /// <br/> 구독 실패 시 이미 연결한 이벤트를 해제한 뒤 예외를 전달한다.
+        /// Source와 Renderer 이벤트를 연결하고 구독 수명을 소유한다.
         /// </summary>
         // ------------------------------------------------------------
         public XeriTrayController
@@ -83,25 +79,9 @@ namespace inonego.Xeri.UI.Tray
             this.renderer = renderer ?? throw new ArgumentNullException(nameof(renderer));
             this.options = options ?? XeriTrayOptions.Default();
 
-            try
-            {
-                Bind();
-            }
-            catch (Exception exception)
-            {
-                var errors = new ExceptionBuffer(exception);
-                Unbind(ref errors);
-
-                if (errors.Count == 1)
-                {
-                    throw;
-                }
-
-                throw errors.CreateAggregateException
-                (
-                    "Tray Controller 이벤트 연결과 롤백이 실패했습니다."
-                );
-            }
+            source.OnReloadRequired += OnSourceReloadRequired;
+            renderer.OnEntrySelect += OnRendererEntrySelect;
+            renderer.OnEntryClose += OnRendererEntryClose;
         }
 
     #endregion
@@ -131,73 +111,6 @@ namespace inonego.Xeri.UI.Tray
     #endregion
 
     #region 내부 메서드
-
-        // ------------------------------------------------------------
-        /// <summary>
-        /// Source와 renderer 이벤트를 연결한다.
-        /// </summary>
-        // ------------------------------------------------------------
-        private void Bind()
-        {
-            isSourceBound = true;
-            source.OnReloadRequired += OnSourceReloadRequired;
-
-            isSelectBound = true;
-            renderer.OnEntrySelect += OnRendererEntrySelect;
-
-            isCloseBound = true;
-            renderer.OnEntryClose += OnRendererEntryClose;
-        }
-
-        // ------------------------------------------------------------
-        /// <summary>
-        /// Source와 renderer 이벤트 연결을 독립적으로 한 번씩 해제한다.
-        /// </summary>
-        // ------------------------------------------------------------
-        private void Unbind(ref ExceptionBuffer errors)
-        {
-            if (isCloseBound)
-            {
-                isCloseBound = false;
-
-                try
-                {
-                    renderer.OnEntryClose -= OnRendererEntryClose;
-                }
-                catch (Exception exception)
-                {
-                    errors.Add(exception);
-                }
-            }
-
-            if (isSelectBound)
-            {
-                isSelectBound = false;
-
-                try
-                {
-                    renderer.OnEntrySelect -= OnRendererEntrySelect;
-                }
-                catch (Exception exception)
-                {
-                    errors.Add(exception);
-                }
-            }
-
-            if (isSourceBound)
-            {
-                isSourceBound = false;
-
-                try
-                {
-                    source.OnReloadRequired -= OnSourceReloadRequired;
-                }
-                catch (Exception exception)
-                {
-                    errors.Add(exception);
-                }
-            }
-        }
 
         // ------------------------------------------------------------
         /// <summary>
@@ -350,27 +263,19 @@ namespace inonego.Xeri.UI.Tray
 
     #region 수명 해제
 
-        // ----------------------------------------------------------------------
+        // ------------------------------------------------------------
         /// <summary>
-        /// <br/> Source와 Renderer 이벤트 연결을 한 번 해제한다.
-        /// <br/> 재호출은 무시하며 해제 예외는 AggregateException으로 전달한다.
+        /// Source와 Renderer 이벤트 구독을 해제하며 재호출은 무시한다.
         /// </summary>
-        // ----------------------------------------------------------------------
+        // ------------------------------------------------------------
         public void Dispose()
         {
             if (isDisposed) return;
 
             isDisposed = true;
-            var errors = new ExceptionBuffer();
-            Unbind(ref errors);
-
-            if (errors.Count > 0)
-            {
-                throw errors.CreateAggregateException
-                (
-                    "Tray Controller 이벤트 해제가 실패했습니다."
-                );
-            }
+            renderer.OnEntryClose -= OnRendererEntryClose;
+            renderer.OnEntrySelect -= OnRendererEntrySelect;
+            source.OnReloadRequired -= OnSourceReloadRequired;
         }
 
     #endregion

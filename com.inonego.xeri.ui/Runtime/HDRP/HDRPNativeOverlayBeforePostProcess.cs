@@ -1,6 +1,6 @@
 ﻿/* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : HDRPNativeOverlayBeforePostProcess.cs
-수정일 : 2026-10-28
+수정일 : 2026-11-02
 
 # 설명
 HDRP가 BeforePostProcess 목록에 요구하는 별도 VolumeComponent 진입점.

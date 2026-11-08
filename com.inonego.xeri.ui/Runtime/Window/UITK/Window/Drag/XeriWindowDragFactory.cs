@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : XeriWindowDragFactory.cs
-수정일 : 2026-10-28
+수정일 : 2026-11-02
 
 # 설명
 기존 Drag_Drop UITK manipulator를 사용하는 기본 Window titlebar drag factory.
@@ -44,7 +44,7 @@ namespace inonego.Xeri.UI.Window
         /// 기본 Window titlebar drag factory를 생성한다.
         /// </summary>
         // ------------------------------------------------------------
-        public XeriWindowDragFactory(DragDropCoordinator coordinator) : base()
+        public XeriWindowDragFactory(DragDropCoordinator coordinator)
         {
             this.coordinator = coordinator;
         }

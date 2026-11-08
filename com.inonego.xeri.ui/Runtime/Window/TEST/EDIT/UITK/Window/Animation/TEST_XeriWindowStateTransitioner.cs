@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : TEST_XeriWindowStateTransitioner.cs
-수정일 : 2026-10-03
+수정일 : 2026-11-08
 
 # 설명
 Xeri window 상태 전환 transitioner 테스트.
@@ -11,8 +11,12 @@ Xeri window 상태 전환 transitioner 테스트.
 ========================================================================= BLOCK_HEADER_END */
 
 using System;
+using System.Reflection;
+using System.Text;
+using System.Text.RegularExpressions;
 
 using UnityEngine;
+using UnityEngine.TestTools;
 using UnityEngine.UIElements;
 
 using NUnit;
@@ -33,7 +37,7 @@ namespace inonego.Xeri.UI.TEST.Window
     public class TEST_XeriWindowStateTransitioner
     {
 
-    #region 헬퍼
+    #region 테스트 Driver
 
         // ============================================================
         /// <summary>
@@ -53,10 +57,22 @@ namespace inonego.Xeri.UI.TEST.Window
             public bool MaximizedBoundsApplied { get; private set; } = false;
             public bool ThrowOnApplyBounds { get; set; } = false;
             public bool ThrowOnApplyMaximizedBounds { get; set; } = false;
+            public bool ThrowOnReadBounds { get; set; } = false;
+            public Action<XeriWindowState> OnCommitState { get; set; } = null;
+            public Action<Rect> OnApplyBounds { get; set; } = null;
 
             public Rect Bounds
             {
-                get => new Rect(Pos, Size);
+                get
+                {
+                    if (ThrowOnReadBounds)
+                    {
+                        ThrowOnReadBounds = false;
+                        throw new InvalidOperationException("injected bounds snapshot failure");
+                    }
+
+                    return new Rect(Pos, Size);
+                }
                 set
                 {
                     Pos = value.position;
@@ -68,6 +84,7 @@ namespace inonego.Xeri.UI.TEST.Window
             {
                 State = state;
                 ApplyVisualState(state);
+                OnCommitState?.Invoke(state);
             }
 
             public void ApplyVisualState(XeriWindowState state)
@@ -84,6 +101,7 @@ namespace inonego.Xeri.UI.TEST.Window
                 }
 
                 Bounds = bounds;
+                OnApplyBounds?.Invoke(bounds);
             }
 
             public void ApplyMaximizedBounds()
@@ -97,6 +115,10 @@ namespace inonego.Xeri.UI.TEST.Window
                 MaximizedBoundsApplied = true;
             }
         }
+
+    #endregion
+
+    #region 테스트 Animation Target
 
         // ============================================================
         /// <summary>
@@ -117,6 +139,10 @@ namespace inonego.Xeri.UI.TEST.Window
             }
         }
 
+    #endregion
+
+    #region 테스트 Animator
+
         // ============================================================
         /// <summary>
         /// 테스트용 animator.
@@ -130,6 +156,7 @@ namespace inonego.Xeri.UI.TEST.Window
             public Action<Exception> ErrorAction { get; private set; } = null;
             public bool? LastCancelRestoreVisual { get; private set; } = null;
             public bool ThrowOnPlay { get; set; } = false;
+            public Action OnCancelAction { get; set; } = null;
 
             public void Play
             (
@@ -163,12 +190,16 @@ namespace inonego.Xeri.UI.TEST.Window
                 IsRunning = false;
                 CompleteAction = null;
                 ErrorAction = null;
+
+                var callback = OnCancelAction;
+                OnCancelAction = null;
+                callback?.Invoke();
             }
         }
 
     #endregion
 
-    #region I-1: 즉시
+    #region 즉시 전환과 롤백
 
         // ----------------------------------------------------------------------
         /// <summary>
@@ -299,7 +330,7 @@ namespace inonego.Xeri.UI.TEST.Window
 
     #endregion
 
-    #region U-1: UITK 전환
+    #region UITK 전환 진행·완료 및 실패 복원
 
         // ----------------------------------------------------------------------
         /// <summary>
@@ -484,6 +515,10 @@ namespace inonego.Xeri.UI.TEST.Window
             Assert.IsTrue(errorRaised);
         }
 
+    #endregion
+
+    #region UITK 즉시 완료와 콜백 예외
+
         // ------------------------------------------------------------
         /// <summary>
         /// UITK transitioner는 animation 비활성 요청을 즉시 완료한다.
@@ -555,6 +590,10 @@ namespace inonego.Xeri.UI.TEST.Window
             Assert.IsFalse(animator.IsRunning);
             Assert.IsFalse(errorRaised);
         }
+
+    #endregion
+
+    #region UITK 중복 요청과 교체
 
         // ----------------------------------------------------------------------
         /// <summary>
@@ -631,7 +670,289 @@ namespace inonego.Xeri.UI.TEST.Window
 
     #endregion
 
-    #region U-2: 애니메이터
+    #region UITK 시작 실패와 취소 재진입
+
+        // ----------------------------------------------------------------------
+        /// <summary>
+        /// Snapshot getter 실패는 진행 중 상태를 남기지 않고 다음 전환을 허용한다.
+        /// </summary>
+        // ----------------------------------------------------------------------
+        [Test]
+        public void TEST_XeriUITKWindowStateTransitioner_Snapshot실패_상태미점유와재시도()
+        {
+            var driver = new TestWindowDriver
+            {
+                ThrowOnReadBounds = true,
+            };
+            var animator = new TestAnimator();
+            var transitioner = new XeriUITKWindowStateTransitioner(animator);
+            var request = new XeriWindowStateTransitionRequest
+            {
+                Driver = driver,
+                PreviousState = XeriWindowState.Normal,
+                NextState = XeriWindowState.Maximized,
+            };
+
+            Assert.Throws<InvalidOperationException>(() => transitioner.Transition(request));
+            Assert.IsFalse(transitioner.IsRunning);
+            Assert.IsNull(transitioner.PendingState);
+            Assert.IsFalse(animator.IsRunning);
+
+            Assert.IsTrue(transitioner.Transition(request));
+            animator.CompleteAction?.Invoke();
+            Assert.AreEqual(XeriWindowState.Maximized, driver.State);
+            Assert.IsFalse(transitioner.IsRunning);
+        }
+
+        // ----------------------------------------------------------------------
+        /// <summary>
+        /// 취소 통지에서 새 전환을 시작하면 원래 교체 요청은 이를 덮어쓰지 않는다.
+        /// </summary>
+        // ----------------------------------------------------------------------
+        [Test]
+        public void TEST_XeriUITKWindowStateTransitioner_취소콜백재진입_새전환보존()
+        {
+            var driver = new TestWindowDriver();
+            var animator = new TestAnimator();
+            var transitioner = new XeriUITKWindowStateTransitioner(animator);
+            var nestedStarted = false;
+
+            transitioner.Transition
+            (
+                new XeriWindowStateTransitionRequest
+                {
+                    Driver = driver,
+                    PreviousState = XeriWindowState.Normal,
+                    NextState = XeriWindowState.Maximized,
+                    OnCancel = () => nestedStarted = transitioner.Transition
+                    (
+                        new XeriWindowStateTransitionRequest
+                        {
+                            Driver = driver,
+                            PreviousState = XeriWindowState.Normal,
+                            NextState = XeriWindowState.Minimized,
+                        }
+                    ),
+                }
+            );
+
+            var replaced = transitioner.Transition
+            (
+                new XeriWindowStateTransitionRequest
+                {
+                    Driver = driver,
+                    PreviousState = XeriWindowState.Normal,
+                    NextState = XeriWindowState.Closed,
+                }
+            );
+
+            Assert.IsTrue(nestedStarted);
+            Assert.IsFalse(replaced);
+            Assert.AreEqual(XeriWindowState.Minimized, transitioner.PendingState);
+            Assert.IsTrue(animator.IsRunning);
+
+            animator.CompleteAction?.Invoke();
+            Assert.AreEqual(XeriWindowState.Minimized, driver.State);
+            Assert.IsFalse(transitioner.IsRunning);
+        }
+
+        // ----------------------------------------------------------------------
+        /// <summary>
+        /// Animator 정리 도중의 새 전환은 이전 요청의 rollback에 의해 지워지지 않는다.
+        /// </summary>
+        // ----------------------------------------------------------------------
+        [Test]
+        public void TEST_XeriUITKWindowStateTransitioner_Animator취소재진입_새전환보존()
+        {
+            var driver = new TestWindowDriver();
+            var animator = new TestAnimator();
+            var transitioner = new XeriUITKWindowStateTransitioner(animator);
+            transitioner.Transition
+            (
+                new XeriWindowStateTransitionRequest
+                {
+                    Driver = driver,
+                    PreviousState = XeriWindowState.Normal,
+                    NextState = XeriWindowState.Maximized,
+                }
+            );
+
+            var nestedStarted = false;
+            animator.OnCancelAction = () => nestedStarted = transitioner.Transition
+            (
+                new XeriWindowStateTransitionRequest
+                {
+                    Driver = driver,
+                    PreviousState = XeriWindowState.Normal,
+                    NextState = XeriWindowState.Minimized,
+                }
+            );
+
+            transitioner.Cancel(true);
+
+            Assert.IsTrue(nestedStarted);
+            Assert.IsTrue(transitioner.IsRunning);
+            Assert.AreEqual(XeriWindowState.Minimized, transitioner.PendingState);
+
+            animator.CompleteAction?.Invoke();
+            Assert.AreEqual(XeriWindowState.Minimized, driver.State);
+            Assert.IsFalse(transitioner.IsRunning);
+        }
+
+    #endregion
+
+    #region UITK 요청 Snapshot과 실행 소유권
+
+        // ----------------------------------------------------------------------
+        /// <summary>
+        /// 시작 이후 호출자가 Request를 바꿔도 최초 Driver·목표·콜백 계약을 유지한다.
+        /// </summary>
+        // ----------------------------------------------------------------------
+        [Test]
+        public void TEST_XeriUITKWindowStateTransitioner_요청변경_시작Snapshot으로완료()
+        {
+            var driver = new TestWindowDriver();
+            var otherDriver = new TestWindowDriver();
+            var animator = new TestAnimator();
+            var transitioner = new XeriUITKWindowStateTransitioner(animator);
+            var originalCompleted = false;
+            var changedCompleted = false;
+            var request = new XeriWindowStateTransitionRequest
+            {
+                Driver = driver,
+                PreviousState = XeriWindowState.Normal,
+                NextState = XeriWindowState.Maximized,
+                OnComplete = () => originalCompleted = true,
+            };
+
+            Assert.IsTrue(transitioner.Transition(request));
+            request.Driver = otherDriver;
+            request.PreviousState = XeriWindowState.Minimized;
+            request.NextState = XeriWindowState.Closed;
+            request.TargetBounds = new Rect(40f, 50f, 60f, 70f);
+            request.OnComplete = () => changedCompleted = true;
+
+            Assert.AreEqual(XeriWindowState.Maximized, transitioner.PendingState);
+            animator.CompleteAction?.Invoke();
+
+            Assert.AreEqual(XeriWindowState.Maximized, driver.State);
+            Assert.IsTrue(driver.MaximizedBoundsApplied);
+            Assert.AreEqual(XeriWindowState.Normal, otherDriver.State);
+            Assert.IsTrue(originalCompleted);
+            Assert.IsFalse(changedCompleted);
+            Assert.IsFalse(transitioner.IsRunning);
+        }
+
+        // ----------------------------------------------------------------------
+        /// <summary>
+        /// 완료 상태 Commit 중 다른 전환이 재진입해도 이전 완료·숨김 처리를 이어가지 않는다.
+        /// </summary>
+        // ----------------------------------------------------------------------
+        [Test]
+        public void TEST_XeriUITKWindowStateTransitioner_완료Commit재진입_새실행상태유지()
+        {
+            var driver = new TestWindowDriver();
+            var animator = new TestAnimator();
+            var transitioner = new XeriUITKWindowStateTransitioner(animator);
+            var nestedStarted = false;
+            var oldCompleted = false;
+            driver.OnCommitState = state =>
+            {
+                if (state != XeriWindowState.Closed) return;
+
+                driver.OnCommitState = null;
+                nestedStarted = transitioner.Transition
+                (
+                    new XeriWindowStateTransitionRequest
+                    {
+                        Driver = driver,
+                        PreviousState = XeriWindowState.Normal,
+                        NextState = XeriWindowState.Maximized,
+                    }
+                );
+            };
+
+            Assert.IsTrue
+            (
+                transitioner.Transition
+                (
+                    new XeriWindowStateTransitionRequest
+                    {
+                        Driver = driver,
+                        PreviousState = XeriWindowState.Normal,
+                        NextState = XeriWindowState.Closed,
+                        OnComplete = () => oldCompleted = true,
+                    }
+                )
+            );
+            animator.CompleteAction?.Invoke();
+
+            Assert.IsTrue(nestedStarted);
+            Assert.IsFalse(oldCompleted);
+            Assert.IsTrue(transitioner.IsRunning);
+            Assert.AreEqual(XeriWindowState.Maximized, transitioner.PendingState);
+            Assert.IsTrue(driver.Visible);
+            Assert.AreEqual(XeriWindowState.Maximized, driver.VisualState);
+
+            animator.CompleteAction?.Invoke();
+            Assert.AreEqual(XeriWindowState.Maximized, driver.State);
+            Assert.IsFalse(transitioner.IsRunning);
+        }
+
+        // ----------------------------------------------------------------------
+        /// <summary>
+        /// 취소 rollback의 Driver 호출에서 새 전환이 시작되면 이전 복원을 중지한다.
+        /// </summary>
+        // ----------------------------------------------------------------------
+        [Test]
+        public void TEST_XeriUITKWindowStateTransitioner_롤백재진입_새Visual보존()
+        {
+            var driver = new TestWindowDriver();
+            var animator = new TestAnimator();
+            var transitioner = new XeriUITKWindowStateTransitioner(animator);
+            Assert.IsTrue
+            (
+                transitioner.Transition
+                (
+                    new XeriWindowStateTransitionRequest
+                    {
+                        Driver = driver,
+                        PreviousState = XeriWindowState.Normal,
+                        NextState = XeriWindowState.Maximized,
+                    }
+                )
+            );
+
+            var nestedStarted = false;
+            driver.OnApplyBounds = _ =>
+            {
+                driver.OnApplyBounds = null;
+                nestedStarted = transitioner.Transition
+                (
+                    new XeriWindowStateTransitionRequest
+                    {
+                        Driver = driver,
+                        PreviousState = XeriWindowState.Normal,
+                        NextState = XeriWindowState.Minimized,
+                    }
+                );
+            };
+
+            transitioner.Cancel(true);
+
+            Assert.IsTrue(nestedStarted);
+            Assert.IsTrue(transitioner.IsRunning);
+            Assert.AreEqual(XeriWindowState.Minimized, transitioner.PendingState);
+            Assert.AreEqual(XeriWindowState.Minimized, driver.VisualState);
+
+            animator.CompleteAction?.Invoke();
+            Assert.AreEqual(XeriWindowState.Minimized, driver.State);
+            Assert.IsFalse(transitioner.IsRunning);
+        }
+
+    #endregion
+
+    #region UITK Animator 시작과 즉시 완료
 
         // ----------------------------------------------------------------------
         /// <summary>
@@ -726,6 +1047,118 @@ namespace inonego.Xeri.UI.TEST.Window
 
             Assert.IsFalse(animator.IsRunning);
             Assert.IsTrue(completed);
+        }
+
+    #endregion
+
+    #region UITK Animator 완료 통지와 Bounds 처리
+
+        // ----------------------------------------------------------------------
+        /// <summary>
+        /// Scheduler 완료 통지 예외는 완료된 animation의 실패로 재분류하지 않는다.
+        /// </summary>
+        // ----------------------------------------------------------------------
+        [Test]
+        public void TEST_XeriUITKWindowStateAnimator_비동기완료콜백예외_종료상태와통지유지()
+        {
+            var panel = new XeriWindowPanel();
+            var driver = new TestWindowDriver();
+            var animator = new XeriUITKWindowStateAnimator
+            (
+                panel,
+                new XeriWindowAnimationOptions
+                {
+                    Enabled = true,
+                    Duration = 0.1f,
+                    HiddenOpacity = 0f,
+                }
+            );
+            var context = new XeriWindowStateTransitionContext
+            (
+                new XeriWindowStateTransitionRequest
+                {
+                    Driver = driver,
+                    PreviousState = XeriWindowState.Normal,
+                    NextState = XeriWindowState.Normal,
+                }
+            );
+
+            // Panel 없이도 실제 scheduler tick 경로의 종료·통지 순서를 직접 검증한다.
+            var type = typeof(XeriUITKWindowStateAnimator);
+            const BindingFlags flags = BindingFlags.Instance | BindingFlags.NonPublic;
+
+            void SetField(string name, object value)
+            {
+                var field = type.GetField(name, flags);
+                Assert.IsNotNull(field);
+                field.SetValue(animator, value);
+            }
+
+            var completed = false;
+            var errorReported = false;
+            SetField("context", context);
+            SetField("isRunning", true);
+            SetField("startTime", Time.realtimeSinceStartup - 1f);
+            SetField
+            (
+                "onComplete",
+                (Action)(() =>
+                {
+                    completed = true;
+                    throw new InvalidOperationException("injected scheduler completion failure");
+                })
+            );
+            SetField("onError", (Action<Exception>)(_ => errorReported = true));
+
+            var update = type.GetMethod("UpdateAnimation", flags);
+            Assert.IsNotNull(update);
+            LogAssert.Expect(LogType.Exception, new Regex("injected scheduler completion failure"));
+            Assert.DoesNotThrow(() => update.Invoke(animator, null));
+
+            Assert.IsTrue(completed);
+            Assert.IsFalse(errorReported);
+            Assert.IsFalse(animator.IsRunning);
+            Assert.AreEqual(1f, driver.Alpha.Modified);
+        }
+
+        // ----------------------------------------------------------------------
+        /// <summary>
+        /// 숨김 상태 전환은 bounds 보간이 없으므로 TargetProvider를 호출하지 않는다.
+        /// </summary>
+        // ----------------------------------------------------------------------
+        [Test]
+        public void TEST_XeriUITKWindowStateAnimator_숨김전환_BoundsProvider미호출()
+        {
+            var driver = new TestWindowDriver();
+            var provider = new TestAnimationTargetProvider
+            {
+                FailureCount = 1,
+            };
+            var animator = new XeriUITKWindowStateAnimator
+            (
+                new VisualElement(),
+                XeriWindowAnimationOptions.Immediate(),
+                provider
+            );
+            var context = new XeriWindowStateTransitionContext
+            (
+                new XeriWindowStateTransitionRequest
+                {
+                    Driver = driver,
+                    PreviousState = XeriWindowState.Maximized,
+                    NextState = XeriWindowState.Closed,
+                }
+            );
+            var completed = false;
+
+            Assert.DoesNotThrow
+            (
+                () => animator.Play(context, () => completed = true, null)
+            );
+
+            Assert.IsTrue(completed);
+            Assert.IsFalse(animator.IsRunning);
+            Assert.AreEqual(1, provider.FailureCount);
         }
 
     #endregion

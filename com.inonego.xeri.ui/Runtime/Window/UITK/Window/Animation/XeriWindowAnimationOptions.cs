@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : XeriWindowAnimationOptions.cs
-수정일 : 2026-09-20
+수정일 : 2026-11-02
 
 # 설명
 Xeri window 상태 전환 animation 옵션.
@@ -16,7 +16,7 @@ namespace inonego.Xeri.UI.Window
     /// </summary>
     // ============================================================
     [Serializable]
-   public struct XeriWindowAnimationOptions
+    public struct XeriWindowAnimationOptions
     {
 
     #region 필드

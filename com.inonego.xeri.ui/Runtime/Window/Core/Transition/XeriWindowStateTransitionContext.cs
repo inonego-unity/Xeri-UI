@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : XeriWindowStateTransitionContext.cs
-수정일 : 2026-09-20
+수정일 : 2026-11-02
 
 # 설명
 Xeri window 상태 전환 시작 시점의 snapshot.

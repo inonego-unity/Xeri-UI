@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : IXeriWindowDragFactory.cs
-수정일 : 2026-09-20
+수정일 : 2026-11-02
 
 # 설명
 XeriWindowPanel titlebar drag binding을 생성하는 factory 계약.

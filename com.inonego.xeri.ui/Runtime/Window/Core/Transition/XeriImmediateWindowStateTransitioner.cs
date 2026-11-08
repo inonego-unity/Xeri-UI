@@ -1,14 +1,12 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : XeriImmediateWindowStateTransitioner.cs
-수정일 : 2026-10-03
+수정일 : 2026-11-02
 
 # 설명
 애니메이션 없이 Xeri window 상태 전환을 즉시 완료하는 transitioner.
 ========================================================================= BLOCK_HEADER_END */
 
 using System;
-using System.Collections;
-using System.Collections.Generic;
 
 namespace inonego.Xeri.UI.Window
 {
@@ -116,7 +114,7 @@ namespace inonego.Xeri.UI.Window
 
     #endregion
 
-    #region 내부 메서드
+    #region 즉시 상태 적용과 롤백
 
         // ------------------------------------------------------------
         /// <summary>

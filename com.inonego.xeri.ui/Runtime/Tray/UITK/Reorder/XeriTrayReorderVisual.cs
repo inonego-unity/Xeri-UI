@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명: XeriTrayReorderVisual.cs
-수정일 : 2026-09-20
+수정일 : 2026-11-09
 
 # 설명
 Drag 중인 Tray entry visual을 축 제한 방식으로 이동시킨다.
@@ -25,15 +25,6 @@ namespace inonego.Xeri.UI.Tray
         private const string PROXY_CLASS = "xeri-tray-button--reorder-proxy";
 
         private XeriTrayButton proxyButton = null;
-
-    #endregion
-
-    #region 생성자
-
-        internal XeriTrayReorderVisual() : base()
-        {
-            // NONE
-        }
 
     #endregion
 
@@ -66,14 +57,10 @@ namespace inonego.Xeri.UI.Tray
 
         // ------------------------------------------------------------
         /// <summary>
-        /// Drag 중인 button offset을 초기화한다.
+        /// Drag 종료 시 원본 button 표시 상태와 proxy를 정리한다.
         /// </summary>
         // ------------------------------------------------------------
-        internal void Clear
-        (
-            XeriTrayButton button,
-            XeriTrayReorderSession session
-        )
+        internal void Clear(XeriTrayButton button)
         {
             if (button != null)
             {
@@ -92,6 +79,23 @@ namespace inonego.Xeri.UI.Tray
     #endregion
 
     #region 내부 메서드
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// 기본 Animator들이 공유하는 button preview offset 정리.
+        /// </summary>
+        // ------------------------------------------------------------
+        internal static void ClearOffsets(IXeriTrayReorderTarget target)
+        {
+            if (target == null) return;
+
+            foreach (var button in target.GetEntryButtons())
+            {
+                if (button == null) continue;
+
+                button.style.translate = new Translate(0f, 0f, 0f);
+            }
+        }
 
         // ------------------------------------------------------------
         /// <summary>

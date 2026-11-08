@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : TEST_XeriTrayController.cs
-수정일 : 2026-10-28
+수정일 : 2026-11-09
 
 # 설명
 공통 Tray controller 이벤트 라우팅 테스트.
@@ -43,27 +43,9 @@ namespace inonego.Xeri.UI.TEST.Tray
         // ============================================================
         private sealed class TestTraySource : IXeriTraySource
         {
-            public int ReloadSubscriberCount => onReloadRequired?.GetInvocationList().Length ?? 0;
-            public int ReloadRemoveAttemptCount { get; private set; }
-            public bool ThrowOnReloadRemove { get; set; }
+            public int ReloadSubscriberCount => OnReloadRequired?.GetInvocationList().Length ?? 0;
 
-            private EventHandler onReloadRequired = null;
-
-            public event EventHandler OnReloadRequired
-            {
-                add => onReloadRequired += value;
-                remove
-                {
-                    ReloadRemoveAttemptCount++;
-
-                    if (ThrowOnReloadRemove)
-                    {
-                        throw new InvalidOperationException("injected source unsubscribe failure");
-                    }
-
-                    onReloadRequired -= value;
-                }
-            }
+            public event EventHandler OnReloadRequired = null;
 
             public IReadOnlyList<XeriTrayEntry> Entries = Array.Empty<XeriTrayEntry>();
             public Action ReadingEntries;
@@ -86,7 +68,7 @@ namespace inonego.Xeri.UI.TEST.Tray
             // ------------------------------------------------------------
             public void InvokeReloadRequired()
             {
-                onReloadRequired?.Invoke(this, EventArgs.Empty);
+                OnReloadRequired?.Invoke(this, EventArgs.Empty);
             }
         }
 
@@ -97,49 +79,11 @@ namespace inonego.Xeri.UI.TEST.Tray
         // ============================================================
         private sealed class TestTrayRenderer : IXeriTrayRenderer
         {
-            public int SelectSubscriberCount => onEntrySelect?.GetInvocationList().Length ?? 0;
-            public int CloseSubscriberCount => onEntryClose?.GetInvocationList().Length ?? 0;
-            public int SelectRemoveAttemptCount { get; private set; }
-            public int CloseRemoveAttemptCount { get; private set; }
-            public bool ThrowOnCloseAdd { get; set; }
-            public bool ThrowOnSelectRemove { get; set; }
+            public int SelectSubscriberCount => OnEntrySelect?.GetInvocationList().Length ?? 0;
+            public int CloseSubscriberCount => OnEntryClose?.GetInvocationList().Length ?? 0;
 
-            private EventHandler<XeriTrayEventArgs> onEntrySelect = null;
-            private EventHandler<XeriTrayEventArgs> onEntryClose = null;
-
-            public event EventHandler<XeriTrayEventArgs> OnEntrySelect
-            {
-                add => onEntrySelect += value;
-                remove
-                {
-                    SelectRemoveAttemptCount++;
-
-                    if (ThrowOnSelectRemove)
-                    {
-                        throw new InvalidOperationException("injected select unsubscribe failure");
-                    }
-
-                    onEntrySelect -= value;
-                }
-            }
-
-            public event EventHandler<XeriTrayEventArgs> OnEntryClose
-            {
-                add
-                {
-                    onEntryClose += value;
-
-                    if (ThrowOnCloseAdd)
-                    {
-                        throw new InvalidOperationException("injected close subscribe failure");
-                    }
-                }
-                remove
-                {
-                    CloseRemoveAttemptCount++;
-                    onEntryClose -= value;
-                }
-            }
+            public event EventHandler<XeriTrayEventArgs> OnEntrySelect = null;
+            public event EventHandler<XeriTrayEventArgs> OnEntryClose = null;
 
             public IReadOnlyList<XeriTrayEntry> Entries = null;
             public XeriTrayOptions Options = null;
@@ -162,7 +106,7 @@ namespace inonego.Xeri.UI.TEST.Tray
             // ------------------------------------------------------------
             public void InvokeEntrySelect(XeriTrayEntry entry)
             {
-                onEntrySelect?.Invoke(this, new XeriTrayEventArgs(entry));
+                OnEntrySelect?.Invoke(this, new XeriTrayEventArgs(entry));
             }
 
             // ------------------------------------------------------------
@@ -172,7 +116,7 @@ namespace inonego.Xeri.UI.TEST.Tray
             // ------------------------------------------------------------
             public void InvokeEntryClose(XeriTrayEntry entry)
             {
-                onEntryClose?.Invoke(this, new XeriTrayEventArgs(entry));
+                OnEntryClose?.Invoke(this, new XeriTrayEventArgs(entry));
             }
         }
 
@@ -196,33 +140,6 @@ namespace inonego.Xeri.UI.TEST.Tray
             (
                 () => new XeriTrayController(new TestTraySource(), null)
             );
-        }
-
-        // --------------------------------------------------------------------------------
-        /// <summary>
-        /// 뒤쪽 event subscribe가 실패하면 앞서 연결된 Source/Renderer 구독을 모두 롤백한다.
-        /// </summary>
-        // --------------------------------------------------------------------------------
-        [Test]
-        public void TEST_XeriTrayController_Construct_CloseSubscribe실패_선행구독Rollback()
-        {
-            var source = new TestTraySource();
-            var renderer = new TestTrayRenderer
-            {
-                ThrowOnCloseAdd = true,
-            };
-
-            Assert.Throws<InvalidOperationException>
-            (
-                () => new XeriTrayController(source, renderer)
-            );
-
-            Assert.AreEqual(0, source.ReloadSubscriberCount);
-            Assert.AreEqual(0, renderer.SelectSubscriberCount);
-            Assert.AreEqual(0, renderer.CloseSubscriberCount);
-            Assert.AreEqual(1, source.ReloadRemoveAttemptCount);
-            Assert.AreEqual(1, renderer.SelectRemoveAttemptCount);
-            Assert.AreEqual(1, renderer.CloseRemoveAttemptCount);
         }
 
     #endregion
@@ -640,32 +557,6 @@ namespace inonego.Xeri.UI.TEST.Tray
             Assert.AreEqual(0, reloadCount);
             Assert.AreEqual(0, selectCount);
             Assert.Throws<ObjectDisposedException>(controller.Reload);
-        }
-
-        // ----------------------------------------------------------------------
-        /// <summary>
-        /// 한 unsubscribe가 실패해도 나머지 Source/Renderer 구독 해제를 모두 시도한다.
-        /// </summary>
-        // ----------------------------------------------------------------------
-        [Test]
-        public void TEST_XeriTrayController_Dispose_SelectUnsubscribe실패_나머지해제계속()
-        {
-            var source = new TestTraySource();
-            var renderer = new TestTrayRenderer
-            {
-                ThrowOnSelectRemove = true,
-            };
-            var controller = new XeriTrayController(source, renderer);
-
-            Assert.Throws<AggregateException>(controller.Dispose);
-
-            Assert.AreEqual(1, renderer.SelectSubscriberCount);
-            Assert.AreEqual(0, renderer.CloseSubscriberCount);
-            Assert.AreEqual(0, source.ReloadSubscriberCount);
-            Assert.AreEqual(1, renderer.SelectRemoveAttemptCount);
-            Assert.AreEqual(1, renderer.CloseRemoveAttemptCount);
-            Assert.AreEqual(1, source.ReloadRemoveAttemptCount);
-            Assert.DoesNotThrow(controller.Dispose);
         }
 
     #endregion

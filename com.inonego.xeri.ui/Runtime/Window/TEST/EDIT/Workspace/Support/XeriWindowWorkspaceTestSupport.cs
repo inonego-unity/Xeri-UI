@@ -1,6 +1,6 @@
 ﻿/* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : XeriWindowWorkspaceTestSupport.cs
-수정일 : 2026-10-05
+수정일 : 2026-11-09
 
 # 설명
 Window Workspace 통합 테스트가 공유하는 test double, runtime fixture와 Application helper를 제공한다.
@@ -198,7 +198,7 @@ namespace inonego.Xeri.UI.TEST.Window
 
     #region 테스트 대역: View Source
 
-    internal sealed class TestViewSource : IXeriUIViewSource
+    internal sealed class TestViewSource : IXeriUIViewSource, IXeriUIViewSessionPersistence
     {
         public string ID { get; }
         public int LoadCount { get; private set; }
@@ -258,6 +258,30 @@ namespace inonego.Xeri.UI.TEST.Window
         }
     }
 
+    internal sealed class TestViewOnlySource : IXeriUIViewSource
+    {
+        public string ID { get; }
+        public int AcquireCount { get; private set; }
+        public int ReleaseCount { get; private set; }
+
+        public TestViewOnlySource(string id)
+        {
+            ID = id;
+        }
+
+        public VisualElement AcquireView(XeriUIViewScope scope)
+        {
+            AcquireCount++;
+            return new VisualElement();
+        }
+
+        public void ReleaseView(XeriUIViewScope scope, VisualElement view)
+        {
+            ReleaseCount++;
+            view?.RemoveFromHierarchy();
+        }
+    }
+
     #endregion
 
     #region 테스트 대역: Drag Factory 재진입
@@ -299,6 +323,7 @@ namespace inonego.Xeri.UI.TEST.Window
         private readonly DOTweenPresentationTransitioner transitioner = null;
         private readonly UIFocusDriver focusController = null;
         private readonly InputSystemScreenInputDriver inputDriver = null;
+        private readonly UIContextAuthorityCoordinator authority = null;
         private readonly InputActionAsset uiActions = null;
         private readonly InputActionAsset gameplayActions = null;
         private readonly UISettingsAsset settings = null;
@@ -357,6 +382,10 @@ namespace inonego.Xeri.UI.TEST.Window
             XeriWindowWorkspaceTestSupport.SetField(runtime, "transitioner", transitioner);
             XeriWindowWorkspaceTestSupport.SetField(runtime, "focusDriver", focusController);
             XeriWindowWorkspaceTestSupport.SetField(runtime, "inputDriver", inputDriver);
+            XeriWindowWorkspaceTestSupport.SetProperty(runtime, nameof(UIRuntime.Settings), settings);
+            authority = new UIContextAuthorityCoordinator(runtime, inputDriver);
+            XeriWindowWorkspaceTestSupport.SetField(runtime, "authority", authority);
+            inputDriver.OnPolicySettled += authority.HandleInputPolicySettled;
             XeriWindowWorkspaceTestSupport.SetRuntimeState(runtime, "Initialized");
 
             presentationRoot = new GameObject("TEST Presentation Root");
@@ -441,6 +470,7 @@ namespace inonego.Xeri.UI.TEST.Window
 
         public void Dispose()
         {
+            inputDriver.OnPolicySettled -= authority.HandleInputPolicySettled;
             Workspace?.Dispose();
 
             if (rootContext != null && !rootContext.IsDisposed)
@@ -460,6 +490,7 @@ namespace inonego.Xeri.UI.TEST.Window
             rootPresentation?.Dispose();
             inputDriver?.Dispose();
             transitioner?.Dispose();
+            authority.ResetFromRuntime();
 
             if (runtime != null)
             {

@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : IXeriWindowAnimationTargetProvider.cs
-수정일 : 2026-09-20
+수정일 : 2026-11-02
 
 # 설명
 Xeri window 상태 전환 animation 목표 bounds를 제공하는 계약.

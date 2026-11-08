@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : XeriEditorWindowTrayToolbar.cs
-수정일 : 2026-10-03
+수정일 : 2026-11-08
 
 # 설명
 EditorWindow 내부에서 공통 XeriTrayPanel을 배치하는 toolbar view.
@@ -57,7 +57,7 @@ namespace inonego.Xeri.UI.Window.Editor
             IXeriWindowRegistry registry,
             XeriWindowTrayStateMask includedStates = XeriWindowTrayStateMask.All,
             XeriTrayOptions options = null
-        ) : base()
+        )
         {
             name = "xeri-editor-window-tray-toolbar";
             AddToClassList("xeri-editor-window-tray-toolbar");
@@ -122,7 +122,7 @@ namespace inonego.Xeri.UI.Window.Editor
 
     #endregion
 
-    #region 메서드
+    #region Tray 새로 고침
 
         // ------------------------------------------------------------
         /// <summary>
@@ -136,7 +136,7 @@ namespace inonego.Xeri.UI.Window.Editor
 
     #endregion
 
-    #region 이벤트 핸들러
+    #region Tray 입력과 Panel 분리
 
         // ------------------------------------------------------------
         /// <summary>

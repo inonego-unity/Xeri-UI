@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : TEST_URPDirectOutputInstaller.cs
-수정일 : 2026-10-28
+수정일 : 2026-11-08
 
 # 설명
 URP 설치·해제의 소유 기록, 사용자 설정 보존과 Undo/Redo를 검증한다.
@@ -165,6 +165,30 @@ namespace inonego.Xeri.UI.URP.Editor.TEST
             Assert.AreEqual(1, count);
             Assert.AreEqual(1, renderer.rendererFeatures.Count);
             Assert.AreSame(authored, renderer.rendererFeatures[0]);
+        }
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// 생성한 Feature를 재활성화해도 원래 생성 소유권을 유지한다.
+        /// </summary>
+        // ------------------------------------------------------------
+        [Test]
+        public void TEST_URPDirectOutputInstaller_생성Feature재활성화후설치소유권복원()
+        {
+            var feature = URPDirectOutputInstaller.InstallRenderer(renderer);
+            var state = URPDirectOutputInstallationState.instance;
+            Assert.AreEqual(1, state.FeatureChanges.Count);
+            Assert.IsTrue(state.FeatureChanges[0].Created);
+
+            feature.SetActive(false);
+            Assert.AreSame(feature, URPDirectOutputInstaller.InstallRenderer(renderer));
+            Assert.IsTrue(feature.isActive);
+            Assert.AreEqual(1, state.FeatureChanges.Count);
+            Assert.IsTrue(state.FeatureChanges[0].Created);
+
+            Assert.AreEqual(1, URPDirectOutputInstaller.UninstallProject());
+            Assert.AreEqual(0, renderer.rendererFeatures.Count);
+            Assert.AreEqual(0, state.FeatureChanges.Count);
         }
 
         // ------------------------------------------------------------

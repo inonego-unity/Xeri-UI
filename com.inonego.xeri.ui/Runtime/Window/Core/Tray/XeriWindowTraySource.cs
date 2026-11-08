@@ -1,9 +1,9 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : XeriWindowTraySource.cs
-수정일 : 2026-10-03
+수정일 : 2026-11-09
 
 # 설명
-Registry의 live Xeri Window를 상태 필터에 따라 공통 Tray entry 목록으로 공급한다.
+Registry의 live Window를 상태·순서 정책에 따라 공통 Tray entry로 직접 변환한다.
 ========================================================================= BLOCK_HEADER_END */
 
 using System;
@@ -36,10 +36,7 @@ namespace inonego.Xeri.UI.Window
 
         private readonly XeriWindowTrayStateMask includedStates = XeriWindowTrayStateMask.All;
         private readonly IXeriWindowRegistry registry = null;
-        private readonly XeriWindowTrayMapper mapper = null;
         private readonly List<string> order = new();
-        private bool isCollectionBound = false;
-        private bool isActiveBound = false;
         private bool isDisposed = false;
 
     #endregion
@@ -65,39 +62,20 @@ namespace inonego.Xeri.UI.Window
         public XeriWindowTraySource
         (
             IXeriWindowRegistry registry,
-            XeriWindowTrayStateMask includedStates = XeriWindowTrayStateMask.All,
-            XeriWindowTrayMapper mapper = null
-        ) : base()
+            XeriWindowTrayStateMask includedStates = XeriWindowTrayStateMask.All
+        )
         {
             this.registry = registry ?? throw new ArgumentNullException(nameof(registry));
             ValidateIncludedStates(includedStates);
             this.includedStates = includedStates;
-            this.mapper = mapper ?? new XeriWindowTrayMapper();
 
-            try
-            {
-                BindRegistry();
-            }
-            catch (Exception exception)
-            {
-                var errors = new ExceptionBuffer(exception);
-                UnbindRegistry(ref errors);
-
-                if (errors.Count == 1)
-                {
-                    throw;
-                }
-
-                throw errors.CreateAggregateException
-                (
-                    "Window Tray Source Registry 연결과 롤백이 실패했습니다."
-                );
-            }
+            registry.OnCollectionChange += OnRegistryCollectionChange;
+            registry.OnActiveChange += OnRegistryActiveChange;
         }
 
     #endregion
 
-    #region 메서드
+    #region Tray 항목 조회
 
         // ----------------------------------------------------------------------
         /// <summary>
@@ -118,9 +96,14 @@ namespace inonego.Xeri.UI.Window
                 if (!registry.TryGetRecord(handle, out var record)) continue;
                 if (!Includes(record.State)) continue;
 
-                var entry = mapper.Map(record, handle);
-
-                if (entry == null) continue;
+                var entry = new XeriTrayEntry(handle.ID, record.Title)
+                {
+                    Tooltip = record.Tooltip,
+                    Icon = record.Icon,
+                    Badge = record.Badge,
+                    PayloadID = handle.ID,
+                    Payload = handle,
+                };
 
                 entry.IsActive = ReferenceEquals(registry.ActiveHandle, handle);
                 entry.IsVisible = record.State == XeriWindowState.Normal ||
@@ -136,6 +119,10 @@ namespace inonego.Xeri.UI.Window
 
             return entries;
         }
+
+    #endregion
+
+    #region Tray 입력과 순서 변경
 
         // ------------------------------------------------------------
         /// <summary>
@@ -201,6 +188,10 @@ namespace inonego.Xeri.UI.Window
             NotifyReloadRequired();
         }
 
+    #endregion
+
+    #region 수명 해제
+
         // ------------------------------------------------------------
         /// <summary>
         /// Registry 이벤트 구독을 해제한다.
@@ -211,72 +202,13 @@ namespace inonego.Xeri.UI.Window
             if (isDisposed) return;
 
             isDisposed = true;
-            var errors = new ExceptionBuffer();
-            UnbindRegistry(ref errors);
-
-            if (errors.Count > 0)
-            {
-                throw errors.CreateAggregateException
-                (
-                    "Window Tray Source Registry 해제가 실패했습니다."
-                );
-            }
+            registry.OnActiveChange -= OnRegistryActiveChange;
+            registry.OnCollectionChange -= OnRegistryCollectionChange;
         }
 
     #endregion
 
-    #region 내부 메서드
-
-        // ------------------------------------------------------------
-        /// <summary>
-        /// Registry 변경 이벤트를 reload 요청으로 연결한다.
-        /// </summary>
-        // ------------------------------------------------------------
-        private void BindRegistry()
-        {
-            // custom event accessor가 handler를 등록한 뒤 throw해도 constructor rollback이 제거를 시도할 수 있게 먼저 표시한다.
-            isCollectionBound = true;
-            registry.OnCollectionChange += OnRegistryCollectionChange;
-
-            isActiveBound = true;
-            registry.OnActiveChange += OnRegistryActiveChange;
-        }
-
-        // ------------------------------------------------------------
-        /// <summary>
-        /// Registry 변경 이벤트 연결을 한 번씩 해제한다.
-        /// </summary>
-        // ------------------------------------------------------------
-        private void UnbindRegistry(ref ExceptionBuffer errors)
-        {
-            if (isActiveBound)
-            {
-                isActiveBound = false;
-
-                try
-                {
-                    registry.OnActiveChange -= OnRegistryActiveChange;
-                }
-                catch (Exception exception)
-                {
-                    errors.Add(exception);
-                }
-            }
-
-            if (isCollectionBound)
-            {
-                isCollectionBound = false;
-
-                try
-                {
-                    registry.OnCollectionChange -= OnRegistryCollectionChange;
-                }
-                catch (Exception exception)
-                {
-                    errors.Add(exception);
-                }
-            }
-        }
+    #region Tray 순서와 상태 필터
 
         // ------------------------------------------------------------
         /// <summary>
@@ -373,6 +305,10 @@ namespace inonego.Xeri.UI.Window
 
             return index;
         }
+
+    #endregion
+
+    #region Reload 전달과 상태 검증
 
         // ----------------------------------------------------------------------
         /// <summary>

@@ -1,14 +1,12 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : XeriUITKWindowStateAnimator.cs
-수정일 : 2026-10-03
+수정일 : 2026-11-08
 
 # 설명
 Xeri window 상태 전환의 Alpha는 UI Core Presentation에 적용하고 bounds는 UITK style로 보간한다.
 ========================================================================= BLOCK_HEADER_END */
 
 using System;
-using System.Collections;
-using System.Collections.Generic;
 
 using UnityEngine;
 using UnityEngine.UIElements;
@@ -101,7 +99,7 @@ namespace inonego.Xeri.UI.Window
                 if (!options.Enabled || options.Duration <= 0f || target.panel == null)
                 {
                     ApplyProgressVisual(1f);
-                    Complete();
+                    Complete()?.Invoke();
                     return;
                 }
 
@@ -176,7 +174,7 @@ namespace inonego.Xeri.UI.Window
 
     #endregion
 
-    #region 내부 메서드
+    #region 진행률 갱신과 Visual 보간
 
         // ------------------------------------------------------------
         /// <summary>
@@ -194,7 +192,16 @@ namespace inonego.Xeri.UI.Window
 
                 if (progress >= 1f)
                 {
-                    Complete();
+                    var complete = Complete();
+                    try
+                    {
+                        complete?.Invoke();
+                    }
+                    catch (Exception callbackException)
+                    {
+                        // 완료 통지는 terminal 이후의 외부 호출이므로 새 animation의 실패로 취급하지 않는다.
+                        Debug.LogException(callbackException);
+                    }
                 }
             }
             catch (Exception exception)
@@ -247,9 +254,6 @@ namespace inonego.Xeri.UI.Window
         // ------------------------------------------------------------
         private void ApplyBounds(float progress)
         {
-            var from = ResolveAnimationStartBounds();
-            var to = context.TargetBounds ?? targetProvider.GetTargetBounds(context.NextState, from);
-
             if
             (
              context.NextState != XeriWindowState.Maximized &&
@@ -258,6 +262,10 @@ namespace inonego.Xeri.UI.Window
             {
                 return;
             }
+
+            // 위치·크기를 보간할 전환에서만 TargetProvider를 조회한다.
+            var from = ResolveAnimationStartBounds();
+            var to = context.TargetBounds ?? targetProvider.GetTargetBounds(context.NextState, from);
 
             target.style.left = Mathf.Lerp(from.x, to.x, progress);
             target.style.top = Mathf.Lerp(from.y, to.y, progress);
@@ -296,12 +304,16 @@ namespace inonego.Xeri.UI.Window
             return 1f - Mathf.Pow(1f - progress, 3f);
         }
 
+    #endregion
+
+    #region 완료와 실패 복구
+
         // ------------------------------------------------------------
         /// <summary>
         /// Animation을 완료하고 visual 보조 값을 기본 상태로 되돌린다.
         /// </summary>
         // ------------------------------------------------------------
-        private void Complete()
+        private Action Complete()
         {
             if (scheduledItem != null)
             {
@@ -318,7 +330,7 @@ namespace inonego.Xeri.UI.Window
             onComplete = null;
             onError = null;
 
-            complete?.Invoke();
+            return complete;
         }
 
         // ------------------------------------------------------------
@@ -401,6 +413,10 @@ namespace inonego.Xeri.UI.Window
             ThrowErrors("UITK Window animation visual 복원", errors);
         }
 
+    #endregion
+
+    #region Content 입력 잠금과 복원
+
         // ------------------------------------------------------------
         /// <summary>
         /// Animation 중 content 입력이 중간 상태에 개입하지 않도록 막는다.
@@ -431,6 +447,10 @@ namespace inonego.Xeri.UI.Window
             panel.ContentRoot.pickingMode = previousContentPickingMode;
             isContentInputBlocked = false;
         }
+
+    #endregion
+
+    #region 정리 오류 집계
 
         // ----------------------------------------------------------------------
         /// <summary>

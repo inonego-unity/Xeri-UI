@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : XeriUnityToolbarTray.cs
-수정일 : 2026-10-03
+수정일 : 2026-11-08
 
 # 설명
 Unity Editor 상단 toolbar에 공통 XeriTrayPanel을 주입하는 Editor 전용 host.
@@ -48,12 +48,11 @@ namespace inonego.Xeri.UI.Window.Editor
 
         private XeriWindowTraySource source = null;
         private XeriTrayController controller = null;
-        private bool ownsTrayPanel = false;
         private bool isDisposed = false;
 
     #endregion
 
-    #region 메서드
+    #region Toolbar 설치와 갱신
 
         // ------------------------------------------------------------
         /// <summary>
@@ -67,6 +66,11 @@ namespace inonego.Xeri.UI.Window.Editor
             XeriTrayOptions options = null
         )
         {
+            if (isDisposed)
+            {
+                throw new ObjectDisposedException(nameof(XeriUnityToolbarTray));
+            }
+
             var toolbarRoot = FindUnityToolbarRoot();
             if (toolbarRoot == null) return false;
 
@@ -75,7 +79,7 @@ namespace inonego.Xeri.UI.Window.Editor
 
         // ------------------------------------------------------------
         /// <summary>
-        /// 지정한 toolbar root에 Tray를 주입한다.
+        /// 지정한 toolbar root에 Tray를 한 번 설치한다.
         /// </summary>
         // ------------------------------------------------------------
         public bool Install
@@ -94,13 +98,8 @@ namespace inonego.Xeri.UI.Window.Editor
             if (toolbarRoot == null) return false;
             if (registry == null) return false;
 
-            if (controller != null || trayPanel != null)
-            {
-                return
-                    controller != null &&
-                    trayPanel != null &&
-                    ReferenceEquals(trayPanel.parent, toolbarRoot);
-            }
+            // 설치에 성공한 Host는 기존 Registry·옵션을 변경하지 않는다.
+            if (controller != null || trayPanel != null) return false;
 
             var exists = toolbarRoot.Q<XeriTrayPanel>(TRAY_ROOT_NAME);
             if (exists != null)
@@ -117,7 +116,6 @@ namespace inonego.Xeri.UI.Window.Editor
                 trayPanel.AddToClassList(TRAY_USS_CLASS);
                 AddToolbarStyleSheet(trayPanel);
                 toolbarRoot.Add(trayPanel);
-                ownsTrayPanel = true;
 
                 BindTray(registry, includedStates, options);
                 return true;
@@ -147,7 +145,6 @@ namespace inonego.Xeri.UI.Window.Editor
                     errors.Add(cleanupException);
                 }
 
-                ownsTrayPanel = false;
                 trayPanel = null;
 
                 if (errors.Count == 1)
@@ -175,7 +172,7 @@ namespace inonego.Xeri.UI.Window.Editor
 
     #endregion
 
-    #region 내부 메서드
+    #region Tray 바인딩과 해제
 
         // ------------------------------------------------------------
         /// <summary>
@@ -189,8 +186,6 @@ namespace inonego.Xeri.UI.Window.Editor
             XeriTrayOptions options
         )
         {
-            if (controller != null) return;
-
             source = new XeriWindowTraySource(registry, includedStates);
             controller = new XeriTrayController(source, trayPanel, CreateOptions(options));
 
@@ -270,6 +265,10 @@ namespace inonego.Xeri.UI.Window.Editor
             );
         }
 
+    #endregion
+
+    #region Toolbar 탐색과 표시 설정
+
         // ------------------------------------------------------------
         /// <summary>
         /// Unity toolbar root VisualElement를 찾는다.
@@ -329,7 +328,7 @@ namespace inonego.Xeri.UI.Window.Editor
 
     #endregion
 
-    #region 이벤트 핸들러
+    #region Tray 입력 처리
 
         // ------------------------------------------------------------
         /// <summary>
@@ -376,19 +375,15 @@ namespace inonego.Xeri.UI.Window.Editor
                 (errors ??= new List<Exception>()).Add(exception);
             }
 
-            if (ownsTrayPanel)
+            try
             {
-                try
-                {
-                    trayPanel?.RemoveFromHierarchy();
-                }
-                catch (Exception exception)
-                {
-                    (errors ??= new List<Exception>()).Add(exception);
-                }
+                trayPanel?.RemoveFromHierarchy();
+            }
+            catch (Exception exception)
+            {
+                (errors ??= new List<Exception>()).Add(exception);
             }
 
-            ownsTrayPanel = false;
             trayPanel = null;
 
             if ((errors?.Count ?? 0) == 0) return;

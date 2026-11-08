@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : TEST_XeriWindowWorkspace.cs
-수정일 : 2026-10-05
+수정일 : 2026-11-09
 
 # 설명
 XeriWindowWorkspace의 기본 Window 수명, View Source, rollback과 Record 복원 계약을 검증한다.
@@ -216,6 +216,46 @@ namespace inonego.Xeri.UI.TEST.Window
             window.Dispose();
 
             Assert.AreEqual(2, source.SaveCount);
+            Assert.AreEqual(1, source.ReleaseCount);
+        }
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// Session 저장 기능이 없는 View Source도 열기·캡처·종료를 지원한다.
+        /// </summary>
+        // ------------------------------------------------------------
+        [Test]
+        public void TEST_XeriWindowWorkspace_ViewSource_세션저장없이_OpenCaptureDispose()
+        {
+            var resolver = new XeriUIViewResolver();
+            var source = new TestViewOnlySource("plain.view");
+            resolver.Register(source);
+
+            using var fixture = new WorkspaceFixture(resolver);
+            var window = fixture.Workspace.OpenWindow
+            (
+                new XeriWindowRecord
+                {
+                    ID = "plain-window",
+                    Title = "Plain Window",
+                    Pos = new Vector2(20f, 30f),
+                    Size = new Vector2(320f, 220f),
+                    NormalPos = new Vector2(20f, 30f),
+                    NormalSize = new Vector2(320f, 220f),
+                    ViewSourceID = source.ID,
+                }
+            );
+
+            Assert.AreEqual(1, source.AcquireCount);
+
+            var records = fixture.Workspace.CaptureRecords();
+
+            Assert.AreEqual(1, records.Count);
+            Assert.AreEqual(source.ID, records[0].ViewSourceID);
+
+            window.Dispose();
+
+            Assert.IsTrue(window.IsDisposed);
             Assert.AreEqual(1, source.ReleaseCount);
         }
 

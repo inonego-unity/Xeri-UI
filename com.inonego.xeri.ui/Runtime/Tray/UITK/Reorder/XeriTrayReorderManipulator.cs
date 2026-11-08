@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명: XeriTrayReorderManipulator.cs
-수정일 : 2026-10-03
+수정일 : 2026-11-02
 
 # 설명
 UITK pointer 입력을 Tray entry reorder drag로 변환한다.
@@ -162,7 +162,7 @@ namespace inonego.Xeri.UI.Tray
             );
             TryCleanup
             (
-                () => visual.Clear(currentButton, currentSession),
+                () => visual.Clear(currentButton),
                 ref errors
             );
 
@@ -382,7 +382,7 @@ namespace inonego.Xeri.UI.Tray
 
             TryCleanup
             (
-                () => visual.Clear(currentButton, currentSession),
+                () => visual.Clear(currentButton),
                 ref errors
             );
 
@@ -432,7 +432,7 @@ namespace inonego.Xeri.UI.Tray
             );
             TryCleanup
             (
-                () => visual.Clear(currentButton, currentSession),
+                () => visual.Clear(currentButton),
                 ref errors
             );
 

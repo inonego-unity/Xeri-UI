@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : XeriWindowContainer.cs
-수정일 : 2026-10-04
+수정일 : 2026-11-09
 
 # 설명
 Xeri Window Panel의 UITK hierarchy 부착·제거와 표시 순서만 담당하는 낮은 수준의 host.
@@ -47,7 +47,6 @@ namespace inonego.Xeri.UI.Window
 
         private readonly IXeriWindowRegistry registry = null;
         private readonly Dictionary<XeriWindowHandle, XeriWindowPanel> panels = new();
-        private bool isRegistryBound = false;
         private bool isDisposed = false;
 
     #endregion
@@ -73,25 +72,7 @@ namespace inonego.Xeri.UI.Window
             ApplyWindowLayerLayout();
             hierarchy.Add(windowLayer);
 
-            try
-            {
-                BindRegistry();
-            }
-            catch (Exception exception)
-            {
-                var errors = new ExceptionBuffer(exception);
-                UnbindRegistry(ref errors);
-
-                if (errors.Count == 1)
-                {
-                    throw;
-                }
-
-                throw errors.CreateAggregateException
-                (
-                    "Window Container Registry 연결과 롤백이 실패했습니다."
-                );
-            }
+            registry.OnOrderChange += OnRegistryOrderChange;
         }
 
     #endregion
@@ -302,38 +283,6 @@ namespace inonego.Xeri.UI.Window
 
         // ------------------------------------------------------------
         /// <summary>
-        /// Registry 변경을 Container 표시 순서 갱신으로 연결한다.
-        /// </summary>
-        // ------------------------------------------------------------
-        private void BindRegistry()
-        {
-            isRegistryBound = true;
-            registry.OnOrderChange += OnRegistryOrderChange;
-        }
-
-        // ------------------------------------------------------------
-        /// <summary>
-        /// Registry 표시 순서 구독을 한 번 해제한다.
-        /// </summary>
-        // ------------------------------------------------------------
-        private void UnbindRegistry(ref ExceptionBuffer errors)
-        {
-            if (!isRegistryBound) return;
-
-            isRegistryBound = false;
-
-            try
-            {
-                registry.OnOrderChange -= OnRegistryOrderChange;
-            }
-            catch (Exception exception)
-            {
-                errors.Add(exception);
-            }
-        }
-
-        // ------------------------------------------------------------
-        /// <summary>
         /// 종료된 Container 사용을 거부한다.
         /// </summary>
         // ------------------------------------------------------------
@@ -400,7 +349,15 @@ namespace inonego.Xeri.UI.Window
 
             isDisposed = true;
             var errors = new ExceptionBuffer();
-            UnbindRegistry(ref errors);
+
+            try
+            {
+                registry.OnOrderChange -= OnRegistryOrderChange;
+            }
+            catch (Exception exception)
+            {
+                errors.Add(exception);
+            }
 
             foreach (var panel in panels.Values)
             {

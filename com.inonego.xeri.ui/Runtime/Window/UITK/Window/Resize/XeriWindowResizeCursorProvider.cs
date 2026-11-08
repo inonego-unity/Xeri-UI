@@ -1,9 +1,9 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : XeriWindowResizeCursorProvider.cs
-수정일 : 2026-09-20
+수정일 : 2026-11-08
 
 # 설명
-Xeri 커스텀 윈도우 resize 방향에 맞는 cursor texture를 생성하고 적용한다.
+Xeri 커스텀 윈도우 resize cursor texture를 생성하고 전역 Cursor 소유권을 관리한다.
 ========================================================================= BLOCK_HEADER_END */
 
 using UnityEngine;
@@ -18,16 +18,19 @@ namespace inonego.Xeri.UI.Window
     public sealed class XeriWindowResizeCursorProvider : IXeriWindowResizeCursorProvider
     {
 
-    #region 필드
+    #region 커서 리소스와 소유권
 
         private const int CURSOR_SIZE = 12;
         private const int CURSOR_CENTER = 6;
+
+        // Unity의 Cursor는 전역이므로 마지막 적용자만 전역 상태를 복원한다.
+        private static XeriWindowResizeCursorProvider currentOwner = null;
 
         private Texture2D activeCursor = null;
 
     #endregion
 
-    #region 메서드
+    #region 커서 적용과 초기화
 
         // ------------------------------------------------------------
         /// <summary>
@@ -36,22 +39,40 @@ namespace inonego.Xeri.UI.Window
         // ------------------------------------------------------------
         public void Apply(XeriWindowResizeMode mode)
         {
-            Cursor.SetCursor(null, Vector2.zero, CursorMode.Auto);
-            ReleaseActiveCursor();
-
             if (mode == XeriWindowResizeMode.None)
             {
-                Cursor.SetCursor(null, Vector2.zero, CursorMode.Auto);
+                Reset();
                 return;
             }
 
-            activeCursor = CreateCursorTexture(mode);
-            Cursor.SetCursor
-            (
-                activeCursor,
-                new Vector2(CURSOR_CENTER, CURSOR_CENTER),
-                CursorMode.Auto
-            );
+            // 이전 커서 사용을 끝낸 뒤 텍스처를 반환한다.
+            Cursor.SetCursor(null, Vector2.zero, CursorMode.Auto);
+
+            var previousOwner = currentOwner;
+            currentOwner = null;
+            previousOwner?.ReleaseActiveCursor();
+
+            if (!ReferenceEquals(previousOwner, this))
+            {
+                ReleaseActiveCursor();
+            }
+
+            try
+            {
+                activeCursor = CreateCursorTexture(mode);
+                Cursor.SetCursor
+                (
+                    activeCursor,
+                    new Vector2(CURSOR_CENTER, CURSOR_CENTER),
+                    CursorMode.Auto
+                );
+                currentOwner = this;
+            }
+            catch
+            {
+                ReleaseActiveCursor();
+                throw;
+            }
         }
 
         // ------------------------------------------------------------
@@ -61,13 +82,21 @@ namespace inonego.Xeri.UI.Window
         // ------------------------------------------------------------
         public void Reset()
         {
+            // 다른 Window가 마지막으로 적용한 커서는 해제하지 않는다.
+            if (!ReferenceEquals(currentOwner, this))
+            {
+                ReleaseActiveCursor();
+                return;
+            }
+
             Cursor.SetCursor(null, Vector2.zero, CursorMode.Auto);
+            currentOwner = null;
             ReleaseActiveCursor();
         }
 
     #endregion
 
-    #region 내부 메서드
+    #region 커서 텍스처 수명과 생성
 
         // ------------------------------------------------------------
         /// <summary>
@@ -126,6 +155,10 @@ namespace inonego.Xeri.UI.Window
                 }
             }
         }
+
+    #endregion
+
+    #region 커서 형상 그리기
 
         // ------------------------------------------------------------
         /// <summary>
@@ -213,6 +246,10 @@ namespace inonego.Xeri.UI.Window
             DrawLine(texture, 9, 9, 6, 9, color, thickness);
             DrawLine(texture, 9, 9, 9, 6, color, thickness);
         }
+
+    #endregion
+
+    #region 선과 픽셀 렌더링
 
         // ------------------------------------------------------------
         /// <summary>

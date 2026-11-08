@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : HDRPNativeOverlayPostProcess.cs
-수정일 : 2026-10-21
+수정일 : 2026-11-08
 
 # 설명
 HDRP가 CustomPP를 예약하는 시점에 Native UI 소유권을 획득하고 실제 카메라 버퍼에 합성한다.
@@ -268,49 +268,66 @@ namespace inonego.Xeri.UI.HDRP
                 msaaSamples = 1
             };
             command.GetTemporaryRT(stencilId, descriptor);
-
-            // UITK mask는 z-fail 스텐실 상태를 사용한다. 색상 타깃만 바꾸는 Unsafe draw로 대체하지 않는다.
-            var attachments = new NativeArray<AttachmentDescriptor>(2, Allocator.Temp);
-            var subpasses = new NativeArray<SubPassDescriptor>(1, Allocator.Temp);
             try
             {
-                attachments[0] = new AttachmentDescriptor(destination.rt.graphicsFormat)
+                // UITK mask의 z-fail 스텐실을 보존하며 각 NativeArray의 생성 수명도 보호한다.
+                var attachments = new NativeArray<AttachmentDescriptor>(2, Allocator.Temp);
+                try
                 {
-                    loadStoreTarget = destination,
-                    loadAction = RenderBufferLoadAction.Load,
-                    storeAction = RenderBufferStoreAction.Store
-                };
-                attachments[1] = new AttachmentDescriptor(descriptor.depthStencilFormat)
+                    var subpasses = new NativeArray<SubPassDescriptor>(1, Allocator.Temp);
+                    try
+                    {
+                        attachments[0] = new AttachmentDescriptor(destination.rt.graphicsFormat)
+                        {
+                            loadStoreTarget = destination,
+                            loadAction = RenderBufferLoadAction.Load,
+                            storeAction = RenderBufferStoreAction.Store
+                        };
+                        attachments[1] = new AttachmentDescriptor(descriptor.depthStencilFormat)
+                        {
+                            loadStoreTarget = new RenderTargetIdentifier(stencilId),
+                            loadAction = RenderBufferLoadAction.Clear,
+                            storeAction = RenderBufferStoreAction.DontCare,
+                            clearDepth = 1,
+                            clearStencil = 0
+                        };
+                        var colors = new AttachmentIndexArray(1);
+                        colors[0] = 0;
+                        subpasses[0] = new SubPassDescriptor
+                        {
+                            colorOutputs = colors
+                        };
+                        command.BeginRenderPass
+                        (
+                            destination.rt.width, destination.rt.height, 1, attachments, 1, subpasses
+                        );
+                        try
+                        {
+                            command.SetViewport(new Rect(0, 0, camera.actualWidth, camera.actualHeight));
+                            command.DrawRendererList(toolkit);
+                        }
+                        finally
+                        {
+                            command.EndRenderPass();
+                        }
+                    }
+                    finally
+                    {
+                        subpasses.Dispose();
+                    }
+                }
+                finally
                 {
-                    loadStoreTarget = new RenderTargetIdentifier(stencilId),
-                    loadAction = RenderBufferLoadAction.Clear,
-                    storeAction = RenderBufferStoreAction.DontCare,
-                    clearDepth = 1,
-                    clearStencil = 0
-                };
-                var colors = new AttachmentIndexArray(1);
-                colors[0] = 0;
-                subpasses[0] = new SubPassDescriptor
-                {
-                    colorOutputs = colors
-                };
-                command.BeginRenderPass
-                (
-                    destination.rt.width, destination.rt.height, 1, attachments, 1, subpasses
-                );
-                command.SetViewport(new Rect(0, 0, camera.actualWidth, camera.actualHeight));
-                command.DrawRendererList(toolkit);
-                command.EndRenderPass();
+                    attachments.Dispose();
+                }
+
+                command.SetRenderTarget(destination);
+                command.DrawRendererList(remaining);
             }
             finally
             {
-                attachments.Dispose();
-                subpasses.Dispose();
+                command.ReleaseTemporaryRT(stencilId);
             }
-
-            command.SetRenderTarget(destination);
-            command.DrawRendererList(remaining);
-            command.ReleaseTemporaryRT(stencilId);
         }
 
     #endregion

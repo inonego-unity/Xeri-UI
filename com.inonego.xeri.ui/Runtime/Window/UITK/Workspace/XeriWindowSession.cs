@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : XeriWindowSession.cs
-수정일 : 2026-10-05
+수정일 : 2026-11-09
 
 # 설명
 한 Xeri Window의 Registry 등록, 입력 binding, Panel과 View Source 반환 수명을 묶는다.
@@ -96,7 +96,6 @@ namespace inonego.Xeri.UI.Window
         private XeriWindowTitleBarManipulator titleBarManipulator = null;
 
         private bool isPanelFocusBound = false;
-        private bool isControllerBound = false;
         private bool isReleased = false;
         private bool isContentReleased = false;
         private readonly List<IDisposable> children = new();
@@ -299,9 +298,12 @@ namespace inonego.Xeri.UI.Window
         internal void SaveViewSession()
         {
             if (isReleased) return;
-            if (viewSource == null || viewScope == null) return;
+            if (viewScope == null) return;
 
-            viewSource.SaveSession(viewScope);
+            if (viewSource is IXeriUIViewSessionPersistence persistence)
+            {
+                persistence.SaveSession(viewScope);
+            }
         }
 
         // --------------------------------------------------------------------------------
@@ -348,11 +350,11 @@ namespace inonego.Xeri.UI.Window
             viewScope = null;
             view = null;
 
-            if (currentViewSource != null && currentViewScope != null)
+            if (currentViewSource is IXeriUIViewSessionPersistence persistence && currentViewScope != null)
             {
                 try
                 {
-                    currentViewSource.SaveSession(currentViewScope);
+                    persistence.SaveSession(currentViewScope);
                 }
                 catch (Exception exception)
                 {
@@ -541,7 +543,6 @@ namespace inonego.Xeri.UI.Window
 
                 Controller.OnClose += OnControllerClose;
                 Controller.OnStateChange += OnControllerStateChange;
-                isControllerBound = true;
             }
             catch (Exception bindException)
             {
@@ -569,12 +570,8 @@ namespace inonego.Xeri.UI.Window
         // ------------------------------------------------------------
         private void Unbind(ref ExceptionBuffer errors)
         {
-            if (isControllerBound)
-            {
-                Controller.OnClose -= OnControllerClose;
-                Controller.OnStateChange -= OnControllerStateChange;
-                isControllerBound = false;
-            }
+            Controller.OnClose -= OnControllerClose;
+            Controller.OnStateChange -= OnControllerStateChange;
 
             if (isPanelFocusBound && panel != null)
             {

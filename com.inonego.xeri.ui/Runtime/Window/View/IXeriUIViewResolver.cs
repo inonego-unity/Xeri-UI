@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : IXeriUIViewResolver.cs
-수정일 : 2026-09-20
+수정일 : 2026-11-02
 
 # 설명
 stable ID로 UITK view source를 조회하는 공통 resolver 계약.

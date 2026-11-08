@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : XeriWindowMaximizedDragCalculator.cs
-수정일 : 2026-09-20
+수정일 : 2026-11-02
 
 # 설명
 Maximized 상태의 XeriWindow를 titlebar drag 위치에 맞춰 normal 위치로 변환하는 계산 유틸리티.

@@ -1,13 +1,12 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
-파일명 : TEST_XeriWindowTrayMapper.cs
-수정일 : 2026-10-02
+파일명 : TEST_XeriWindowTraySource.cs
+수정일 : 2026-11-09
 
 # 설명
-Xeri 윈도우 record와 handle을 공통 Tray entry로 변환하는 mapper/source 테스트.
+Xeri Window Tray Source의 entry 생성과 입력 명령 계약을 검증한다.
 
 # 테스트 구성
- M: Mapper 변환
- S: Source 공급과 command 연결
+ S: Source entry 생성·상태 필터·명령
 ========================================================================= BLOCK_HEADER_END */
 
 using UnityEngine;
@@ -25,10 +24,10 @@ namespace inonego.Xeri.UI.TEST.Window
 {
     // ============================================================
     /// <summary>
-    /// Xeri Window Tray mapper/source 테스트 클래스.
+    /// Xeri Window Tray Source 테스트 클래스.
     /// </summary>
     // ============================================================
-    public class TEST_XeriWindowTrayMapper
+    public class TEST_XeriWindowTraySource
     {
 
     #region 헬퍼
@@ -92,26 +91,28 @@ namespace inonego.Xeri.UI.TEST.Window
 
     #endregion
 
-    #region M-1: 매핑
+    #region S-1: 항목 변환
 
         // ------------------------------------------------------------
         /// <summary>
-        /// Mapper는 record와 handle을 공통 Tray entry로 변환한다.
+        /// Source는 record와 handle을 공통 Tray entry로 변환한다.
         /// </summary>
         // ------------------------------------------------------------
         [Test]
-        public void TEST_XeriWindowTrayMapper_Map_Record_Handle_TrayEntry_변환()
+        public void TEST_XeriWindowTraySource_GetEntries_Record_Handle_TrayEntry_변환()
         {
             var registry = new XeriWindowRegistry();
-            var handle = registry.Register("inventory", CreateController());
-            registry.TryGetRecord(handle, out var record);
-            record.Title = "Inventory";
-            record.Tooltip = "Open Inventory";
-            record.Badge = new XeriTrayBadge("2", Color.red);
+            var record = new XeriWindowRecord
+            {
+                ID = "inventory",
+                Title = "Inventory",
+                Tooltip = "Open Inventory",
+                Badge = new XeriTrayBadge("2", Color.red),
+            };
+            var handle = registry.Register("inventory", CreateController(), record);
 
-            var mapper = new XeriWindowTrayMapper();
-
-            var entry = mapper.Map(record, handle);
+            using var source = new XeriWindowTraySource(registry);
+            var entry = source.GetEntries()[0];
 
             Assert.AreEqual("inventory", entry.ID);
             Assert.AreEqual("inventory", entry.PayloadID);
@@ -123,7 +124,7 @@ namespace inonego.Xeri.UI.TEST.Window
 
     #endregion
 
-    #region S-1: 소스 항목
+    #region S-2: 소스 항목
 
         // ------------------------------------------------------------
         /// <summary>
@@ -239,7 +240,7 @@ namespace inonego.Xeri.UI.TEST.Window
 
     #endregion
 
-    #region S-2: 활성화
+    #region S-3: 활성화
 
         // ----------------------------------------------------------------------
         /// <summary>
@@ -318,7 +319,7 @@ namespace inonego.Xeri.UI.TEST.Window
 
     #endregion
 
-    #region S-3: 닫기
+    #region S-4: 닫기
 
         // ----------------------------------------------------------------------
         /// <summary>

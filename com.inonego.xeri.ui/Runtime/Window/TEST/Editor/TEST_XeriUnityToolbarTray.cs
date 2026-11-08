@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : TEST_XeriUnityToolbarTray.cs
-수정일 : 2026-10-03
+수정일 : 2026-11-09
 
 # 설명
 Unity toolbar Tray host 테스트.
@@ -86,11 +86,11 @@ namespace inonego.Xeri.UI.TEST.Window
             }
         }
 
-        // ======================================================================
+        // ============================================================
         /// <summary>
-        /// public Registry event accessor와 조회 실패를 주입하는 테스트 double.
+        /// Registry 조회 실패와 구독 상태를 검증한다.
         /// </summary>
-        // ======================================================================
+        // ============================================================
         private sealed class FaultingRegistry : IXeriWindowRegistry
         {
             public XeriWindowHandle ActiveHandle => null;
@@ -108,52 +108,12 @@ namespace inonego.Xeri.UI.TEST.Window
                 }
             }
 
-            public bool ThrowAfterCollectionAdd { get; set; }
-            public bool ThrowAfterActiveAdd { get; set; }
             public bool ThrowOnRecords { get; set; }
-            public int CollectionRemoveCount { get; private set; }
-            public int ActiveRemoveCount { get; private set; }
-            public int CollectionHandlerCount => collectionHandlers?.GetInvocationList().Length ?? 0;
-            public int ActiveHandlerCount => activeHandlers?.GetInvocationList().Length ?? 0;
+            public int CollectionHandlerCount => OnCollectionChange?.GetInvocationList().Length ?? 0;
+            public int ActiveHandlerCount => OnActiveChange?.GetInvocationList().Length ?? 0;
 
-            private EventHandler collectionHandlers = null;
-            private EventHandler<XeriWindowEventArgs> activeHandlers = null;
-
-            public event EventHandler OnCollectionChange
-            {
-                add
-                {
-                    collectionHandlers += value;
-
-                    if (ThrowAfterCollectionAdd)
-                    {
-                        throw new InvalidOperationException("injected collection add failure");
-                    }
-                }
-                remove
-                {
-                    CollectionRemoveCount++;
-                    collectionHandlers -= value;
-                }
-            }
-
-            public event EventHandler<XeriWindowEventArgs> OnActiveChange
-            {
-                add
-                {
-                    activeHandlers += value;
-
-                    if (ThrowAfterActiveAdd)
-                    {
-                        throw new InvalidOperationException("injected active add failure");
-                    }
-                }
-                remove
-                {
-                    ActiveRemoveCount++;
-                    activeHandlers -= value;
-                }
-            }
+            public event EventHandler OnCollectionChange = null;
+            public event EventHandler<XeriWindowEventArgs> OnActiveChange = null;
 
             public event EventHandler<XeriWindowEventArgs> OnRegister
             {
@@ -296,11 +256,11 @@ namespace inonego.Xeri.UI.TEST.Window
 
         // ----------------------------------------------------------------------
         /// <summary>
-        /// Install은 지정된 fake toolbar root에 공통 TrayPanel을 한 번만 주입한다.
+        /// Install은 동일 Host에 대한 반복 설치를 거부하고 기존 Panel을 유지한다.
         /// </summary>
         // ----------------------------------------------------------------------
         [Test]
-        public void TEST_XeriUnityToolbarTray_Install_FakeRoot_TrayPanel_한번만_주입()
+        public void TEST_XeriUnityToolbarTray_Install_같은Host_반복설치_거부()
         {
             var root = new VisualElement();
             var registry = new XeriWindowRegistry();
@@ -310,9 +270,36 @@ namespace inonego.Xeri.UI.TEST.Window
             var second = toolbarTray.Install(root, registry);
 
             Assert.IsTrue(first);
-            Assert.IsTrue(second);
+            Assert.IsFalse(second);
             Assert.AreEqual(1, root.Query("xeri-unity-toolbar-tray").ToList().Count);
             Assert.IsTrue(toolbarTray.TrayPanel.ClassListContains("xeri-tray--unity-toolbar"));
+        }
+
+        // ----------------------------------------------------------------------
+        /// <summary>
+        /// 다른 Registry로 재설치를 시도해도 기존 Tray Source 연결이 유지된다.
+        /// </summary>
+        // ----------------------------------------------------------------------
+        [Test]
+        public void TEST_XeriUnityToolbarTray_Install_다른Registry_재설치거부()
+        {
+            var root = new VisualElement();
+            var originalRegistry = new XeriWindowRegistry();
+            originalRegistry.Register("original", CreateController());
+
+            var otherRegistry = new XeriWindowRegistry();
+            otherRegistry.Register("other-a", CreateController());
+            otherRegistry.Register("other-b", CreateController());
+
+            using var toolbarTray = new XeriUnityToolbarTray();
+            Assert.IsTrue(toolbarTray.Install(root, originalRegistry));
+            Assert.IsFalse(toolbarTray.Install(root, otherRegistry));
+
+            toolbarTray.Reload();
+            var container = toolbarTray.TrayPanel.Q<VisualElement>("entry-container");
+
+            Assert.IsNotNull(container);
+            Assert.AreEqual(1, container.childCount);
         }
 
     #endregion
@@ -402,33 +389,6 @@ namespace inonego.Xeri.UI.TEST.Window
     #endregion
 
     #region I-4: 실패 원자성
-
-        // ------------------------------------------------------------
-        /// <summary>
-        /// <br/> public Registry event add가 등록 뒤 실패해도
-        /// <br/> Source constructor가 남은 구독을 롤백한다.
-        /// </summary>
-        // ------------------------------------------------------------
-        [TestCase(false)]
-        [TestCase(true)]
-        public void TEST_XeriWindowTraySource_EventAdd후실패_구독Rollback(bool failOnActive)
-        {
-            var registry = new FaultingRegistry
-            {
-                ThrowAfterCollectionAdd = !failOnActive,
-                ThrowAfterActiveAdd = failOnActive,
-            };
-
-            Assert.Throws<InvalidOperationException>
-            (
-                () => new XeriWindowTraySource(registry)
-            );
-
-            Assert.AreEqual(0, registry.CollectionHandlerCount);
-            Assert.AreEqual(0, registry.ActiveHandlerCount);
-            Assert.AreEqual(1, registry.CollectionRemoveCount);
-            Assert.AreEqual(failOnActive ? 1 : 0, registry.ActiveRemoveCount);
-        }
 
         // --------------------------------------------------------------------------------
         /// <summary>

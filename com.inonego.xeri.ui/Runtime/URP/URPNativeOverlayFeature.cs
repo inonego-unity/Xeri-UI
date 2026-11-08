@@ -1,6 +1,6 @@
 ﻿/* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : URPNativeOverlayFeature.cs
-수정일 : 2026-10-28
+수정일 : 2026-11-02
 
 # 설명
 URP의 카메라 attachment에 Unity Native UI 목록을 중복 없이 합성한다.

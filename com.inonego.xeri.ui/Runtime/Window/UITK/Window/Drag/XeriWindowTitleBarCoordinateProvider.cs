@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : XeriWindowTitleBarCoordinateProvider.cs
-수정일 : 2026-09-20
+수정일 : 2026-11-02
 
 # 설명
 Window titlebar drag가 움직이는 window 내부 좌표계에 흔들리지 않도록 panel 좌표를 그대로 사용한다.

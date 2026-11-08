@@ -1,13 +1,15 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : TEST_XeriWindowDragFactory.cs
-수정일 : 2026-10-28
+수정일 : 2026-11-08
 
 # 설명
 XeriWindowDragFactory titlebar drag binding 테스트.
 
 # 테스트 구성
- F: Factory 생성
- T: Titlebar 상호작용
+- F-1: Factory 생성과 좌표계
+- T-1: Titlebar 동작 대상 판별
+- T-2: 더블클릭 이벤트 흐름
+- T-3: 최대화 상태에서 드래그 복원
 ========================================================================= BLOCK_HEADER_END */
 
 using UnityEditor;
@@ -41,14 +43,53 @@ namespace inonego.Xeri.UI.TEST.Window
         // ============================================================
         private sealed class TestWindowDriver : IXeriWindowDriver
         {
+            // ------------------------------------------------------------
+            /// <summary>
+            /// 테스트 Window의 투명도 표현 상태.
+            /// </summary>
+            // ------------------------------------------------------------
             public PresentationAlpha Alpha { get; } = new();
+
+            // ------------------------------------------------------------
+            /// <summary>
+            /// 테스트 Window의 표시 여부 상태.
+            /// </summary>
+            // ------------------------------------------------------------
             public PresentationVisibility Visibility { get; } = new();
 
+            // ------------------------------------------------------------
+            /// <summary>
+            /// 테스트 Window의 현재 위치.
+            /// </summary>
+            // ------------------------------------------------------------
             public Vector2 Pos { get; set; } = Vector2.zero;
+
+            // ------------------------------------------------------------
+            /// <summary>
+            /// 테스트 Window의 현재 크기.
+            /// </summary>
+            // ------------------------------------------------------------
             public Vector2 Size { get; set; } = new Vector2(200f, 120f);
+
+            // ------------------------------------------------------------
+            /// <summary>
+            /// 테스트 Window의 논리 상태.
+            /// </summary>
+            // ------------------------------------------------------------
             public XeriWindowState State { get; set; } = XeriWindowState.Normal;
+
+            // ------------------------------------------------------------
+            /// <summary>
+            /// 테스트 Window에 적용된 시각 상태.
+            /// </summary>
+            // ------------------------------------------------------------
             public XeriWindowState VisualState { get; private set; } = XeriWindowState.Normal;
 
+            // ------------------------------------------------------------
+            /// <summary>
+            /// 테스트 Window의 위치와 크기를 함께 조회·설정한다.
+            /// </summary>
+            // ------------------------------------------------------------
             public Rect Bounds
             {
                 get => new Rect(Pos, Size);
@@ -59,22 +100,42 @@ namespace inonego.Xeri.UI.TEST.Window
                 }
             }
 
+            // ------------------------------------------------------------
+            /// <summary>
+            /// 테스트 Driver의 상태 전이를 반영한다.
+            /// </summary>
+            // ------------------------------------------------------------
             public void CommitState(XeriWindowState state)
             {
                 State = state;
                 ApplyVisualState(state);
             }
 
+            // ------------------------------------------------------------
+            /// <summary>
+            /// 테스트 Driver의 시각 상태를 반영한다.
+            /// </summary>
+            // ------------------------------------------------------------
             public void ApplyVisualState(XeriWindowState state)
             {
                 VisualState = state;
             }
 
+            // ------------------------------------------------------------
+            /// <summary>
+            /// 테스트 Driver의 Bounds를 저장한다.
+            /// </summary>
+            // ------------------------------------------------------------
             public void ApplyBounds(Rect bounds)
             {
                 Bounds = bounds;
             }
 
+            // ------------------------------------------------------------
+            /// <summary>
+            /// 테스트 Driver에서는 최대화 Bounds 변경을 생략한다.
+            /// </summary>
+            // ------------------------------------------------------------
             public void ApplyMaximizedBounds()
             {
                 // NONE
@@ -221,7 +282,7 @@ namespace inonego.Xeri.UI.TEST.Window
 
     #endregion
 
-    #region F-1: 독립 바인딩
+    #region F-1: Factory 생성과 좌표계
 
         // ------------------------------------------------------------
         /// <summary>
@@ -271,9 +332,9 @@ namespace inonego.Xeri.UI.TEST.Window
             var firstPointer = new Vector2(100.0f, 80.0f);
             var secondPointer = new Vector2(120.0f, 90.0f);
 
-            panel.transform.position = new Vector3(40.0f, 25.0f, 0.0f);
+            panel.style.translate = new Translate(40.0f, 25.0f, 0.0f);
             var first = provider.ToLocalPos(firstPointer);
-            panel.transform.position = new Vector3(90.0f, 45.0f, 0.0f);
+            panel.style.translate = new Translate(90.0f, 45.0f, 0.0f);
             var second = provider.ToLocalPos(secondPointer);
 
             Assert.AreEqual(Vector2.zero, provider.Pos);
@@ -284,7 +345,7 @@ namespace inonego.Xeri.UI.TEST.Window
 
     #endregion
 
-    #region T-1: 제목 동작 필터
+    #region T-1: 제목 표시줄 동작 대상 판별
 
         // --------------------------------------------------------------------------------
         /// <summary>
@@ -353,7 +414,7 @@ namespace inonego.Xeri.UI.TEST.Window
 
     #endregion
 
-    #region T-2: 제목 표시줄 이벤트 흐름
+    #region T-2: 제목 표시줄 더블클릭 이벤트
 
         // --------------------------------------------------------------------------------
         /// <summary>
@@ -506,6 +567,10 @@ namespace inonego.Xeri.UI.TEST.Window
             }
         }
 
+    #endregion
+
+    #region T-3: 최대화 상태 드래그 복원
+
         // ----------------------------------------------------------------------
         /// <summary>
         /// <br/> Maximized 상태에서 double click 후보 입력이 drag로 전환되면
@@ -560,7 +625,7 @@ namespace inonego.Xeri.UI.TEST.Window
             Vector2 RestoreAt(Vector2 offset)
             {
                 var parent = new VisualElement();
-                parent.transform.position = offset;
+                parent.style.translate = new Translate(offset.x, offset.y, 0.0f);
                 var panel = new XeriWindowPanel();
                 parent.Add(panel);
                 var driver = new TestWindowDriver

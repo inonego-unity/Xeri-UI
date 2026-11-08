@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : XeriUIViewResolver.cs
-수정일 : 2026-09-20
+수정일 : 2026-11-08
 
 # 설명
 stable ID로 UITK view source를 등록하고 조회하는 기본 resolver.
@@ -26,7 +26,7 @@ namespace inonego.Xeri.UI.Window
 
     #endregion
 
-    #region 메서드
+    #region View Source 등록과 조회
 
         // ------------------------------------------------------------
         /// <summary>
@@ -40,17 +40,19 @@ namespace inonego.Xeri.UI.Window
                 throw new ArgumentNullException(nameof(viewSource));
             }
 
-            if (string.IsNullOrWhiteSpace(viewSource.ID))
+            var id = viewSource.ID;
+
+            if (string.IsNullOrWhiteSpace(id))
             {
                 throw new ArgumentException("View source ID가 비어 있습니다.", nameof(viewSource));
             }
 
-            if (viewSources.ContainsKey(viewSource.ID))
+            if (viewSources.ContainsKey(id))
             {
-                throw new InvalidOperationException($"이미 등록된 view source ID입니다. ID: {viewSource.ID}");
+                throw new InvalidOperationException($"이미 등록된 view source ID입니다. ID: {id}");
             }
 
-            viewSources.Add(viewSource.ID, viewSource);
+            viewSources.Add(id, viewSource);
         }
 
         // ------------------------------------------------------------

@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : XeriWindowTrayStateMask.cs
-수정일 : 2026-10-02
+수정일 : 2026-11-02
 
 # 설명
 Window Tray source가 entry로 포함할 live Window 상태 집합.

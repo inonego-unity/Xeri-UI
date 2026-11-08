@@ -1,9 +1,9 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : IXeriUIViewSource.cs
-수정일 : 2026-09-28
+수정일 : 2026-11-09
 
 # 설명
-UITK VisualElement 획득·반환과 UI session 저장/로드를 제공하는 공통 view source 계약.
+UITK VisualElement 획득·반환을 담당하는 필수 view source 계약. UI session 영속화는 선택적 IXeriUIViewSessionPersistence가 담당한다.
 ========================================================================= BLOCK_HEADER_END */
 
 using UnityEngine;
@@ -13,7 +13,7 @@ namespace inonego.Xeri.UI.Window
 {
     // ============================================================
     /// <summary>
-    /// UITK view를 획득·반환하고 UI session을 저장/로드하는 공통 계약.
+    /// UITK view 획득·반환의 기본 계약. 세션 저장·로드는 선택적 계약이다.
     /// </summary>
     // ============================================================
     public interface IXeriUIViewSource
@@ -45,20 +45,6 @@ namespace inonego.Xeri.UI.Window
         /// </summary>
         // ------------------------------------------------------------
         void ReleaseView(XeriUIViewScope scope, VisualElement view);
-
-        // ------------------------------------------------------------
-        /// <summary>
-        /// View의 현재 UI session을 저장한다.
-        /// </summary>
-        // ------------------------------------------------------------
-        void SaveSession(XeriUIViewScope scope);
-
-        // ------------------------------------------------------------
-        /// <summary>
-        /// 저장된 UI session을 view에 로드한다.
-        /// </summary>
-        // ------------------------------------------------------------
-        void LoadSession(XeriUIViewScope scope);
 
     #endregion
 

@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명: TEST_XeriTrayReorder.cs
-수정일 : 2026-09-20
+수정일 : 2026-11-09
 
 # 설명
 공통 Tray reorder 계산과 panel 이벤트 전달을 검증한다.
@@ -12,6 +12,7 @@
 ========================================================================= BLOCK_HEADER_END */
 
 using UnityEngine;
+using UnityEngine.UIElements;
 
 using NUnit;
 using NUnit.Framework;
@@ -260,7 +261,47 @@ namespace inonego.Xeri.UI.TEST.Tray
 
     #endregion
 
-    #region V-1: 재정렬 시각물
+    #region V-1: 기본 애니메이터 종료 정리
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// Preview 활성·비활성 Animator는 모두 button offset을 원복한다.
+        /// </summary>
+        // ------------------------------------------------------------
+        [Test]
+        public void TEST_XeriTrayReorderAnimator_DefaultClear_ButtonOffsets_복원()
+        {
+            var panel = new XeriTrayPanel();
+            panel.Reload
+            (
+                new[]
+                {
+                    new XeriTrayEntry("a", "A"),
+                    new XeriTrayEntry("b", "B"),
+                },
+                XeriTrayOptions.Default()
+            );
+            var button = panel.GetEntryButtons()[0];
+            IXeriTrayReorderAnimator[] animators =
+            {
+                new XeriTrayReorderAnimator(),
+                new XeriTrayNoReorderAnimator(),
+            };
+
+            foreach (var animator in animators)
+            {
+                button.style.translate = new Translate(12f, -8f, 0f);
+
+                animator.Clear(panel);
+
+                Assert.AreEqual(0f, button.style.translate.value.x.value);
+                Assert.AreEqual(0f, button.style.translate.value.y.value);
+            }
+        }
+
+    #endregion
+
+    #region V-2: 재정렬 시각물
 
         // --------------------------------------------------------------------------------
         /// <summary>
@@ -288,7 +329,7 @@ namespace inonego.Xeri.UI.TEST.Tray
 
             Assert.IsFalse(button.visible);
 
-            visual.Clear(button, session);
+            visual.Clear(button);
 
             Assert.IsTrue(button.visible);
         }
