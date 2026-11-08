@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : XeriValidationShell.cs
-수정일 : 2026-10-28
+수정일 : 2026-11-07
 
 # 설명
 통합 Validation Desktop의 Window Workspace, Taskbar, Monitor, Checklist와 launcher를 조립한다.
@@ -116,6 +116,7 @@ namespace inonego.Xeri.UI.Validation
                 ConfigureViewportLayer(XeriValidationIDs.WindowDestination, TOP_BAR_HEIGHT, TASKBAR_HEIGHT);
                 ConfigureViewportLayer(PresentationDestinationID.Overlay, 0f, 0f);
                 ConfigureViewportLayer(PresentationDestinationID.Modal, 0f, 0f);
+                ConfigureViewportLayer(XeriValidationIDs.SplashDestination, 0f, 0f);
 
                 workspace = new XeriWindowWorkspace
                 (

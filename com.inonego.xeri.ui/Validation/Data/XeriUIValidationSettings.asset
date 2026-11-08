@@ -26,6 +26,8 @@ MonoBehaviour:
     layerID: Desktop.Modal
   - destinationID: System
     layerID: SystemFade
+  - destinationID: Splash
+    layerID: Desktop.Splash
   backendSupport: 3
   highPrecisionOutput: 1
   uiPostProcessing: 0

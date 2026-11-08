@@ -29,6 +29,10 @@ MonoBehaviour:
     displayName: Global Modal
     layerOrder: 400
     backend: 1
+  - layerID: Desktop.Splash
+    displayName: Splash
+    layerOrder: 500
+    backend: 1
   - layerID: SystemFade
     displayName: System Fade
     layerOrder: 10000

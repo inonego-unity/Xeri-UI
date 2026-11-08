@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : XeriValidationIDs.cs
-수정일 : 2026-10-07
+수정일 : 2026-11-07
 
 # 설명
 Xeri UI 통합 Validation Scene이 사용하는 Layer, Presentation, Screen과 Window stable ID를 정의한다.
@@ -23,6 +23,8 @@ namespace inonego.Xeri.UI.Validation
         internal const string OverlayLayer = "Desktop.Overlay";
         internal const string ModalLayer = "Desktop.Modal";
         internal const string SystemLayer = "SystemFade";
+        internal const string SplashLayer = "Desktop.Splash";
+        internal const string SplashDestination = "Splash";
 
         internal const string StatusPresentation = "Desktop.Status";
         internal const string ChecklistPresentation = "Desktop.Checklist";

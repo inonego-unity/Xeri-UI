@@ -16,7 +16,7 @@
                 <ui:Label text="검증" class="xeri-validation-eyebrow" />
                 <ui:Label text="확인한 기능" class="xeri-validation-title" />
             </ui:VisualElement>
-            <ui:Label name="ChecklistSummary" text="0 / 11" class="xeri-validation-checklist__summary" />
+            <ui:Label name="ChecklistSummary" text="0 / 12" class="xeri-validation-checklist__summary" />
         </ui:VisualElement>
 
         <ui:VisualElement class="xeri-validation-checklist__item">
@@ -62,6 +62,10 @@
         <ui:VisualElement class="xeri-validation-checklist__item">
             <ui:Label text="화면 전환" class="xeri-validation-checklist__name" />
             <ui:Label name="CheckFade" text="○" class="xeri-validation-checklist__state" />
+        </ui:VisualElement>
+        <ui:VisualElement class="xeri-validation-checklist__item">
+            <ui:Label text="스플래시 표시·종료" class="xeri-validation-checklist__name" />
+            <ui:Label name="CheckSplash" text="○" class="xeri-validation-checklist__state" />
         </ui:VisualElement>
     </ui:VisualElement>
 </ui:UXML>

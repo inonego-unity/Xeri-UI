@@ -11,6 +11,7 @@ UIRuntime의 Root Presentation, Context Authority, Scene 구성과 초기화·�
  S: Screen 정리 실패와 Terminal Shutdown
  A: Main/Child Context tree와 Context Authority
  C: Runtime 초기화와 Scene 구성 검증
+ P: Splash의 Runtime 연결과 표현 상태 복원
 ========================================================================= BLOCK_HEADER_END */
 
 using System;
@@ -23,6 +24,7 @@ using UnityEngine.EventSystems;
 using UnityEngine.InputSystem;
 using UnityEngine.InputSystem.UI;
 using UnityEngine.UI;
+using UnityEngine.TestTools;
 using PanelSettings = UnityEngine.UIElements.PanelSettings;
 
 using NUnit;
@@ -36,6 +38,33 @@ namespace inonego.Xeri.UI.TEST.Core
 
     // ============================================================
     /// <summary>
+    /// Splash Root의 계층 변경이 원본 Alpha를 바꾸는 실사용 callback.
+    /// </summary>
+    // ============================================================
+    [ExecuteAlways]
+    public sealed class SplashTestParentAlphaObserver : MonoBehaviour
+    {
+        public CanvasGroup Group { get; set; }
+        public bool DisableOnAttach { get; set; }
+        public int ChangeCount { get; private set; }
+
+        private void OnTransformParentChanged()
+        {
+            ChangeCount++;
+            if (Group != null)
+            {
+                Group.alpha = 0.25f;
+            }
+
+            if (DisableOnAttach && transform.parent != null)
+            {
+                gameObject.SetActive(false);
+            }
+        }
+    }
+
+    // ============================================================
+    /// <summary>
     /// UI Composition Root의 실패 원자성과 역순 정리 테스트.
     /// </summary>
     // ============================================================
@@ -43,6 +72,40 @@ namespace inonego.Xeri.UI.TEST.Core
     {
 
     #region 헬퍼 타입
+
+        // ============================================================
+        /// <summary>
+        /// 표시 후 첫 투명화에서 실패하는 Splash Alpha 대상.
+        /// </summary>
+        // ============================================================
+        private sealed class SplashFailingAlphaTarget : IPresentationAlphaTarget
+        {
+            public bool IsValid => true;
+            public float Alpha { get; private set; } = 1f;
+
+            private bool entered;
+            private bool visible;
+
+            public void SetAlpha(float alpha)
+            {
+                if (visible && alpha <= 0f)
+                {
+                    throw new InvalidOperationException("injected splash exit failure");
+                }
+
+                if (alpha <= 0f)
+                {
+                    entered = true;
+                }
+
+                if (entered && alpha >= 1f)
+                {
+                    visible = true;
+                }
+
+                Alpha = alpha;
+            }
+        }
 
         // ============================================================
         /// <summary>
@@ -2849,6 +2912,366 @@ namespace inonego.Xeri.UI.TEST.Core
             Assert.DoesNotThrow(fixture.Runtime.ValidateSceneComposition);
             Assert.DoesNotThrow(fixture.Runtime.Shutdown);
             Assert.IsTrue(fixture.Runtime.IsReleased);
+        }
+
+    #endregion
+
+    #region P-1: 스플래시 연결과 표현 상태 복원
+
+        // ----------------------------------------------------------------------
+        /// <summary>
+        /// UGUI 부착·분리 callback이 Alpha를 변경해도 Show 이전 상태로 복원한다.
+        /// </summary>
+        // ----------------------------------------------------------------------
+        [Test]
+        public void TEST_UIRuntime_Splash_부모변경콜백_원본Alpha복원()
+        {
+            var fixture = CreateRuntimeFixture();
+            fixture.Runtime.Initialize(fixture.Settings);
+
+            var rootObject = new GameObject
+            (
+                "Splash Parent Callback",
+                typeof(RectTransform),
+                typeof(CanvasGroup),
+                typeof(SplashTestParentAlphaObserver)
+            );
+            ownedObjects.Add(rootObject);
+
+            var canvasGroup = rootObject.GetComponent<CanvasGroup>();
+            canvasGroup.alpha = 0.9f;
+            var observer = rootObject.GetComponent<SplashTestParentAlphaObserver>();
+            observer.Group = canvasGroup;
+            var root = rootObject.GetComponent<RectTransform>();
+            SplashSession session = null;
+            var ended = 0;
+
+            try
+            {
+                session = UGUISplash.Show
+                (
+                    fixture.Runtime.Main,
+                    PresentationTarget.Host(PresentationDestinationID.System),
+                    root,
+                    new SplashParams(1f, 0f, 1f),
+                    onEnded: _ => ended++
+                );
+
+                session.Cancel();
+
+                Assert.AreEqual(SplashPhase.Finished, session.Phase);
+                Assert.AreEqual(SplashResult.Canceled, session.Result);
+                Assert.AreEqual(1, ended);
+                Assert.GreaterOrEqual(observer.ChangeCount, 2);
+                Assert.AreEqual(0.9f, canvasGroup.alpha, 0.0001f);
+                Assert.IsNull(root.parent);
+            }
+            finally
+            {
+                session?.Dispose();
+            }
+        }
+
+        // ----------------------------------------------------------------------
+        /// <summary>
+        /// 시작 후 Fade-out 동기 실패가 terminal 종료와 소유 리소스 반환으로 이어진다.
+        /// </summary>
+        // ----------------------------------------------------------------------
+        [Test]
+        public void TEST_UIRuntime_Splash_퇴장동기실패_종료와반환()
+        {
+            var fixture = CreateRuntimeFixture();
+            fixture.Runtime.Initialize(fixture.Settings);
+
+            var rootObject = new GameObject
+            (
+                "Splash Failed Transition",
+                typeof(RectTransform),
+                typeof(CanvasGroup)
+            );
+            ownedObjects.Add(rootObject);
+
+            var group = rootObject.GetComponent<CanvasGroup>();
+            var root = rootObject.GetComponent<RectTransform>();
+            SplashSession session = null;
+            SplashResult? ended = null;
+            var notifications = 0;
+            var originalIgnore = LogAssert.ignoreFailingMessages;
+
+            try
+            {
+                session = UGUISplash.Show
+                (
+                    fixture.Runtime.Main,
+                    PresentationTarget.Host(PresentationDestinationID.System),
+                    root,
+                    new SplashParams(1f, 0f, 0f),
+                    onEnded: result =>
+                    {
+                        ended = result;
+                        notifications++;
+                    }
+                );
+                Assert.AreEqual(SplashPhase.Entering, session.Phase);
+
+                // Fade-out이 시작하는 순간 유효하지 않은 backend에 Alpha를 적용하게 한다.
+                var field = typeof(SplashSession).GetField
+                (
+                    "alpha",
+                    BindingFlags.Instance | BindingFlags.NonPublic
+                );
+                Assert.IsNotNull(field);
+                var alpha = (PresentationAlpha)field.GetValue(session);
+                alpha.Base = 0.7f;
+                UnityEngine.Object.DestroyImmediate(group);
+                LogAssert.ignoreFailingMessages = true;
+
+                session.Skip();
+
+                Assert.AreEqual(SplashPhase.Finished, session.Phase);
+                Assert.AreEqual(SplashResult.Failed, session.Result);
+                Assert.AreEqual(SplashResult.Failed, ended);
+                Assert.AreEqual(1, notifications);
+                Assert.IsFalse(session.IsActive);
+                Assert.IsNotNull(session.LastFailure);
+                Assert.IsNull(root.parent);
+            }
+            finally
+            {
+                session?.Dispose();
+                LogAssert.ignoreFailingMessages = originalIgnore;
+            }
+        }
+
+        // ----------------------------------------------------------------------
+        /// <summary>
+        /// <br/> 시작 중 Fade In 완료가 Fade Out을 호출해도 실패를 전달한다.
+        /// <br/> Failed 결과를 확정하고 세 가지 수명을 한 번씩 반환한다.
+        /// </summary>
+        // ----------------------------------------------------------------------
+        [Test]
+        public void TEST_UIRuntime_Splash_시작중중첩퇴장실패_Failed종료와자원반환()
+        {
+            var fixture = CreateRuntimeFixture();
+            fixture.Runtime.Initialize(fixture.Settings);
+
+            var alpha = new PresentationAlpha(new SplashFailingAlphaTarget());
+            var releases = 0;
+            var notifications = 0;
+            SplashResult? ended = null;
+            var originalIgnore = LogAssert.ignoreFailingMessages;
+            var session = new SplashSession
+            (
+                fixture.Runtime,
+                alpha,
+                new SplashParams(0f, 0f, 0f),
+                new Lease(() => releases++),
+                new Lease(() => releases++),
+                new Lease(() => releases++),
+                result =>
+                {
+                    ended = result;
+                    notifications++;
+                }
+            );
+
+            try
+            {
+                LogAssert.ignoreFailingMessages = true;
+                session.Start();
+
+                Assert.AreEqual(SplashPhase.Finished, session.Phase);
+                Assert.AreEqual(SplashResult.Failed, session.Result);
+                Assert.AreEqual(SplashResult.Failed, ended);
+                Assert.IsFalse(session.IsActive);
+                Assert.IsNotNull(session.LastFailure);
+                Assert.AreEqual(1, notifications);
+                Assert.AreEqual(3, releases);
+
+                session.Dispose();
+                Assert.AreEqual(3, releases);
+                Assert.AreEqual(1, notifications);
+            }
+            finally
+            {
+                session.Dispose();
+                LogAssert.ignoreFailingMessages = originalIgnore;
+            }
+        }
+
+        // ----------------------------------------------------------------------
+        /// <summary>
+        /// UGUI 비활성 Root와 UITK inline style은 즉시 완료 뒤 원래 값을 유지한다.
+        /// </summary>
+        // ----------------------------------------------------------------------
+        [Test]
+        public void TEST_UIRuntime_Splash_UGUI비활성Root_즉시완료복원()
+        {
+            var fixture = CreateRuntimeFixture();
+            fixture.Runtime.Initialize(fixture.Settings);
+
+            var rootObject = new GameObject
+            (
+                "Splash Inactive Root",
+                typeof(RectTransform),
+                typeof(CanvasGroup)
+            );
+            rootObject.SetActive(false);
+            ownedObjects.Add(rootObject);
+
+            var root = rootObject.GetComponent<RectTransform>();
+            var group = rootObject.GetComponent<CanvasGroup>();
+            group.alpha = 0.65f;
+
+            var session = UGUISplash.Show
+            (
+                fixture.Runtime.Main,
+                PresentationTarget.Host(PresentationDestinationID.System),
+                root,
+                new SplashParams(0f, 0f, 0f, 0.6f)
+            );
+
+            Assert.AreEqual(SplashResult.Completed, session.Result);
+            Assert.AreEqual(0.65f, group.alpha, 0.0001f);
+            Assert.IsFalse(rootObject.activeSelf);
+            Assert.IsNull(root.parent);
+            session.Dispose();
+        }
+
+        // ----------------------------------------------------------------------
+        /// <summary>
+        /// UI Toolkit 원래 opacity와 display가 Splash 반환 이후 유지된다.
+        /// </summary>
+        // ----------------------------------------------------------------------
+        [Test]
+        public void TEST_UIRuntime_Splash_UITK즉시완료_원본스타일복원()
+        {
+            var fixture = CreateUITKOnlyRuntimeFixture();
+            fixture.Runtime.Initialize(fixture.Settings);
+
+            var root = new UnityEngine.UIElements.VisualElement();
+            var logo = new UnityEngine.UIElements.VisualElement();
+            root.Add(logo);
+            root.style.display = UnityEngine.UIElements.DisplayStyle.None;
+            logo.style.opacity = 0.42f;
+
+            var session = UITKSplash.Show
+            (
+                fixture.Runtime.Main,
+                PresentationTarget.Host(PresentationDestinationID.System),
+                root,
+                new SplashParams(0f, 0f, 0f, 0.6f),
+                fadeTarget: logo
+            );
+
+            Assert.AreEqual(SplashResult.Completed, session.Result);
+            Assert.IsNull(root.parent);
+            Assert.AreEqual(UnityEngine.UIElements.DisplayStyle.None, root.style.display.value);
+            Assert.AreEqual(0.42f, logo.style.opacity.value, 0.0001f);
+            session.Dispose();
+        }
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// 세션 소유 UGUI Root를 외부 분리해도 재획득은 종료 전까지 거부한다.
+        /// </summary>
+        // ------------------------------------------------------------
+        [Test]
+        public void TEST_UIRuntime_Splash_UGUI소유권_재부착차단과반환()
+        {
+            var fixture = CreateRuntimeFixture();
+            fixture.Runtime.Initialize(fixture.Settings);
+            var rootObject = new GameObject
+            (
+                "Splash Ownership",
+                typeof(RectTransform),
+                typeof(CanvasGroup)
+            );
+            ownedObjects.Add(rootObject);
+            var root = rootObject.GetComponent<RectTransform>();
+            var target = PresentationTarget.Host(PresentationDestinationID.System);
+            var session = UGUISplash.Show
+            (
+                fixture.Runtime.Main,
+                target,
+                root,
+                new SplashParams(1f, 0f, 1f)
+            );
+
+            root.SetParent(null, false);
+            Assert.Throws<InvalidOperationException>
+            (
+                () => UGUISplash.Show
+                (
+                    fixture.Runtime.Main,
+                    target,
+                    root,
+                    new SplashParams(0f, 0f, 0f)
+                )
+            );
+
+            session.Cancel();
+            Assert.IsFalse(session.IsActive);
+
+            var next = UGUISplash.Show
+            (
+                fixture.Runtime.Main,
+                target,
+                root,
+                new SplashParams(0f, 0f, 0f)
+            );
+            Assert.AreEqual(SplashResult.Completed, next.Result);
+            next.Dispose();
+        }
+
+        // ----------------------------------------------------------------------
+        /// <summary>
+        /// 부착 callback이 Root를 비활성화하면 실제 활성 상태를 복구해 표시한다.
+        /// </summary>
+        // ----------------------------------------------------------------------
+        [Test]
+        public void TEST_UIRuntime_Splash_부착중비활성화_표시후원상복원()
+        {
+            var fixture = CreateRuntimeFixture();
+            fixture.Runtime.Initialize(fixture.Settings);
+            var rootObject = new GameObject
+            (
+                "Splash Reentrant Deactivation",
+                typeof(RectTransform),
+                typeof(CanvasGroup),
+                typeof(SplashTestParentAlphaObserver)
+            );
+            ownedObjects.Add(rootObject);
+            var root = rootObject.GetComponent<RectTransform>();
+            var observer = rootObject.GetComponent<SplashTestParentAlphaObserver>();
+            observer.Group = rootObject.GetComponent<CanvasGroup>();
+            observer.DisableOnAttach = true;
+            SplashSession session = null;
+
+            try
+            {
+                session = UGUISplash.Show
+                (
+                    fixture.Runtime.Main,
+                    PresentationTarget.Host(PresentationDestinationID.System),
+                    root,
+                    new SplashParams(1f, 0f, 1f)
+                );
+
+                Assert.IsTrue(rootObject.activeSelf);
+                Assert.AreEqual(SplashPhase.Entering, session.Phase);
+                Assert.Greater(observer.ChangeCount, 0);
+
+                session.Cancel();
+
+                Assert.AreEqual(SplashResult.Canceled, session.Result);
+                Assert.IsTrue(rootObject.activeSelf);
+                Assert.IsNull(root.parent);
+            }
+            finally
+            {
+                session?.Dispose();
+            }
         }
 
     #endregion

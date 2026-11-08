@@ -1,9 +1,9 @@
 <!-- BLOCK_HEADER_BEGIN =====================================================================
 파일명 : CoreLab.uxml
-수정일 : 2026-10-19
+수정일 : 2026-11-07
 
 # 설명
-Transient Presentation, Spotlight와 Scene Fade를 반복 실행하는 Core Lab control surface.
+Transient Presentation, Spotlight, Scene Fade와 Splash를 반복 실행하는 Core Lab control surface.
 ======================================================================= BLOCK_HEADER_END -->
 <ui:UXML xmlns:ui="UnityEngine.UIElements" editor-extension-mode="False">
     <Style src="../Shared/XeriValidationTokens.uss" />
@@ -36,6 +36,7 @@ Transient Presentation, Spotlight와 Scene Fade를 반복 실행하는 Core Lab 
                     <ui:Button name="CoreOverlay" text="알림 표시 전환" class="xeri-validation-button xeri-validation-button--secondary" />
                     <ui:Button name="CoreSpotlight" text="강조 표시" class="xeri-validation-button xeri-validation-button--quiet" />
                     <ui:Button name="CoreFade" text="화면 전환" class="xeri-validation-button xeri-validation-button--primary" />
+                    <ui:Button name="CoreSplash" text="스플래시 재생" class="xeri-validation-button xeri-validation-button--secondary" />
                 </ui:VisualElement>
             </ui:VisualElement>
             <ui:VisualElement name="CoreSpotlightTarget" class="xeri-validation-lab__target">

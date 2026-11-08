@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : DOTweenPresentationTransitioner.cs
-수정일 : 2026-11-07
+수정일 : 2026-11-08
 # 설명
 Core Presentation Transition 계약을 DOTween float tween과 취소 Handle로 구현한다.
 ========================================================================= BLOCK_HEADER_END */
@@ -88,8 +88,6 @@ namespace inonego.Xeri.UI
             var value = parameters.StartValue;
             Tween tween = null;
             PresentationTransitionHandle handle = null;
-            var failed = false;
-
             void CancelTween()
             {
                 if (tween != null)
@@ -106,7 +104,7 @@ namespace inonego.Xeri.UI
 
             void ApplyValue(float next)
             {
-                if (failed || (handle != null && !handle.IsPending)) return;
+                if (handle != null && !handle.IsPending) return;
 
                 value = next;
 
@@ -116,8 +114,6 @@ namespace inonego.Xeri.UI
                 }
                 catch (Exception exception)
                 {
-                    failed = true;
-
                     // OnKill은 외부 취소로 처리하므로 적용 실패를 먼저 확정한다.
                     var didFail = handle != null && handle.Fail();
                     tween?.Kill(false);

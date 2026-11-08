@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : SceneFader.cs
-수정일 : 2026-11-02
+수정일 : 2026-11-08
 # 설명
 PresentationHost의 System destination Layer Lease를 Cover부터 Reveal 또는 종료까지 소유하는 상태 머신이다.
 Fade Source lifetime과 PresentationAlpha를 결합해 Presentation 수명 Core 위에 구성한다.
@@ -48,13 +48,26 @@ namespace inonego.Xeri.UI
         private PresentationLayerLease presentationLayerLease = null;
         private ISceneFadeDriver presentationDriver = null;
         private PresentationAlpha alpha = null;
-        private bool presentationInitialized = false;
-        private PresentationTransitionHandle transition = null;
+        private bool isAcquiringPresentation = false;
+        private FadeRequest activeRequest = null;
         private SceneFadeState stableState = SceneFadeState.Clear;
         private Color stableColor = Color.black;
-        private int generation = 0;
         private bool ownerControlsLifetime = false;
         private bool isDisposed = false;
+
+    #endregion
+
+    #region 내부 데이터
+
+        // ============================================================
+        /// <summary>
+        /// 하나의 Fade 요청과 그 backend Transition 소유권을 연결한다.
+        /// </summary>
+        // ============================================================
+        private sealed class FadeRequest
+        {
+            internal PresentationTransitionHandle Handle;
+        }
 
     #endregion
 
@@ -97,6 +110,7 @@ namespace inonego.Xeri.UI
         {
             ThrowIfDisposed();
             ISceneFadeDriver driver = null;
+            FadeRequest request = null;
 
             try
             {
@@ -104,9 +118,12 @@ namespace inonego.Xeri.UI
                 driver = presentationDriver;
 
                 // 새 요청은 기존 실행을 끝낸 뒤 색상과 상태를 함께 교체한다.
-                CancelTransition();
+                request = new FadeRequest();
+                if (!ReplaceRequest(request)) return;
+
                 driver.SetColor(parameters.Color);
-                var currentGeneration = ++generation;
+                if (isDisposed || !ReferenceEquals(activeRequest, request)) return;
+
                 State = SceneFadeState.Covering;
                 LastFailure = null;
 
@@ -115,14 +132,19 @@ namespace inonego.Xeri.UI
                     alpha.Base,
                     1.0f,
                     parameters.Duration,
-                    currentGeneration,
+                    request,
                     () => CompleteCover(parameters.Color, onCompleted),
                     onFailed
                 );
             }
             catch (Exception exception)
             {
-                if (ReferenceEquals(exception, LastFailure))
+                if (ReferenceEquals(exception, LastFailure) || isDisposed)
+                {
+                    throw;
+                }
+
+                if (request != null && !ReferenceEquals(activeRequest, request))
                 {
                     throw;
                 }
@@ -133,7 +155,7 @@ namespace inonego.Xeri.UI
                     throw;
                 }
 
-                throw RollbackToStable(exception);
+                throw RollbackToStable(exception, request);
             }
         }
 
@@ -152,19 +174,23 @@ namespace inonego.Xeri.UI
         {
             ThrowIfDisposed();
 
-            if (presentationLayerLease == null || presentationDriver == null || !presentationInitialized)
+            if (presentationLayerLease == null || presentationDriver == null || alpha == null)
             {
                 throw new InvalidOperationException("Reveal할 초기화된 Fade Presentation가 없습니다.");
             }
 
             var driver = presentationDriver;
+            FadeRequest request = null;
 
             try
             {
                 // Covering 또는 Covered 상태의 같은 Presentation를 재사용한다.
-                CancelTransition();
+                request = new FadeRequest();
+                if (!ReplaceRequest(request)) return;
+
                 driver.SetColor(parameters.Color);
-                var currentGeneration = ++generation;
+                if (isDisposed || !ReferenceEquals(activeRequest, request)) return;
+
                 State = SceneFadeState.Revealing;
                 LastFailure = null;
 
@@ -173,19 +199,24 @@ namespace inonego.Xeri.UI
                     alpha.Base,
                     0.0f,
                     parameters.Duration,
-                    currentGeneration,
+                    request,
                     () => CompleteReveal(onCompleted),
                     onFailed
                 );
             }
             catch (Exception exception)
             {
-                if (ReferenceEquals(exception, LastFailure))
+                if (ReferenceEquals(exception, LastFailure) || isDisposed)
                 {
                     throw;
                 }
 
-                throw RollbackToStable(exception);
+                if (request != null && !ReferenceEquals(activeRequest, request))
+                {
+                    throw;
+                }
+
+                throw RollbackToStable(exception, request);
             }
         }
 
@@ -200,25 +231,37 @@ namespace inonego.Xeri.UI
             (
                 presentationLayerLease != null &&
                 presentationDriver != null &&
-                presentationInitialized
+                alpha != null
             )
             {
                 return;
             }
 
+            if (isAcquiringPresentation)
+            {
+                throw new InvalidOperationException("Scene Fade Presentation을 획득하는 중 재진입할 수 없습니다.");
+            }
+
+            // 외부 callback이 종료를 재진입하더라도 획득 중인 리소스의 소유권을 유지한다.
+            isAcquiringPresentation = true;
+            PresentationLayerLease acquiredLayer = null;
+            ISceneFadeDriver acquiredDriver = null;
+
             try
             {
-                presentationLayerLease ??= presentationHost.AcquireLayer(PresentationDestinationID.System);
-                presentationDriver ??= source.Acquire(presentationLayerLease.Layer);
+                acquiredLayer = presentationHost.AcquireLayer(PresentationDestinationID.System);
+                ThrowIfDisposed();
 
-                if (presentationDriver == null)
+                acquiredDriver = source.Acquire(acquiredLayer.Layer);
+                if (acquiredDriver == null)
                 {
                     throw new InvalidOperationException("Scene Fade Source가 null Driver를 반환했습니다.");
                 }
 
-                alpha = presentationDriver.Alpha;
+                ThrowIfDisposed();
 
-                if (alpha == null || !alpha.IsValid)
+                var acquiredAlpha = acquiredDriver.Alpha;
+                if (acquiredAlpha == null || !acquiredAlpha.IsValid)
                 {
                     throw new InvalidOperationException
                     (
@@ -226,27 +269,57 @@ namespace inonego.Xeri.UI
                     );
                 }
 
-                // 새 Fade 수명은 투명 상태에서 시작하고 이후 Transition이 Base Alpha를 소유한다.
-                alpha.Set(0.0f);
-                presentationInitialized = true;
+                acquiredAlpha.Set(0.0f);
+                ThrowIfDisposed();
+
+                // 완전히 초기화된 경우에만 현재 SceneFader 소유로 이전한다.
+                presentationLayerLease = acquiredLayer;
+                presentationDriver = acquiredDriver;
+                alpha = acquiredAlpha;
+                acquiredLayer = null;
+                acquiredDriver = null;
             }
             catch (Exception exception)
             {
-                try
+                var errors = new ExceptionBuffer(exception);
+
+                if (acquiredDriver != null)
                 {
-                    ReleasePresentation();
-                }
-                catch (Exception cleanupException)
-                {
-                    throw new AggregateException
-                    (
-                        "Scene Fade Presentation 초기화와 반환이 실패했습니다.",
-                        exception,
-                        cleanupException
-                    );
+                    try
+                    {
+                        source.Release(acquiredDriver);
+                    }
+                    catch (Exception cleanupException)
+                    {
+                        errors.Add(cleanupException);
+                    }
                 }
 
-                throw;
+                if (acquiredLayer != null)
+                {
+                    try
+                    {
+                        acquiredLayer.Dispose();
+                    }
+                    catch (Exception cleanupException)
+                    {
+                        errors.Add(cleanupException);
+                    }
+                }
+
+                if (errors.Count == 1)
+                {
+                    throw;
+                }
+
+                throw errors.CreateAggregateException
+                (
+                    "Scene Fade Presentation 초기화와 반환이 실패했습니다."
+                );
+            }
+            finally
+            {
+                isAcquiringPresentation = false;
             }
         }
 
@@ -260,12 +333,13 @@ namespace inonego.Xeri.UI
             float startValue,
             float endValue,
             float duration,
-            int currentGeneration,
+            FadeRequest request,
             Action onCompleted,
             Action<Exception> onFailed
         )
         {
             alpha.Set(startValue);
+            if (isDisposed || !ReferenceEquals(activeRequest, request)) return;
 
             var parameters = new PresentationTransitionParams
             (
@@ -281,41 +355,70 @@ namespace inonego.Xeri.UI
 
             void HandleFailure(Exception failure)
             {
-                transition = null;
+                if (!ReferenceEquals(activeRequest, request)) return;
 
+                // 실패한 요청의 복구가 끝나기 전에는 새 요청의 상태를 덮어쓰지 않는다.
                 if (!playReturned)
                 {
-                    synchronousFailure = RollbackToStable(failure);
+                    synchronousFailure = RollbackToStable(failure, request);
                     return;
                 }
 
-                HandleAsyncFailure(failure, onFailed);
+                HandleAsyncFailure(failure, request, onFailed);
+            }
+
+            void HandleCompletion()
+            {
+                if (!ReferenceEquals(activeRequest, request)) return;
+
+                try
+                {
+                    onCompleted();
+                }
+                catch (Exception exception)
+                {
+                    if (!ReferenceEquals(activeRequest, request))
+                    {
+                        // 완료 처리 중 소유권이 이전됐다면 새 요청을 복구하지 않고
+                        // 이전 요청의 반환 실패만 원래 호출자에게 전달한다.
+                        if (!playReturned)
+                        {
+                            synchronousFailure = exception;
+                        }
+                        else if (onFailed != null)
+                        {
+                            try
+                            {
+                                onFailed(exception);
+                            }
+                            catch (Exception callbackException)
+                            {
+                                Debug.LogException(callbackException);
+                            }
+                        }
+                        else
+                        {
+                            Debug.LogException(exception);
+                        }
+
+                        return;
+                    }
+
+                    HandleFailure(exception);
+                    return;
+                }
+
+                if (ReferenceEquals(activeRequest, request))
+                {
+                    activeRequest = null;
+                }
             }
 
             var handle = transitioner.Play
             (
                 parameters,
-                () =>
-                {
-                    if (currentGeneration != generation) return;
-
-                    transition = null;
-
-                    try
-                    {
-                        onCompleted();
-                    }
-                    catch (Exception exception)
-                    {
-                        HandleFailure(exception);
-                    }
-                },
-                exception =>
-                {
-                    if (currentGeneration != generation) return;
-
-                    HandleFailure(exception);
-                }
+                HandleCompletion,
+                HandleFailure
             );
             playReturned = true;
 
@@ -324,30 +427,77 @@ namespace inonego.Xeri.UI
                 throw synchronousFailure;
             }
 
-            // 동기 완료 backend는 callback에서 이미 상태를 확정했으므로 Handle을 보관하지 않는다.
-            if
-            (
-                currentGeneration == generation &&
-                (State == SceneFadeState.Covering || State == SceneFadeState.Revealing) &&
-                handle.IsPending
-            )
+            // Play 반환 전에 교체된 요청의 backend 실행은 현재 소유자가 아니다.
+            if (!ReferenceEquals(activeRequest, request))
             {
-                transition = handle;
+                if (handle.IsPending)
+                {
+                    handle.Cancel();
+                }
+
+                return;
+            }
+
+            if (handle.IsCancelled)
+            {
+                throw RollbackToStable
+                (
+                    new OperationCanceledException("Scene Fade Transition이 취소됐습니다."),
+                    request
+                );
+            }
+
+            if (handle.IsFailed)
+            {
+                throw RollbackToStable
+                (
+                    new InvalidOperationException("Scene Fade Transition이 실패 원인 없이 종료됐습니다."),
+                    request
+                );
+            }
+
+            if (handle.IsPending)
+            {
+                request.Handle = handle;
+                handle.OnCancelled += () =>
+                {
+                    if (!ReferenceEquals(activeRequest, request)) return;
+
+                    HandleAsyncFailure
+                    (
+                        new OperationCanceledException("Scene Fade Transition이 외부에서 취소됐습니다."),
+                        request,
+                        onFailed
+                    );
+                };
             }
         }
 
-        // ----------------------------------------------------------------------
+        // ------------------------------------------------------------
         /// <summary>
-        /// 진행 중 Transition callback을 무효화하고 backend 실행을 취소한다.
+        /// 새 요청을 먼저 소유한 후 이전 backend 실행을 취소한다.
         /// </summary>
-        // ----------------------------------------------------------------------
+        // ------------------------------------------------------------
+        private bool ReplaceRequest(FadeRequest next)
+        {
+            var previous = activeRequest;
+            activeRequest = next;
+            previous?.Handle?.Cancel();
+
+            // 취소 콜백의 재진입으로 대체됐다면 새 요청을 다시 시작하지 않는다.
+            return ReferenceEquals(activeRequest, next);
+        }
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// 현재 Fade 요청을 종료한 뒤 backend 실행을 취소한다.
+        /// </summary>
+        // ------------------------------------------------------------
         private void CancelTransition()
         {
-            generation++;
-
-            var current = transition;
-            transition = null;
-            current?.Cancel();
+            var previous = activeRequest;
+            activeRequest = null;
+            previous?.Handle?.Cancel();
         }
 
         // ------------------------------------------------------------
@@ -386,8 +536,10 @@ namespace inonego.Xeri.UI
         {
             stableState = SceneFadeState.Clear;
             State = SceneFadeState.Clear;
-            ReleasePresentation();
             LastFailure = null;
+
+            // 반환 중 발생하는 재진입이 새 요청의 상태를 변경할 수 있으므로 먼저 확정한다.
+            ReleasePresentation();
 
             // Presentation 반환까지 끝난 요청을 소비자 callback 예외로 실패 처리하지 않는다.
             try
@@ -406,10 +558,13 @@ namespace inonego.Xeri.UI
         /// <br/> 최초 실패와 롤백 실패를 함께 보존한다.
         /// </summary>
         // --------------------------------------------------------------------------------
-        private Exception RollbackToStable(Exception failure)
+        private Exception RollbackToStable(Exception failure, FadeRequest request)
         {
             var errors = new ExceptionBuffer(failure);
             var stableAlpha = stableState == SceneFadeState.Covered ? 1.0f : 0.0f;
+
+            // 반환·복원 중 콜백이 재진입할 수 있으므로 논리 상태를 먼저 확정한다.
+            State = stableState;
 
             // Covered 안정 상태는 요청이 바꾼 색상도 마지막 성공 상태로 함께 복원한다.
             if (stableState == SceneFadeState.Covered && presentationDriver != null)
@@ -424,8 +579,8 @@ namespace inonego.Xeri.UI
                 }
             }
 
-            // Presentation 반환이 이미 terminal 처리된 경우에는 마지막 적용값을 유지하고 backend를 다시 건드리지 않는다.
-            if (alpha != null)
+            // 각 backend 호출이 재진입할 수 있으므로 실패한 요청이 여전히 소유자일 때만 복원한다.
+            if (!isDisposed && ReferenceEquals(activeRequest, request) && alpha != null)
             {
                 try
                 {
@@ -437,7 +592,7 @@ namespace inonego.Xeri.UI
                 }
             }
 
-            if (stableState == SceneFadeState.Clear && transition == null)
+            if (!isDisposed && ReferenceEquals(activeRequest, request) && stableState == SceneFadeState.Clear)
             {
                 try
                 {
@@ -449,11 +604,20 @@ namespace inonego.Xeri.UI
                 }
             }
 
-            State = stableState;
-            LastFailure = errors.Count == 1
+            var reportedFailure = errors.Count == 1
                 ? failure
                 : errors.CreateAggregateException("Scene Fade 실패 롤백이 실패했습니다.");
-            return LastFailure;
+
+            if (ReferenceEquals(activeRequest, request))
+            {
+                activeRequest = null;
+                if (!isDisposed)
+                {
+                    LastFailure = reportedFailure;
+                }
+            }
+
+            return reportedFailure;
         }
 
         // ----------------------------------------------------------------------
@@ -464,10 +628,11 @@ namespace inonego.Xeri.UI
         private void HandleAsyncFailure
         (
             Exception failure,
+            FadeRequest request,
             Action<Exception> onFailed
         )
         {
-            var reportedFailure = RollbackToStable(failure);
+            var reportedFailure = RollbackToStable(failure, request);
 
             // 소비자 callback 예외가 원래 Fade 실패를 대체하지 않게 기록만 한다.
             try
@@ -494,7 +659,6 @@ namespace inonego.Xeri.UI
             presentationLayerLease = null;
             presentationDriver = null;
             alpha = null;
-            presentationInitialized = false;
             var errors = new ExceptionBuffer();
 
             if (currentDriver != null)

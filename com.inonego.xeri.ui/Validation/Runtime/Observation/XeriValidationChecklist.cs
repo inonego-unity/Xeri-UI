@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : XeriValidationChecklist.cs
-수정일 : 2026-10-07
+수정일 : 2026-11-07
 
 # 설명
 generated Desktop.Checklist placement에 비강제형 Validation coverage 목록을 표시한다.
@@ -51,6 +51,7 @@ namespace inonego.Xeri.UI.Validation
             internal const string Modal = "modal";
             internal const string Overlay = "overlay";
             internal const string Fade = "fade";
+            internal const string Splash = "splash";
 
         #endregion
 
@@ -115,6 +116,7 @@ namespace inonego.Xeri.UI.Validation
             Bind(Item.Modal, "CheckModal");
             Bind(Item.Overlay, "CheckOverlay");
             Bind(Item.Fade, "CheckFade");
+            Bind(Item.Splash, "CheckSplash");
 
             RefreshSummary();
         }

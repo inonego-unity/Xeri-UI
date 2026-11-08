@@ -1,9 +1,9 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : XeriValidationCoreLab.cs
-수정일 : 2026-10-19
+수정일 : 2026-11-08
 
 # 설명
-Root UIContext의 Host Target 기반 Presentation, Spotlight와 Scene Fade를 실제 public API로 행사하는 instrumented Core Lab.
+Root UIContext의 Host Target 기반 Presentation, Spotlight, Scene Fade와 Splash를 실제 public API로 행사하는 instrumented Core Lab.
 각 동작은 자유롭게 반복할 수 있으며 ValidationChecklist는 결과를 관찰만 하고 진행을 제한하지 않는다.
 ========================================================================= BLOCK_HEADER_END */
 
@@ -47,6 +47,7 @@ namespace inonego.Xeri.UI.Validation
         private readonly Button overlayButton = null;
         private readonly Button spotlightButton = null;
         private readonly Button fadeButton = null;
+        private readonly Button splashButton = null;
         private readonly Label status = null;
         private readonly VisualElement spotlightTarget = null;
         private readonly UITKSpotlight spotlight = new();
@@ -59,6 +60,7 @@ namespace inonego.Xeri.UI.Validation
         private Lease<VisualElement> overlayLease = null;
         private Lease spotlightLease = null;
         private IVisualElementScheduledItem revealSchedule = null;
+        private SplashSession splashSession = null;
         private bool isDisposed = false;
         private bool ownsFade = false;
 
@@ -98,6 +100,7 @@ namespace inonego.Xeri.UI.Validation
             overlayButton = XeriValidationUI.Require<Button>(Root, "CoreOverlay");
             spotlightButton = XeriValidationUI.Require<Button>(Root, "CoreSpotlight");
             fadeButton = XeriValidationUI.Require<Button>(Root, "CoreFade");
+            splashButton = XeriValidationUI.Require<Button>(Root, "CoreSplash");
             status = XeriValidationUI.Require<Label>(Root, "CoreLabStatus");
             spotlightTarget = XeriValidationUI.Require<VisualElement>(Root, "CoreSpotlightTarget");
 
@@ -111,6 +114,7 @@ namespace inonego.Xeri.UI.Validation
             overlayButton.clicked += ToggleOverlay;
             spotlightButton.clicked += ToggleSpotlight;
             fadeButton.clicked += RunFade;
+            splashButton.clicked += ShowSplash;
             status.text = "준비됨 · 기본 기능";
         }
 
@@ -380,6 +384,90 @@ namespace inonego.Xeri.UI.Validation
 
     #endregion
 
+    #region 스플래시 표시와 수명
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// 기존 UITK Presentation Layer에서 Splash를 재생한다.
+        /// </summary>
+        // ------------------------------------------------------------
+        private void ShowSplash()
+        {
+            if (splashSession != null && splashSession.IsActive)
+            {
+                status.text = "스플래시 · 이미 재생 중";
+                return;
+            }
+
+            var root = new VisualElement
+            {
+                name = "ValidationSplash",
+            };
+            root.style.position = Position.Absolute;
+            root.style.left = 0f;
+            root.style.top = 0f;
+            root.style.right = 0f;
+            root.style.bottom = 0f;
+            root.style.alignItems = Align.Center;
+            root.style.justifyContent = Justify.Center;
+            root.style.backgroundColor = new Color(0.035f, 0.045f, 0.075f, 0.98f);
+
+            var logo = new Label("XERI UI");
+            logo.style.fontSize = 52f;
+            logo.style.unityFontStyleAndWeight = FontStyle.Bold;
+            logo.style.color = Color.white;
+            root.Add(logo);
+
+            var actions = new VisualElement();
+            actions.style.position = Position.Absolute;
+            actions.style.bottom = 72f;
+            actions.style.flexDirection = FlexDirection.Row;
+
+            actions.Add(CreateSplashButton("Skip", () => splashSession?.Skip()));
+            actions.Add(CreateSplashButton("Cancel", () => splashSession?.Cancel()));
+            root.Add(actions);
+
+            var session = UITKSplash.Show
+            (
+                runtime.Main,
+                PresentationTarget.Host(XeriValidationIDs.SplashDestination),
+                root,
+                SplashParams.Default(),
+                fadeTarget: root,
+                onEnded: result =>
+                {
+                    splashSession = null;
+                    status.text = $"스플래시 · {result}";
+
+                    if (result != SplashResult.Failed)
+                    {
+                        checklist?.Mark(XeriValidationChecklist.Item.Splash, result.ToString());
+                    }
+                }
+            );
+
+            if (session.IsActive)
+            {
+                splashSession = session;
+                status.text = "스플래시 · 재생 중";
+            }
+        }
+
+        private static Button CreateSplashButton(string label, Action action)
+        {
+            var button = new Button(action)
+            {
+                text = label,
+            };
+            button.style.width = 120f;
+            button.style.height = 40f;
+            button.style.marginLeft = 8f;
+            button.style.marginRight = 8f;
+            return button;
+        }
+
+    #endregion
+
     #region 소유 자원 반환
 
         // ------------------------------------------------------------
@@ -403,6 +491,9 @@ namespace inonego.Xeri.UI.Validation
             overlayButton.clicked -= ToggleOverlay;
             spotlightButton.clicked -= ToggleSpotlight;
             fadeButton.clicked -= RunFade;
+            splashButton.clicked -= ShowSplash;
+            splashSession?.Dispose();
+            splashSession = null;
             revealSchedule?.Pause();
             revealSchedule = null;
 

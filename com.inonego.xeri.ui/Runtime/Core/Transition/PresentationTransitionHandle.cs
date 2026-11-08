@@ -1,8 +1,8 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : PresentationTransitionHandle.cs
-수정일 : 2026-11-02
+수정일 : 2026-11-07
 # 설명
-진행 중 Presentation Transition의 취소와 정확히 한 번 종결을 소유한다.
+진행 중 Presentation Transition의 취소·종결 상태와 취소 알림을 소유한다.
 ========================================================================= BLOCK_HEADER_END */
 
 using System;
@@ -52,6 +52,17 @@ namespace inonego.Xeri.UI
 
     #endregion
 
+    #region 이벤트
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// 완료·실패가 아닌 취소로 Transition이 종료되면 한 번 발생한다.
+        /// </summary>
+        // ------------------------------------------------------------
+        public event Action OnCancelled;
+
+    #endregion
+
     #region 내부 데이터
 
         private enum State
@@ -91,6 +102,7 @@ namespace inonego.Xeri.UI
 
             state = State.Completed;
             cancel = null;
+            OnCancelled = null;
             return true;
         }
 
@@ -105,6 +117,7 @@ namespace inonego.Xeri.UI
 
             state = State.Failed;
             cancel = null;
+            OnCancelled = null;
             return true;
         }
 
@@ -118,9 +131,47 @@ namespace inonego.Xeri.UI
             if (state != State.Pending) return;
 
             var action = cancel;
+            var onCancelled = OnCancelled;
             state = State.Cancelled;
             cancel = null;
-            action?.Invoke();
+            OnCancelled = null;
+
+            var errors = new ExceptionBuffer();
+
+            try
+            {
+                action?.Invoke();
+            }
+            catch (Exception exception)
+            {
+                errors.Add(exception);
+            }
+
+            // 한 구독자의 실패가 다른 취소 알림을 막지 않도록 개별적으로 호출한다.
+            if (onCancelled != null)
+            {
+                foreach (Action listener in onCancelled.GetInvocationList())
+                {
+                    try
+                    {
+                        listener();
+                    }
+                    catch (Exception exception)
+                    {
+                        errors.Add(exception);
+                    }
+                }
+            }
+
+            if (errors.Count == 1)
+            {
+                throw errors[0];
+            }
+
+            if (errors.Count > 1)
+            {
+                throw errors.CreateAggregateException("Presentation Transition 취소와 알림이 실패했습니다.");
+            }
         }
 
     #endregion
