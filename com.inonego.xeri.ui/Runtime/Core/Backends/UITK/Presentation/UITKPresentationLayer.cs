@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : UITKPresentationLayer.cs
-수정일 : 2026-11-04
+수정일 : 2026-11-08
 
 # 설명
 UITK Presentation Layer의 현재 Root, 논리 활성 상태와 런타임 콘텐츠 재연결을 관리한다.
@@ -102,11 +102,7 @@ namespace inonego.Xeri.UI
                 throw new InvalidOperationException("런타임 콘텐츠는 다른 계층에 연결되지 않은 별도 루트여야 합니다.");
             }
 
-            var registeredOwner = contentOwners.GetValue(content, _ => layer);
-            if (!ReferenceEquals(registeredOwner, layer))
-            {
-                throw new InvalidOperationException("이미 다른 Layer가 콘텐츠를 소유합니다.");
-            }
+            contentOwners.Add(content, layer);
 
             if (layer is not UITKPresentationLayer owned)
             {

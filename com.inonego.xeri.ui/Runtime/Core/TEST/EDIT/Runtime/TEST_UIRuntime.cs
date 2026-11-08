@@ -1,6 +1,6 @@
 ﻿/* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : TEST_UIRuntime.cs
-수정일 : 2026-11-07
+수정일 : 2026-11-08
 
 # 설명
 UIRuntime의 Root Presentation, Context Authority, Scene 구성과 초기화·종료 실패 정리를 검증한다.
@@ -1365,7 +1365,7 @@ namespace inonego.Xeri.UI.TEST.Core
 
     #endregion
 
-    #region A-2: 기본와 오버라이드 컨텍스트 권한
+    #region A-2: 기본 컨텍스트와 오버라이드 전환
 
         // ----------------------------------------------------------------------
         /// <summary>
@@ -1537,6 +1537,10 @@ namespace inonego.Xeri.UI.TEST.Core
             overlay.Dispose();
             Assert.DoesNotThrow(fixture.Runtime.Shutdown);
         }
+
+    #endregion
+
+    #region A-3: 입력 정책 재진입과 권한 복구
 
         // --------------------------------------------------------------------------------
         /// <summary>
@@ -1894,6 +1898,10 @@ namespace inonego.Xeri.UI.TEST.Core
             }
         }
 
+    #endregion
+
+    #region A-4: 포커스 콜백 재진입과 종료
+
         // ----------------------------------------------------------------------
         /// <summary>
         /// <br/> Focus 적용 콜백이 다른 Base를 선택해도 중첩 갱신을 직렬화한다.
@@ -2008,6 +2016,10 @@ namespace inonego.Xeri.UI.TEST.Core
             Assert.IsTrue(child.IsDisposed);
             Assert.IsFalse(UIRuntime.TryCurrent(out _));
         }
+
+    #endregion
+
+    #region A-5: 권한 반환 실패와 정리 재시도
 
         // --------------------------------------------------------------------------------
         /// <summary>
@@ -2387,6 +2399,10 @@ namespace inonego.Xeri.UI.TEST.Core
             Assert.DoesNotThrow(fixture.Runtime.Shutdown);
         }
 
+    #endregion
+
+    #region A-6: 자식 컨텍스트 종료 시 권한 반환
+
         // --------------------------------------------------------------------------------
         /// <summary>
         /// 종료되는 Child Context가 Input·Cursor authority를 반환하고 Parent를 복원한다.
@@ -2446,7 +2462,7 @@ namespace inonego.Xeri.UI.TEST.Core
 
     #endregion
 
-    #region C-1: Runtime 초기화와 Scene 구성 검증
+    #region C-1: 런타임 초기화와 씬 구성 검증
 
         // ------------------------------------------------------------
         /// <summary>

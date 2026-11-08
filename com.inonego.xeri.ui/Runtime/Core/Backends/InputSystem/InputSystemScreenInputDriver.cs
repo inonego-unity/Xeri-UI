@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : InputSystemScreenInputDriver.cs
-수정일 : 2026-11-07
+수정일 : 2026-11-08
 # 설명
 Screen 입력 정책을 active Context contribution만 사용해 Action Map과 Cursor 상태에 합성하고 입력 해제 장벽을 갱신한다.
 ========================================================================= BLOCK_HEADER_END */
@@ -83,7 +83,6 @@ namespace inonego.Xeri.UI
         public InputDevice LastInputDevice { get; private set; }
 
         private readonly List<SessionState> sessions = new List<SessionState>();
-        private readonly List<SessionState> sessionsReadyForRelease = new List<SessionState>();
         private readonly List<InputAction> releaseActions = new List<InputAction>();
 
         private InputActionMap uiActionMap = null;
@@ -214,7 +213,7 @@ namespace inonego.Xeri.UI
             if (!IsInitialized || isDisposed || sessions.Count == 0) return;
 
             var isReleaseInputPressed = IsReleaseInputPressed();
-            sessionsReadyForRelease.Clear();
+            List<SessionState> readySessions = null;
 
             for (var i = sessions.Count - 1; i >= 0; i--)
             {
@@ -236,15 +235,11 @@ namespace inonego.Xeri.UI
 
                 if (Time.frameCount < sessionState.ReleaseFrame) continue;
 
-                sessionsReadyForRelease.Add(sessionState);
+                // Dispose가 재진입해도 이번 Update의 완료 대상은 지역 목록으로 보존한다.
+                (readySessions ??= new List<SessionState>()).Add(sessionState);
             }
 
-            if (sessionsReadyForRelease.Count == 0) return;
-
-            // 외부 callback 전에 처리 목록을 분리한다. OnDisable/Dispose의 목록 정리가
-            // 현재 Update에서 아직 종결하지 않은 Session을 버리지 않도록 한다.
-            var readySessions = new List<SessionState>(sessionsReadyForRelease);
-            sessionsReadyForRelease.Clear();
+            if (readySessions == null) return;
 
             for (var i = 0; i < readySessions.Count; i++)
             {
@@ -263,7 +258,7 @@ namespace inonego.Xeri.UI
             }
             catch (Exception exception)
             {
-                ResetApplyStateAfterFailure();
+                applyPending = false;
                 var errors = new ExceptionBuffer(exception);
 
                 for (var i = 0; i < readySessions.Count; i++)
@@ -550,7 +545,7 @@ namespace inonego.Xeri.UI
                         retainedCursorOwner = null;
                     }
 
-                    ResetApplyStateAfterFailure();
+                    applyPending = false;
                     ReleaseSession
                     (
                         sessionState,
@@ -578,7 +573,7 @@ namespace inonego.Xeri.UI
             {
                 // 목록에서 먼저 분리한 Session은 Dispose의 snapshot에 포함되지 않는다.
                 // 현재 Release 작업이 종료 책임을 끝까지 가진다.
-                ResetApplyStateAfterFailure();
+                applyPending = false;
                 ReleaseSession
                 (
                     sessionState,
@@ -729,15 +724,25 @@ namespace inonego.Xeri.UI
         // ------------------------------------------------------------
         private void ResolvePendingAcquisitions(bool applied)
         {
-            // 열기 callback이 새 입력 Session을 획득해도 이번 완료 집합은 변하지 않는다.
-            var snapshot = new List<SessionState>(sessions);
+            // 열기 callback이 새 Session을 획득해도 이번 완료 대상만 처리한다.
+            List<ScreenInputSession> pendingSessions = null;
 
-            for (var index = 0; index < snapshot.Count; index++)
+            for (var index = 0; index < sessions.Count; index++)
+            {
+                var session = sessions[index].Session;
+                if (session.IsReleased || !session.IsPolicyPending) continue;
+
+                (pendingSessions ??= new List<ScreenInputSession>()).Add(session);
+            }
+
+            if (pendingSessions == null) return;
+
+            for (var index = 0; index < pendingSessions.Count; index++)
             {
                 if (isDisposed) return;
                 if (applied && (applyPending || batchDepth > 0)) return;
 
-                var session = snapshot[index].Session;
+                var session = pendingSessions[index];
                 if (session.IsReleased || !session.IsPolicyPending) continue;
 
                 try
@@ -749,17 +754,6 @@ namespace inonego.Xeri.UI
                     Debug.LogException(exception);
                 }
             }
-        }
-
-        // --------------------------------------------------------------------------------
-        /// <summary>
-        /// 실패한 적용 요청을 재시도 대상으로 남기지 않고 다음 독립 작업의 기준 상태를 정리한다.
-        /// </summary>
-        // --------------------------------------------------------------------------------
-        private void ResetApplyStateAfterFailure()
-        {
-            // 실패한 실제 backend 상태를 다시 덮어쓸 기준 snapshot은 성공적으로 복원할 때까지 유지한다.
-            applyPending = false;
         }
 
         // ------------------------------------------------------------
@@ -800,7 +794,7 @@ namespace inonego.Xeri.UI
                 catch (Exception exception)
                 {
                     errors.Add(exception);
-                    ResetApplyStateAfterFailure();
+                    applyPending = false;
                 }
             }
 
@@ -1511,7 +1505,6 @@ namespace inonego.Xeri.UI
 
             releaseActions.Clear();
             sessions.Clear();
-            sessionsReadyForRelease.Clear();
             baselineUIActionsEnabled = null;
             baselineGameplayActionsEnabled = null;
             uiActionMap = null;
