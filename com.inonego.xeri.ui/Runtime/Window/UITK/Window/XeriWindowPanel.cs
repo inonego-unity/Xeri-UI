@@ -1,9 +1,10 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : XeriWindowPanel.cs
-수정일 : 2026-10-28
+수정일 : 2026-11-09
 
 # 설명
 Xeri 커스텀 윈도우 하나를 표시하는 UITK VisualElement.
+등록된 Theme Asset의 Window USS를 적용하고 내장 테마와 전환한다.
 ========================================================================= BLOCK_HEADER_END */
 
 using System;
@@ -28,7 +29,6 @@ namespace inonego.Xeri.UI.Window
         private const string WINDOWS_THEME_USS_PATH = "XeriUI/Window/Themes/XeriWindow.Windows";
         private const string MAC_THEME_USS_PATH     = "XeriUI/Window/Themes/XeriWindow.Mac";
         private const string MINIMAL_THEME_USS_PATH = "XeriUI/Window/Themes/XeriWindow.Minimal";
-        private const string DEFAULT_THEME_CLASS    = XeriWindowThemeClass.Windows;
         private const float WINDOWS_ICON_SIZE       = 8f;
         private const float WINDOWS_STROKE_WIDTH    = 1.25f;
         private const float MAC_ICON_SIZE           = 5f;
@@ -209,12 +209,22 @@ namespace inonego.Xeri.UI.Window
 
         // ------------------------------------------------------------
         /// <summary>
-        /// 현재 적용된 theme class.
+        /// Record로 저장할 현재 테마의 stable ID.
         /// </summary>
         // ------------------------------------------------------------
-        public string ThemeClass => themeClass;
+        public string ThemeID => themeID;
+        private string themeID = XeriWindowThemeClass.WindowsID;
 
-        private string themeClass = DEFAULT_THEME_CLASS;
+        // ------------------------------------------------------------
+        /// <summary>
+        /// Panel theme ID가 변경되면 소유 Session에 알린다.
+        /// </summary>
+        // ------------------------------------------------------------
+        internal event Action<string> OnThemeChange = null;
+
+        private readonly IXeriWindowThemeResolver themeResolver = null;
+        private StyleSheet activeWindowStyleSheet = null;
+        private StyleSheet activeThemeStyleSheet = null;
         private XeriWindowState currentState = XeriWindowState.Normal;
 
     #endregion
@@ -226,8 +236,19 @@ namespace inonego.Xeri.UI.Window
         /// Window 제어와 콘텐츠 영역을 갖는 Panel을 생성한다.
         /// </summary>
         // ------------------------------------------------------------
-        public XeriWindowPanel() : base()
+        public XeriWindowPanel() : this(null)
         {
+            // NONE
+        }
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// 선택적 등록 테마를 적용할 Window Panel을 생성한다.
+        /// </summary>
+        // ------------------------------------------------------------
+        internal XeriWindowPanel(IXeriWindowThemeResolver themeResolver) : base()
+        {
+            this.themeResolver = themeResolver;
             name = "xeri-window";
             AddToClassList("xeri-window");
             LoadStyleSheet();
@@ -298,14 +319,14 @@ namespace inonego.Xeri.UI.Window
             hierarchy.Add(resizeBottomLeft);
             hierarchy.Add(resizeBottomRight);
 
-            ApplyTheme(DEFAULT_THEME_CLASS);
+            ApplyTheme(XeriWindowThemeClass.WindowsID);
             ApplyStructuralLayout();
             RegisterCallback<AttachToPanelEvent>(OnAttachToPanel);
         }
 
     #endregion
 
-    #region 메서드
+    #region View 연결과 표시 정보
 
         // ------------------------------------------------------------
         /// <summary>
@@ -354,6 +375,10 @@ namespace inonego.Xeri.UI.Window
             titleIcon.style.backgroundImage = new StyleBackground(icon);
         }
 
+    #endregion
+
+    #region Window 옵션과 상태
+
         // ------------------------------------------------------------
         /// <summary>
         /// Window 옵션을 button과 resize handle에 반영한다.
@@ -393,24 +418,122 @@ namespace inonego.Xeri.UI.Window
 
         // ------------------------------------------------------------
         /// <summary>
-        /// Window theme class를 갱신한다.
+        /// 상태를 표현하는 USS class 이름을 반환한다.
         /// </summary>
         // ------------------------------------------------------------
-        public void ApplyTheme(string theme)
+        private static string GetStateClass(XeriWindowState state)
         {
-            RemoveFromClassList(XeriWindowThemeClass.Windows);
-            RemoveFromClassList(XeriWindowThemeClass.Mac);
-            RemoveFromClassList(XeriWindowThemeClass.Minimal);
-
-            themeClass = XeriWindowThemeClass.Normalize(theme);
-            AddToClassList(themeClass);
-            ApplyControlButtonIconStyle();
-            ApplyControlButtonOrder();
+            return state switch
+            {
+                XeriWindowState.Minimized => "xeri-window--minimized",
+                XeriWindowState.Maximized => "xeri-window--maximized",
+                XeriWindowState.Closed    => "xeri-window--closed",
+                _                         => "xeri-window--normal",
+            };
         }
 
     #endregion
 
-    #region 내부 메서드
+    #region Theme 전환
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// 등록 테마 USS와 내장 Window theme class를 전환한다.
+        /// </summary>
+        // ------------------------------------------------------------
+        public void ApplyTheme(string theme)
+        {
+            var requestedID = string.IsNullOrWhiteSpace(theme)
+                ? XeriWindowThemeClass.WindowsID
+                : theme.Trim();
+            XeriWindowThemeAsset asset = null;
+
+            if (themeResolver != null && themeResolver.TryGetTheme(requestedID, out var resolved))
+            {
+                asset = resolved;
+            }
+
+            var nextID = asset != null
+                ? requestedID
+                : requestedID switch
+                {
+                    XeriWindowThemeClass.MacID     => XeriWindowThemeClass.MacID,
+                    XeriWindowThemeClass.MinimalID => XeriWindowThemeClass.MinimalID,
+                    _                              => XeriWindowThemeClass.WindowsID,
+                };
+            var nextClass = nextID switch
+            {
+                XeriWindowThemeClass.WindowsID => XeriWindowThemeClass.Windows,
+                XeriWindowThemeClass.MacID     => XeriWindowThemeClass.Mac,
+                XeriWindowThemeClass.MinimalID => XeriWindowThemeClass.Minimal,
+                _                              => XeriWindowThemeClass.Custom,
+            };
+            var isCustom = nextClass == XeriWindowThemeClass.Custom;
+
+            RemoveActiveThemeStyleSheets();
+            activeWindowStyleSheet = AddThemeStyleSheet(asset?.WindowStyleSheet);
+            activeThemeStyleSheet = AddThemeStyleSheet(asset?.WindowThemeStyleSheet);
+
+            RemoveFromClassList(XeriWindowThemeClass.Windows);
+            RemoveFromClassList(XeriWindowThemeClass.Mac);
+            RemoveFromClassList(XeriWindowThemeClass.Minimal);
+            RemoveFromClassList(XeriWindowThemeClass.Custom);
+
+            var previousID = themeID;
+            themeID = nextID;
+
+            // 커스텀 USS는 Window 기본 레이아웃과 Windows 버튼 배치를 유지하며 덮어쓴다.
+            if (isCustom)
+            {
+                AddToClassList(XeriWindowThemeClass.Windows);
+            }
+
+            AddToClassList(nextClass);
+            ApplyControlButtonIconStyle();
+            ApplyControlButtonOrder();
+
+            if (themeID != previousID)
+            {
+                OnThemeChange?.Invoke(themeID);
+            }
+        }
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// 이전 테마가 추가한 USS만 분리한다.
+        /// </summary>
+        // ------------------------------------------------------------
+        private void RemoveActiveThemeStyleSheets()
+        {
+            if (activeWindowStyleSheet != null)
+            {
+                styleSheets.Remove(activeWindowStyleSheet);
+                activeWindowStyleSheet = null;
+            }
+
+            if (activeThemeStyleSheet != null)
+            {
+                styleSheets.Remove(activeThemeStyleSheet);
+                activeThemeStyleSheet = null;
+            }
+        }
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// 기본 USS를 유지하며 등록 테마의 USS를 한 번만 추가한다.
+        /// </summary>
+        // ------------------------------------------------------------
+        private StyleSheet AddThemeStyleSheet(StyleSheet sheet)
+        {
+            if (sheet == null || styleSheets.Contains(sheet)) return null;
+
+            styleSheets.Add(sheet);
+            return sheet;
+        }
+
+    #endregion
+
+    #region 스타일과 UXML 구성
 
         // ------------------------------------------------------------
         /// <summary>
@@ -518,6 +641,10 @@ namespace inonego.Xeri.UI.Window
             resizeBottomRight.RemoveFromHierarchy();
         }
 
+    #endregion
+
+    #region 레이아웃과 Control button 배치
+
         // ------------------------------------------------------------
         /// <summary>
         /// <br/> UXML clone 이후 내부 element를 flex 흐름에 둔다.
@@ -542,7 +669,7 @@ namespace inonego.Xeri.UI.Window
         // ------------------------------------------------------------
         private void ApplyControlButtonOrder()
         {
-            if (themeClass == XeriWindowThemeClass.Mac)
+            if (themeID == XeriWindowThemeClass.MacID)
             {
                 titleActions.Insert(0, closeButton);
                 titleActions.Insert(1, minimizeButton);
@@ -566,13 +693,13 @@ namespace inonego.Xeri.UI.Window
             var strokeWidth = WINDOWS_STROKE_WIDTH;
             var iconDisplay = DisplayStyle.Flex;
 
-            if (themeClass == XeriWindowThemeClass.Mac)
+            if (themeID == XeriWindowThemeClass.MacID)
             {
                 iconSize = MAC_ICON_SIZE;
                 strokeWidth = MAC_STROKE_WIDTH;
                 iconDisplay = DisplayStyle.None;
             }
-            else if (themeClass == XeriWindowThemeClass.Minimal)
+            else if (themeID == XeriWindowThemeClass.MinimalID)
             {
                 iconSize = MINIMAL_ICON_SIZE;
                 strokeWidth = MINIMAL_STROKE_WIDTH;
@@ -595,6 +722,10 @@ namespace inonego.Xeri.UI.Window
         {
             ApplyStructuralLayout();
         }
+
+    #endregion
+
+    #region Control button 표시와 아이콘
 
         // ------------------------------------------------------------
         /// <summary>
@@ -658,22 +789,6 @@ namespace inonego.Xeri.UI.Window
             if (icon == null) return;
 
             icon.style.display = display;
-        }
-
-        // ------------------------------------------------------------
-        /// <summary>
-        /// 상태를 표현하는 USS class 이름을 반환한다.
-        /// </summary>
-        // ------------------------------------------------------------
-        private static string GetStateClass(XeriWindowState state)
-        {
-            return state switch
-            {
-                XeriWindowState.Minimized => "xeri-window--minimized",
-                XeriWindowState.Maximized => "xeri-window--maximized",
-                XeriWindowState.Closed    => "xeri-window--closed",
-                _                         => "xeri-window--normal",
-            };
         }
 
     #endregion

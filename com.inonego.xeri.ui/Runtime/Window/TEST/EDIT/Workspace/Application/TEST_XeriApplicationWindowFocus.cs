@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : TEST_XeriApplicationWindowFocus.cs
-수정일 : 2026-09-24
+수정일 : 2026-11-02
 
 # 설명
 Application Window sibling Context의 LastFocus와 authority 전환을 검증한다.

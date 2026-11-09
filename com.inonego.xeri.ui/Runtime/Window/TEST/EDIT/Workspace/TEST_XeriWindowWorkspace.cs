@@ -11,6 +11,7 @@ XeriWindowWorkspace의 기본 Window 수명, View Source, rollback과 Record 복
  D: Open 실패 rollback
  R: Record 검증과 복원
  T: Workspace → Tray Source integration
+ H: Theme ID 저장과 복원
 ========================================================================= BLOCK_HEADER_END */
 
 using System;
@@ -415,7 +416,7 @@ namespace inonego.Xeri.UI.TEST.Window
 
             using var fixture = new WorkspaceFixture(dragFactory: dragFactory);
             var view = new VisualElement();
-            dragFactory.Creating = fixture.Workspace.Dispose;
+            dragFactory.Creating = (_, _) => fixture.Workspace.Dispose();
 
             Assert.Throws<ObjectDisposedException>
             (
@@ -426,6 +427,47 @@ namespace inonego.Xeri.UI.TEST.Window
             Assert.AreEqual(0, fixture.Workspace.Count);
             Assert.IsNull(view.parent);
             Assert.AreEqual(0, fixture.WorkspacePlacementRoot.childCount);
+        }
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// Drag Factory 실패 시 테마 구독을 해제한다.
+        /// </summary>
+        // ------------------------------------------------------------
+        [Test]
+        public void TEST_XeriWindowWorkspace_DragFactory_Theme변경후실패_구독해제()
+        {
+            var dragFactory = new CallbackDragFactory();
+            XeriWindowPanel failedPanel = null;
+            XeriWindowController failedController = null;
+            dragFactory.Creating = (panel, controller) =>
+            {
+                failedPanel = panel;
+                failedController = controller;
+                panel.ApplyTheme(XeriWindowThemeClass.MacID);
+                throw new InvalidOperationException("Drag Factory 실패");
+            };
+
+            var registry = new XeriWindowRegistry();
+            using var fixture = new WorkspaceFixture
+            (
+                dragFactory: dragFactory,
+                registry: registry
+            );
+
+            Assert.Throws<InvalidOperationException>
+            (
+                () => OpenWindow(fixture.Workspace, "drag-theme-failed")
+            );
+
+            Assert.IsNotNull(failedPanel);
+            Assert.IsNotNull(failedController);
+            Assert.AreEqual(XeriWindowThemeClass.MacID, failedController.ThemeID);
+            Assert.AreEqual(0, fixture.Workspace.Count);
+            Assert.AreEqual(0, registry.Records.Count);
+
+            failedPanel.ApplyTheme(XeriWindowThemeClass.MinimalID);
+            Assert.AreEqual(XeriWindowThemeClass.MacID, failedController.ThemeID);
         }
 
     #endregion
@@ -620,6 +662,154 @@ namespace inonego.Xeri.UI.TEST.Window
                     XeriWindowState.Closed
                 )
             );
+        }
+
+    #endregion
+
+    #region H-1: 테마 ID 보존
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// Window 테마 변경은 Registry와 Capture·복원 결과에 반영된다.
+        /// </summary>
+        // ------------------------------------------------------------
+        [Test]
+        public void TEST_XeriWindowWorkspace_CustomTheme_CaptureRestore_ID보존()
+        {
+            var theme = ScriptableObject.CreateInstance<XeriWindowThemeAsset>();
+
+            try
+            {
+                XeriWindowWorkspaceTestSupport.SetField(theme, "id", "custom");
+                var resolver = new XeriWindowThemeResolver();
+                resolver.Register(theme);
+                var registry = new XeriWindowRegistry();
+                using var fixture = new WorkspaceFixture
+                (
+                    themeResolver: resolver,
+                    registry: registry
+                );
+                string registeredThemeID = null;
+                registry.OnRegister += (_, args) =>
+                {
+                    if (registry.TryGetRecord(args.Handle, out var observed))
+                    {
+                        registeredThemeID = observed.ThemeID;
+                    }
+                };
+                var record = new XeriWindowRecord
+                {
+                    ID = "themed-window",
+                    Title = "Themed",
+                    Pos = new Vector2(20f, 30f),
+                    Size = new Vector2(320f, 220f),
+                    NormalPos = new Vector2(20f, 30f),
+                    NormalSize = new Vector2(320f, 220f),
+                    ThemeID = "custom",
+                };
+                var window = fixture.Workspace.OpenWindow(record, new Label("Content"));
+                Assert.AreEqual("custom", window.Panel.ThemeID);
+                Assert.AreEqual("custom", registeredThemeID);
+                Assert.IsTrue(registry.TryGetRecord(window.Handle, out var registered));
+                Assert.AreEqual("custom", registered.ThemeID);
+
+                window.Panel.ApplyTheme(XeriWindowThemeClass.MacID);
+                Assert.IsTrue(registry.TryGetRecord(window.Handle, out var changed));
+                Assert.AreEqual(XeriWindowThemeClass.MacID, changed.ThemeID);
+
+                window.Panel.ApplyTheme(" custom ");
+                Assert.IsTrue(registry.TryGetRecord(window.Handle, out var resumed));
+                Assert.AreEqual("custom", resumed.ThemeID);
+                Assert.IsTrue(window.Panel.ClassListContains(XeriWindowThemeClass.Custom));
+
+                var snapshot = fixture.Workspace.CaptureRecords()[0];
+
+                Assert.AreEqual("custom", snapshot.ThemeID);
+                window.Dispose();
+
+                var restored = fixture.Workspace.OpenWindow(snapshot, new Label("Restored"));
+
+                Assert.AreEqual("custom", restored.Panel.ThemeID);
+                Assert.AreEqual(1, fixture.Workspace.Count);
+            }
+            finally
+            {
+                UnityEngine.Object.DestroyImmediate(theme);
+            }
+        }
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// 등록 이벤트는 미등록 Theme ID의 Windows 적용 상태를 즉시 관찰한다.
+        /// </summary>
+        // ------------------------------------------------------------
+        [Test]
+        public void TEST_XeriWindowWorkspace_UnknownTheme_Register_적용ID조회()
+        {
+            var registry = new XeriWindowRegistry();
+            using var fixture = new WorkspaceFixture(registry: registry);
+            var record = new XeriWindowRecord
+            {
+                ID = "unknown-theme",
+                Title = "Unknown Theme",
+                Pos = new Vector2(10f, 15f),
+                Size = new Vector2(300f, 220f),
+                ThemeID = "missing",
+            };
+            string onRegisterTheme = null;
+            registry.OnRegister += (_, args) =>
+            {
+                if (registry.TryGetRecord(args.Handle, out var observed))
+                {
+                    onRegisterTheme = observed.ThemeID;
+                }
+            };
+
+            var window = fixture.Workspace.OpenWindow(record, new Label("View"));
+
+            Assert.AreEqual("missing", record.ThemeID);
+            Assert.AreEqual(XeriWindowThemeClass.WindowsID, window.Panel.ThemeID);
+            Assert.AreEqual(XeriWindowThemeClass.WindowsID, onRegisterTheme);
+            Assert.IsTrue(registry.TryGetRecord(window.Handle, out var snapshot));
+            Assert.AreEqual(XeriWindowThemeClass.WindowsID, snapshot.ThemeID);
+            Assert.AreEqual(XeriWindowThemeClass.WindowsID, fixture.Workspace.CaptureRecords()[0].ThemeID);
+        }
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// 초기화 중 변경한 테마가 Controller와 Registry에 반영된다.
+        /// </summary>
+        // ------------------------------------------------------------
+        [Test]
+        public void TEST_XeriWindowWorkspace_DragFactory_Theme변경_등록상태일치()
+        {
+            var dragFactory = new CallbackDragFactory();
+            dragFactory.Creating = (panel, _) =>
+                panel.ApplyTheme(XeriWindowThemeClass.MacID);
+
+            var registry = new XeriWindowRegistry();
+            using var fixture = new WorkspaceFixture
+            (
+                dragFactory: dragFactory,
+                registry: registry
+            );
+
+            var window = OpenWindow(fixture.Workspace, "drag-theme");
+
+            Assert.AreEqual(XeriWindowThemeClass.MacID, window.Panel.ThemeID);
+            Assert.AreEqual(XeriWindowThemeClass.MacID, window.Controller.ThemeID);
+            Assert.IsTrue(registry.TryGetRecord(window.Handle, out var recorded));
+            Assert.AreEqual(XeriWindowThemeClass.MacID, recorded.ThemeID);
+            Assert.AreEqual
+            (
+                XeriWindowThemeClass.MacID,
+                fixture.Workspace.CaptureRecords()[0].ThemeID
+            );
+
+            window.Panel.ApplyTheme(XeriWindowThemeClass.MinimalID);
+            Assert.AreEqual(XeriWindowThemeClass.MinimalID, window.Controller.ThemeID);
+            Assert.IsTrue(registry.TryGetRecord(window.Handle, out var updated));
+            Assert.AreEqual(XeriWindowThemeClass.MinimalID, updated.ThemeID);
         }
 
     #endregion

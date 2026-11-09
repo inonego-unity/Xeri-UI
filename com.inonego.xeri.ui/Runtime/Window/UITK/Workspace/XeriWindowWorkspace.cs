@@ -4,6 +4,7 @@
 
 # 설명
 UI Core Child Context의 단일 Screen 위에 Xeri Window Container와 Window Session을 조립한다.
+선택적 Theme Resolver를 Window Panel에 전달하고 활성 테마 ID를 Record에 보존한다.
 Simple Window는 persistent Focus record를 재사용하고 Application Window는 Child PresentationSession + Child UIContext를 소유한다.
 Window z-order와 Context/Focus authority는 별도 계약으로 유지한다.
 ========================================================================= BLOCK_HEADER_END */
@@ -41,11 +42,17 @@ namespace inonego.Xeri.UI.Window
             public XeriWindowContainer Container { get; private set; }
 
             private readonly IXeriWindowRegistry registry = null;
+            private readonly IXeriWindowThemeResolver themeResolver = null;
             private Lease attachment = null;
 
-            public ContainerScreenSource(IXeriWindowRegistry registry)
+            public ContainerScreenSource
+            (
+                IXeriWindowRegistry registry,
+                IXeriWindowThemeResolver themeResolver
+            )
             {
                 this.registry = registry ?? throw new ArgumentNullException(nameof(registry));
+                this.themeResolver = themeResolver;
             }
 
             // ----------------------------------------------------------------------
@@ -70,7 +77,7 @@ namespace inonego.Xeri.UI.Window
                     );
                 }
 
-                var container = new XeriWindowContainer(registry);
+                var container = new XeriWindowContainer(registry, themeResolver);
 
                 try
                 {
@@ -221,7 +228,8 @@ namespace inonego.Xeri.UI.Window
             IXeriWindowRegistry registry = null,
             IXeriUIViewResolver viewResolver = null,
             IXeriWindowDragFactory dragFactory = null,
-            XeriWindowAnimationOptions? animationOptions = null
+            XeriWindowAnimationOptions? animationOptions = null,
+            IXeriWindowThemeResolver themeResolver = null
         ) : this
         (
             parentContext,
@@ -230,7 +238,8 @@ namespace inonego.Xeri.UI.Window
             registry,
             viewResolver,
             dragFactory,
-            animationOptions
+            animationOptions,
+            themeResolver
         )
         {
             // NONE
@@ -244,7 +253,8 @@ namespace inonego.Xeri.UI.Window
             IXeriWindowRegistry registry = null,
             IXeriUIViewResolver viewResolver = null,
             IXeriWindowDragFactory dragFactory = null,
-            XeriWindowAnimationOptions? animationOptions = null
+            XeriWindowAnimationOptions? animationOptions = null,
+            IXeriWindowThemeResolver themeResolver = null
         )
         {
             if (parentContext == null)
@@ -278,7 +288,7 @@ namespace inonego.Xeri.UI.Window
             this.viewResolver = viewResolver ?? new XeriUIViewResolver();
             this.dragFactory = dragFactory ?? new XeriWindowDragFactory();
             this.animationOptions = animationOptions ?? XeriWindowAnimationOptions.Immediate();
-            containerSource = new ContainerScreenSource(this.registry);
+            containerSource = new ContainerScreenSource(this.registry, themeResolver);
 
             context = parentContext.CreateChild();
 
@@ -337,7 +347,7 @@ namespace inonego.Xeri.UI.Window
 
     #endregion
 
-    #region 윈도우 열기
+    #region Window 열기 API
 
         // --------------------------------------------------------------------------------
         /// <summary>
@@ -463,6 +473,10 @@ namespace inonego.Xeri.UI.Window
                 applicationOptions
             );
         }
+
+    #endregion
+
+    #region Window 생성과 실패 회수
 
         // ------------------------------------------------------------
         /// <summary>
@@ -642,6 +656,7 @@ namespace inonego.Xeri.UI.Window
                     normalBounds,
                     record.MinimizedRestoreState
                 );
+                controller.SetThemeID(panel.ThemeID);
 
                 try
                 {
@@ -789,6 +804,77 @@ namespace inonego.Xeri.UI.Window
 
         // ----------------------------------------------------------------------
         /// <summary>
+        /// Window 조립 실패 시 Workspace가 획득한 자원만 생성 역순으로 반환한다.
+        /// </summary>
+        // ----------------------------------------------------------------------
+        private static void CleanupFailedOpen
+        (
+            XeriWindowContainer container,
+            IXeriWindowRegistry registry,
+            XeriWindowHandle handle,
+            XeriWindowPanel panel,
+            IXeriUIViewSource viewSource,
+            XeriUIViewScope viewScope,
+            VisualElement view,
+            bool isContainerAttached,
+            bool isRegistryOwned
+        )
+        {
+            var errors = new ExceptionBuffer();
+
+            if (isContainerAttached && handle != null)
+            {
+                try
+                {
+                    container?.DetachWindow(handle);
+                }
+                catch (Exception exception)
+                {
+                    errors.Add(exception);
+                }
+            }
+
+            if (isRegistryOwned && handle != null)
+            {
+                try
+                {
+                    registry?.Unregister(handle);
+                }
+                catch (Exception exception)
+                {
+                    errors.Add(exception);
+                }
+            }
+
+            try
+            {
+                panel?.AttachView(null);
+            }
+            catch (Exception exception)
+            {
+                errors.Add(exception);
+            }
+
+            if (viewSource != null && viewScope != null && view != null)
+            {
+                try
+                {
+                    viewSource.ReleaseView(viewScope, view);
+                }
+                catch (Exception exception)
+                {
+                    errors.Add(exception);
+                }
+            }
+
+            if (errors.Count > 0)
+            {
+                throw errors.CreateAggregateException("Window 조립 롤백이 실패했습니다.");
+            }
+        }
+
+        // ----------------------------------------------------------------------
+        /// <summary>
         /// Open 완료 직전 Workspace와 Session 소유권이 그대로 유지되는지 확인한다.
         /// </summary>
         // ----------------------------------------------------------------------
@@ -809,6 +895,24 @@ namespace inonego.Xeri.UI.Window
                     "Window Open 중 Session 소유권이 변경됐습니다."
                 );
             }
+        }
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// Window Panel에 사용할 상태 전환 구현을 생성한다.
+        /// </summary>
+        // ------------------------------------------------------------
+        private IXeriWindowStateTransitioner CreateTransitioner(XeriWindowPanel panel)
+        {
+            if (!animationOptions.Enabled || animationOptions.Duration <= 0f)
+            {
+                return new XeriImmediateWindowStateTransitioner();
+            }
+
+            return new XeriUITKWindowStateTransitioner
+            (
+                new XeriUITKWindowStateAnimator(panel, animationOptions)
+            );
         }
 
         // ----------------------------------------------------------------------
@@ -832,6 +936,10 @@ namespace inonego.Xeri.UI.Window
             }
         }
 
+    #endregion
+
+    #region Registry 기록과 Tray Source
+
         // --------------------------------------------------------------------------------
         /// <summary>
         /// <br/> 살아 있는 View Session을 저장하고 현재 표시 순서의 Record 복사본을 반환한다.
@@ -842,9 +950,9 @@ namespace inonego.Xeri.UI.Window
         {
             ThrowIfDisposed();
 
+            // Save 콜백 전 현재 Registry 상태를 고정한다.
             var snapshots = new List<XeriWindowRecord>(registry.Records);
             var errors = new ExceptionBuffer();
-            var themes = new Dictionary<string, string>();
             var currentSessions = new List<XeriWindowSession>(sessionOrder);
 
             foreach (var session in currentSessions)
@@ -853,8 +961,6 @@ namespace inonego.Xeri.UI.Window
 
                 try
                 {
-                    // Save 콜백이 창을 닫아도 시작 시점의 외관을 보존한다.
-                    themes[session.Handle.ID] = session.Panel.ThemeClass;
                     session.SaveViewSession();
                 }
                 catch (Exception exception)
@@ -869,14 +975,6 @@ namespace inonego.Xeri.UI.Window
                 (
                     "Window View Session 저장이 실패했습니다."
                 );
-            }
-
-            foreach (var snapshot in snapshots)
-            {
-                if (themes.TryGetValue(snapshot.ID, out var theme))
-                {
-                    snapshot.ThemeID = theme;
-                }
             }
 
             return snapshots;
@@ -897,6 +995,10 @@ namespace inonego.Xeri.UI.Window
             ThrowIfDisposed();
             return new XeriWindowTraySource(registry, includedStates);
         }
+
+    #endregion
+
+    #region Record 복원과 검증
 
         // ----------------------------------------------------------------------
         /// <summary>
@@ -1019,7 +1121,7 @@ namespace inonego.Xeri.UI.Window
 
     #endregion
 
-    #region 조회와 포커스
+    #region Session 조회와 Window 순서
 
         // ------------------------------------------------------------
         /// <summary>
@@ -1137,6 +1239,10 @@ namespace inonego.Xeri.UI.Window
             }
         }
 
+    #endregion
+
+    #region Focus 동기화
+
         // --------------------------------------------------------------------------------
         /// <summary>
         /// Registry active Window 변경을 Workspace Core Context Focus로 연결한다.
@@ -1244,7 +1350,7 @@ namespace inonego.Xeri.UI.Window
 
     #endregion
 
-    #region 윈도우 해제
+    #region Window Session 해제
 
         // ------------------------------------------------------------
         /// <summary>
@@ -1310,6 +1416,10 @@ namespace inonego.Xeri.UI.Window
                 throw errors.CreateAggregateException("Window Session 해제가 실패했습니다.");
             }
         }
+
+    #endregion
+
+    #region Workspace Screen 수명
 
         // --------------------------------------------------------------------------------
         /// <summary>
@@ -1495,27 +1605,9 @@ namespace inonego.Xeri.UI.Window
             }
         }
 
-        // ------------------------------------------------------------
-        /// <summary>
-        /// Window Panel에 사용할 상태 전환 구현을 생성한다.
-        /// </summary>
-        // ------------------------------------------------------------
-        private IXeriWindowStateTransitioner CreateTransitioner(XeriWindowPanel panel)
-        {
-            if (!animationOptions.Enabled || animationOptions.Duration <= 0f)
-            {
-                return new XeriImmediateWindowStateTransitioner();
-            }
-
-            return new XeriUITKWindowStateTransitioner
-            (
-                new XeriUITKWindowStateAnimator(panel, animationOptions)
-            );
-        }
-
     #endregion
 
-    #region 뷰 공급
+    #region View Source 구성
 
         // ------------------------------------------------------------
         /// <summary>
@@ -1557,77 +1649,6 @@ namespace inonego.Xeri.UI.Window
                 record.ViewDataKey,
                 record.UISession
             );
-        }
-
-        // ----------------------------------------------------------------------
-        /// <summary>
-        /// Window 조립 실패 시 Workspace가 획득한 자원만 생성 역순으로 반환한다.
-        /// </summary>
-        // ----------------------------------------------------------------------
-        private static void CleanupFailedOpen
-        (
-            XeriWindowContainer container,
-            IXeriWindowRegistry registry,
-            XeriWindowHandle handle,
-            XeriWindowPanel panel,
-            IXeriUIViewSource viewSource,
-            XeriUIViewScope viewScope,
-            VisualElement view,
-            bool isContainerAttached,
-            bool isRegistryOwned
-        )
-        {
-            var errors = new ExceptionBuffer();
-
-            if (isContainerAttached && handle != null)
-            {
-                try
-                {
-                    container?.DetachWindow(handle);
-                }
-                catch (Exception exception)
-                {
-                    errors.Add(exception);
-                }
-            }
-
-            if (isRegistryOwned && handle != null)
-            {
-                try
-                {
-                    registry?.Unregister(handle);
-                }
-                catch (Exception exception)
-                {
-                    errors.Add(exception);
-                }
-            }
-
-            try
-            {
-                panel?.AttachView(null);
-            }
-            catch (Exception exception)
-            {
-                errors.Add(exception);
-            }
-
-            if (viewSource != null && viewScope != null && view != null)
-            {
-                try
-                {
-                    viewSource.ReleaseView(viewScope, view);
-                }
-                catch (Exception exception)
-                {
-                    errors.Add(exception);
-                }
-            }
-
-            if (errors.Count > 0)
-            {
-                throw errors.CreateAggregateException("Window 조립 롤백이 실패했습니다.");
-            }
         }
 
     #endregion

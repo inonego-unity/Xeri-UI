@@ -147,8 +147,11 @@ Window는 Presentation 위에 별도의 application-level window semantics를 �
 - instance z-order
 - optional AlwaysOnTop stack group
 - persistence record
+- Window USS 테마 (내장 Windows/Mac/Minimal 및 등록된 커스텀 USS)
 - Simple Window
 - Application Window
+
+Window의 Theme ID는 Panel이 적용하고 Controller가 현재 값을 제공하며 Registry의 Record snapshot에 반영합니다. 외관 변경과 저장 상태를 별도 경로에서 중복 관리하지 않습니다. 사용 계약은 [Window](../window/index.md)에 설명합니다.
 
 Application Window는 ContentRoot 안에서 Child PresentationSession + Child UIContext 모델을 사용한다.
 

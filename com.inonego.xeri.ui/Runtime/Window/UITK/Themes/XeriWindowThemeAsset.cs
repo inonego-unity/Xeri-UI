@@ -1,9 +1,9 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : XeriWindowThemeAsset.cs
-수정일 : 2026-09-20
+수정일 : 2026-11-10
 
 # 설명
-Xeri 커스텀 윈도우 UXML/USS와 Tray theme USS를 묶는 ScriptableObject.
+Xeri Window USS 테마 ID와 스타일시트를 보유하는 ScriptableObject.
 ========================================================================= BLOCK_HEADER_END */
 
 using UnityEngine;
@@ -27,20 +27,10 @@ namespace inonego.Xeri.UI.Window
         /// Theme stable ID.
         /// </summary>
         // ------------------------------------------------------------
-        public string ID => id;
+        public string ID => id?.Trim() ?? string.Empty;
 
         [SerializeField]
         private string id = string.Empty;
-
-        // ------------------------------------------------------------
-        /// <summary>
-        /// Window UXML template.
-        /// </summary>
-        // ------------------------------------------------------------
-        public VisualTreeAsset WindowTemplate => windowTemplate;
-
-        [SerializeField]
-        private VisualTreeAsset windowTemplate = null;
 
         // ------------------------------------------------------------
         /// <summary>
@@ -61,16 +51,6 @@ namespace inonego.Xeri.UI.Window
 
         [SerializeField]
         private StyleSheet windowThemeStyleSheet = null;
-
-        // ------------------------------------------------------------
-        /// <summary>
-        /// 공통 Tray에 적용할 theme USS.
-        /// </summary>
-        // ------------------------------------------------------------
-        public StyleSheet TrayThemeStyleSheet => trayThemeStyleSheet;
-
-        [SerializeField]
-        private StyleSheet trayThemeStyleSheet = null;
 
     #endregion
 

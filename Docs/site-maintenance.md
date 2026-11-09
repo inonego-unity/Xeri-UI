@@ -41,20 +41,27 @@ Unity 개발 환경에서 Manual과 API Reference를 함께 갱신합니다.
 ./build-docs.ps1 -UnityProjectRoot "<UnityProject>"
 ```
 
-지정한 Unity 프로젝트에는 현재 Xeri UI package가 설치되어 있어야 하며 Unity가 생성한 다음 프로젝트 파일을 사용할 수 있어야 합니다.
+지정한 Unity 프로젝트에는 현재 Xeri UI package가 설치되어 있어야 합니다. 문서 생성기는 `Runtime`과 `Editor`의 **모든 production `.asmdef`**를 대상으로 metadata 프로젝트를 만들기 때문에, 각 assembly의 Unity 생성 `.csproj`가 필요합니다.
+
+현재 필요한 프로젝트는 다음 여섯 개입니다.
 
 - `inonego.Xeri.UI.csproj`
 - `inonego.Xeri.UI.Editor.csproj`
+- `inonego.Xeri.UI.URP.csproj`
+- `inonego.Xeri.UI.URP.Editor.csproj`
+- `inonego.Xeri.UI.HDRP.csproj`
+- `inonego.Xeri.UI.HDRP.Editor.csproj`
 
-metadata helper는 이 프로젝트 파일의 Unity define과 assembly reference를 사용하고, API 대상 source는 Xeri UI package의 production Runtime/Editor source에서 다시 구성합니다.
-빌드 스크립트는 Unity 프로젝트의 manifest나 source를 수정하지 않습니다.
+URP/HDRP 통합은 Window 테마 기능과 무관하지만, **전체 API Reference**를 생성하려면 이 assembly의 프로젝트도 준비돼야 합니다. 누락된 `.csproj`가 있으면 생성 스크립트는 오류로 종료합니다. 일부 assembly만 포함한 결과로 전체 API snapshot을 덮어쓰지 않습니다.
+
+metadata helper는 Unity 생성 프로젝트의 define과 assembly reference를 사용하고, API 대상 source를 Xeri UI package의 production Runtime/Editor에서 다시 구성합니다. Unity 프로젝트의 manifest나 source는 변경하지 않습니다.
 
 ## API snapshot
 
 GitHub hosted runner에는 Unity 개발 환경이 없으므로 API metadata를 CI에서 직접 재생성하지 않습니다.
 개발 환경의 full build가 production Runtime/Editor source와 asmdef를 기준으로 snapshot과 hash를 갱신합니다.
 
-public API 또는 assembly/package 구성이 바뀌면 개발 환경에서 `build-docs.ps1`을 실행해 snapshot을 갱신합니다.
+Runtime/Editor의 production source, `.asmdef`/`.asmref` 또는 `package.json`이 바뀌면 source hash가 달라집니다. 이 경우 필요한 Unity 생성 프로젝트를 갖춘 환경에서 `build-docs.ps1`을 실행해 snapshot과 hash를 함께 갱신합니다. `Docs/generated-api.zip`의 항목을 수동으로 제거하거나 `.sha256`만 고치지 않습니다.
 
 ## CI와 동일한 검증
 
@@ -63,7 +70,7 @@ pwsh ./build-docs.ps1 -VerifySnapshot
 pwsh ./build-docs.ps1 -SkipMetadata
 ```
 
-첫 명령은 snapshot hash를 검증하고 두 번째 명령은 저장된 snapshot만으로 사이트가 만들어지는지 확인합니다.
+첫 명령은 snapshot hash를 검증하고 두 번째 명령은 저장된 snapshot만으로 사이트가 만들어지는지 확인합니다. `-SkipMetadata` 빌드가 성공하더라도 API Reference의 최신성이 보장되지는 않으므로, 배포 전에는 반드시 `-VerifySnapshot` 결과도 확인합니다.
 
 ## GitHub Pages
 

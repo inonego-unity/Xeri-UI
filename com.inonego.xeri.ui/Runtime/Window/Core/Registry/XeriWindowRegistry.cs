@@ -1,9 +1,9 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : XeriWindowRegistry.cs
-수정일 : 2026-11-02
+수정일 : 2026-11-09
 
 # 설명
-Xeri 커스텀 윈도우 controller와 저장 record를 관리하는 registry.
+Xeri 커스텀 윈도우 controller와 현재 테마를 반영한 record snapshot을 관리하는 registry.
 ========================================================================= BLOCK_HEADER_END */
 
 using System;
@@ -78,7 +78,7 @@ namespace inonego.Xeri.UI.Window
                 {
                     if (!entries.TryGetValue(id, out var entry)) continue;
 
-                    AddRecordByStackLayer(records, entry.Record.CreateSnapshot());
+                    AddRecordByStackLayer(records, CreateCurrentSnapshot(entry));
                 }
 
                 return records;
@@ -323,7 +323,7 @@ namespace inonego.Xeri.UI.Window
         {
             if (TryGetEntry(handle, out var entry))
             {
-                record = entry.Record.CreateSnapshot();
+                record = CreateCurrentSnapshot(entry);
                 return true;
             }
 
@@ -544,6 +544,23 @@ namespace inonego.Xeri.UI.Window
     #endregion
 
     #region 내부 조회 메서드
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// Registry record와 Controller의 현재 Theme ID를 함께 캡처한다.
+        /// </summary>
+        // ------------------------------------------------------------
+        private static XeriWindowRecord CreateCurrentSnapshot(RegistryEntry entry)
+        {
+            var snapshot = entry.Record.CreateSnapshot();
+
+            if (!string.IsNullOrEmpty(entry.Controller.ThemeID))
+            {
+                snapshot.ThemeID = entry.Controller.ThemeID;
+            }
+
+            return snapshot;
+        }
 
         // ------------------------------------------------------------
         /// <summary>

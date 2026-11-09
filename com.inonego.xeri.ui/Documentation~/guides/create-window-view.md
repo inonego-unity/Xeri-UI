@@ -20,7 +20,7 @@ Window 위치/크기/상태는 `XeriWindowRecord`가 소유하므로 UISession�
 ## 2. View Source
 
 ```csharp
-public sealed class SampleViewSource : IXeriUIViewSource
+public sealed class SampleViewSource : IXeriUIViewSource, IXeriUIViewSessionPersistence
 {
     public string ID => "sample.view";
 
@@ -49,6 +49,8 @@ public sealed class SampleViewSource : IXeriUIViewSource
     }
 }
 ```
+
+이 예제는 저장 기능을 포함하므로 `IXeriUIViewSessionPersistence`를 구현합니다. Workspace는 `LoadSession`을 View 획득 전에, `SaveSession`을 Window 종료 또는 `CaptureRecords()` 시 호출합니다. `scope.UISession`은 Record와 공유하는 동일 인스턴스이므로 상태를 새 객체로 교체하지 말고 그 필드를 갱신합니다. 저장 기능이 필요 없다면 `IXeriUIViewSource`만 구현하고 두 메서드는 생략합니다.
 
 ## 3. Resolver
 
@@ -111,7 +113,7 @@ IReadOnlyList<XeriWindowRecord> records =
     workspace.CaptureRecords();
 ```
 
-disk serialization 방식과 저장 시점은 프로젝트가 결정합니다.
+캡처 시 현재 Window 상태를 먼저 복사하고 View Source의 `SaveSession`으로 공유된 `UISession` 값을 갱신합니다. 반환된 Record의 직렬화 방식과 저장 시점은 프로젝트가 결정합니다.
 
 ## 7. Application Window
 

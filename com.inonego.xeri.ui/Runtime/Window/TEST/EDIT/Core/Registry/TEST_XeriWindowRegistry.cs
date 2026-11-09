@@ -288,6 +288,37 @@ namespace inonego.Xeri.UI.TEST.Window
             Assert.AreEqual("Initial", registry.Records[0].Title);
         }
 
+        // ------------------------------------------------------------
+        /// <summary>
+        /// Controller의 적용 테마가 Registry snapshot의 값을 결정한다.
+        /// </summary>
+        // ------------------------------------------------------------
+        [Test]
+        public void TEST_XeriWindowRegistry_ControllerTheme_조회우선()
+        {
+            var controller = CreateController();
+            var registry = new XeriWindowRegistry();
+            var handle = registry.Register
+            (
+                "themed",
+                controller,
+                new XeriWindowRecord
+                {
+                    ThemeID = "initial",
+                }
+            );
+
+            Assert.IsTrue(registry.TryGetRecord(handle, out var initial));
+            Assert.AreEqual("initial", initial.ThemeID);
+
+            controller.SetThemeID("mac");
+
+            Assert.IsTrue(registry.TryGetRecord(handle, out var current));
+            Assert.AreEqual("mac", current.ThemeID);
+            Assert.AreEqual("mac", registry.Records[0].ThemeID);
+            Assert.AreEqual("initial", initial.ThemeID);
+        }
+
     #endregion
 
     #region F-1: 포커스

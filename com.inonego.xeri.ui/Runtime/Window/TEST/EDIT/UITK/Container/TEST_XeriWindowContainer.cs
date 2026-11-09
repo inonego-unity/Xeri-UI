@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : TEST_XeriWindowContainer.cs
-수정일 : 2026-10-28
+수정일 : 2026-11-02
 
 # 설명
 XeriWindowContainer의 낮은 수준 Panel host와 Registry order 반영을 검증한다.

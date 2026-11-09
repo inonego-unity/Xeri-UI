@@ -83,15 +83,27 @@ Record 기반 Window를 열 때:
 ViewSourceID
 → Resolver
 → XeriUIViewScope
-→ LoadSession
+→ LoadSession (IXeriUIViewSessionPersistence를 구현한 경우)
 → AcquireView
 → ContentRoot attach
 ```
 
-Window 종료/캡처:
+Workspace의 `CaptureRecords()`로 캡처할 때:
 
 ```text
-SaveSession
+Registry의 현재 Window Record snapshot 확보
+→ SaveSession (IXeriUIViewSessionPersistence를 구현한 경우)
+→ 확보한 Window Record 목록 반환
+```
+
+Snapshot은 Window 메타데이터를 복사하지만 `UISession`은 Source의 동일 객체를 참조합니다. `SaveSession`은 `scope.UISession` 객체의 필드를 직접 갱신하며, Scope에서 다른 세션 인스턴스로 교체하지 않습니다. 저장 콜백에서 오류가 발생하면 `CaptureRecords()`는 예외를 전달합니다.
+
+캡처는 열린 Window와 View를 유지합니다. Source는 현재 UI-local state를 기록하고 View 자원을 계속 보유합니다.
+
+Window를 종료할 때:
+
+```text
+SaveSession (IXeriUIViewSessionPersistence를 구현한 경우)
 → ContentRoot detach
 → ReleaseView
 ```

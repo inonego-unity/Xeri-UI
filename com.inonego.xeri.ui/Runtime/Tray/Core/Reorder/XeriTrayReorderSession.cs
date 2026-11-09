@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명: XeriTrayReorderSession.cs
-수정일 : 2026-09-21
+수정일 : 2026-11-02
 
 # 설명
 Tray entry reorder drag 중의 backend-neutral 임시 상태를 보관한다.

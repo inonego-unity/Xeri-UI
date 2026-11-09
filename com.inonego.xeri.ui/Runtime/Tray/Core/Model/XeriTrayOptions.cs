@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명: XeriTrayOptions.cs
-수정일 : 2026-10-28
+수정일 : 2026-11-02
 
 # 설명
 공통 Tray 표시 옵션.
@@ -95,20 +95,6 @@ namespace inonego.Xeri.UI.Tray
 
     #endregion
 
-    #region 생성자
-
-        // ------------------------------------------------------------
-        /// <summary>
-        /// 기본 Tray 표시와 정렬 옵션을 생성한다.
-        /// </summary>
-        // ------------------------------------------------------------
-        public XeriTrayOptions() : base()
-        {
-            // NONE
-        }
-
-    #endregion
-
     #region 메서드
 
         // ------------------------------------------------------------
@@ -116,17 +102,7 @@ namespace inonego.Xeri.UI.Tray
         /// 기본 Tray 옵션을 생성한다.
         /// </summary>
         // ------------------------------------------------------------
-        public static XeriTrayOptions Default()
-        {
-            return new XeriTrayOptions
-            {
-                VisibleContent = XeriTrayContent.All,
-                UssClass = string.Empty,
-                Reorderable = false,
-                ReorderAxis = XeriTrayReorderAxis.Horizontal,
-                AnimateReorder = true,
-            };
-        }
+        public static XeriTrayOptions Default() => new();
 
     #endregion
 

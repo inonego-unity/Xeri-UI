@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : TEST_XeriSimpleWindowWorkspace.cs
-수정일 : 2026-09-24
+수정일 : 2026-11-02
 
 # 설명
 Simple Window의 persistent Focus record와 Minimize 복원 계약을 검증한다.

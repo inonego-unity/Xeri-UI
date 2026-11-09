@@ -1,9 +1,9 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : XeriWindowController.cs
-수정일 : 2026-11-02
+수정일 : 2026-11-09
 
 # 설명
-Xeri 커스텀 윈도우 상태 전환, 명령, 이벤트를 관리하는 controller.
+Xeri 커스텀 윈도우 상태 전환, 현재 테마, 명령과 이벤트를 관리하는 controller.
 ========================================================================= BLOCK_HEADER_END */
 
 using System;
@@ -54,6 +54,24 @@ namespace inonego.Xeri.UI.Window
         /// </summary>
         // ------------------------------------------------------------
         public Rect Bounds => driver.Bounds;
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// 현재 Window에 적용된 테마의 stable ID.
+        /// </summary>
+        // ------------------------------------------------------------
+        public string ThemeID => themeID;
+        private string themeID = string.Empty;
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// 표시 Panel이 적용한 Theme ID를 Controller에 반영한다.
+        /// </summary>
+        // ------------------------------------------------------------
+        internal void SetThemeID(string themeID)
+        {
+            this.themeID = themeID ?? string.Empty;
+        }
 
         // ------------------------------------------------------------
         /// <summary>
@@ -291,7 +309,7 @@ namespace inonego.Xeri.UI.Window
 
     #endregion
 
-    #region 명령
+    #region Bounds 제어
 
         // ------------------------------------------------------------
         /// <summary>
@@ -467,6 +485,10 @@ namespace inonego.Xeri.UI.Window
             ThrowEventErrors("Window resize bounds 이벤트 처리", errors);
         }
 
+    #endregion
+
+    #region 상태 명령
+
         // ------------------------------------------------------------
         /// <summary>
         /// 윈도우를 최소화한다.
@@ -569,32 +591,7 @@ namespace inonego.Xeri.UI.Window
 
     #endregion
 
-    #region 내부 메서드
-
-        // ------------------------------------------------------------
-        /// <summary>
-        /// 현재 상태와 요청을 기준으로 다음 완료 상태를 계산한다.
-        /// </summary>
-        // ------------------------------------------------------------
-        private bool TryResolveNextState
-        (
-            XeriWindowStateCommandRequest request,
-            out XeriWindowState nextState
-        )
-        {
-            var currentState = EffectiveState;
-            if (!XeriWindowStateTransitionRule.TryResolveNextState(currentState, request, out nextState))
-            {
-                return false;
-            }
-
-            if (request.Kind == XeriWindowStateCommandKind.Restore && currentState == XeriWindowState.Minimized)
-            {
-                nextState = minimizedRestoreState;
-            }
-
-            return currentState != nextState;
-        }
+    #region Bounds 검증과 보정
 
         // ------------------------------------------------------------
         /// <summary>
@@ -683,6 +680,53 @@ namespace inonego.Xeri.UI.Window
                 Mathf.Clamp(size.x, options.MinSize.x, options.MaxSize.x),
                 Mathf.Clamp(size.y, options.MinSize.y, options.MaxSize.y)
             );
+        }
+
+    #endregion
+
+    #region 상태 전환과 완료
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// 상태 전환 명령의 옵션 허용 여부를 확인한다.
+        /// </summary>
+        // ------------------------------------------------------------
+        private bool CanExecuteStateCommand(XeriWindowStateCommandRequest request)
+        {
+            return request.Kind switch
+            {
+                XeriWindowStateCommandKind.Minimize   => options.CanMinimize,
+                XeriWindowStateCommandKind.Maximize   => options.CanMaximize,
+                XeriWindowStateCommandKind.Close      => options.CanClose,
+                XeriWindowStateCommandKind.ShowNormal => true,
+                XeriWindowStateCommandKind.Restore    => true,
+                _                                      => false,
+            };
+        }
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// 현재 상태와 요청을 기준으로 다음 완료 상태를 계산한다.
+        /// </summary>
+        // ------------------------------------------------------------
+        private bool TryResolveNextState
+        (
+            XeriWindowStateCommandRequest request,
+            out XeriWindowState nextState
+        )
+        {
+            var currentState = EffectiveState;
+            if (!XeriWindowStateTransitionRule.TryResolveNextState(currentState, request, out nextState))
+            {
+                return false;
+            }
+
+            if (request.Kind == XeriWindowStateCommandKind.Restore && currentState == XeriWindowState.Minimized)
+            {
+                nextState = minimizedRestoreState;
+            }
+
+            return currentState != nextState;
         }
 
         // ------------------------------------------------------------
@@ -908,6 +952,16 @@ namespace inonego.Xeri.UI.Window
 
         // ------------------------------------------------------------
         /// <summary>
+        /// 진행 중 상태 전환 목표를 해제한다.
+        /// </summary>
+        // ------------------------------------------------------------
+        private void ClearPendingState()
+        {
+            pendingState = null;
+        }
+
+        // ------------------------------------------------------------
+        /// <summary>
         /// 상태 전환 완료 후 상태 이벤트를 발행한다.
         /// </summary>
         // ------------------------------------------------------------
@@ -950,6 +1004,10 @@ namespace inonego.Xeri.UI.Window
 
             ThrowEventErrors("Window 상태 완료 이벤트 처리", errors);
         }
+
+    #endregion
+
+    #region 상태 이벤트 전달
 
         // ------------------------------------------------------------
         /// <summary>
@@ -1027,34 +1085,6 @@ namespace inonego.Xeri.UI.Window
             (
                 $"{message} 중 하나 이상의 오류가 발생했습니다."
             );
-        }
-
-        // ------------------------------------------------------------
-        /// <summary>
-        /// 진행 중 상태 전환 목표를 해제한다.
-        /// </summary>
-        // ------------------------------------------------------------
-        private void ClearPendingState()
-        {
-            pendingState = null;
-        }
-
-        // ------------------------------------------------------------
-        /// <summary>
-        /// 상태 전환 명령의 옵션 허용 여부를 확인한다.
-        /// </summary>
-        // ------------------------------------------------------------
-        private bool CanExecuteStateCommand(XeriWindowStateCommandRequest request)
-        {
-            return request.Kind switch
-            {
-                XeriWindowStateCommandKind.Minimize   => options.CanMinimize,
-                XeriWindowStateCommandKind.Maximize   => options.CanMaximize,
-                XeriWindowStateCommandKind.Close      => options.CanClose,
-                XeriWindowStateCommandKind.ShowNormal => true,
-                XeriWindowStateCommandKind.Restore    => true,
-                _                                      => false,
-            };
         }
 
         // ------------------------------------------------------------

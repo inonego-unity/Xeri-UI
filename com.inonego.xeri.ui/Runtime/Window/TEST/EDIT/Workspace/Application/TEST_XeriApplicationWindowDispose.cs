@@ -1,12 +1,12 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
-파일명 : TEST_XeriApplicationWindowLifetime.cs
-수정일 : 2026-10-07
+파일명 : TEST_XeriApplicationWindowDispose.cs
+수정일 : 2026-11-02
 
 # 설명
 Application Window 종료 시 Child Context와 Presentation 자원 정리를 검증한다.
 
 # 테스트 구성
- L: Child Screen·Modal·Context·Presentation teardown
+ D: Child Screen·Modal·Context·Presentation teardown
 ========================================================================= BLOCK_HEADER_END */
 
 using System;
@@ -31,10 +31,10 @@ namespace inonego.Xeri.UI.TEST.Window
     /// Application Window teardown 계약 테스트.
     /// </summary>
     // ============================================================
-    public sealed class TEST_XeriApplicationWindowLifetime
+    public sealed class TEST_XeriApplicationWindowDispose
     {
 
-    #region L-1: 애플리케이션 창 자식 UI 해제
+    #region D-1: 애플리케이션 창 자식 UI 해제
 
         // ----------------------------------------------------------------------
         /// <summary>
@@ -45,7 +45,7 @@ namespace inonego.Xeri.UI.TEST.Window
         /// </summary>
         // ----------------------------------------------------------------------
         [Test]
-        public void TEST_XeriApplicationWindowLifetime_Close_ChildUI전체정리()
+        public void TEST_XeriApplicationWindowDispose_Close_ChildUI전체정리()
         {
             using var fixture = new WorkspaceFixture();
             var applicationOptions = fixture.CreateApplicationOptions();

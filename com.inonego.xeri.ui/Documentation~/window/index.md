@@ -21,7 +21,7 @@ var workspace = new XeriWindowWorkspace(
 
 현재 Session의 local Layer에 Workspace를 둘 경우에는 `PresentationTarget.Local("Window.Layer")`을 사용합니다.
 
-필요하면 Registry, View Resolver, Drag Factory, Animation Options를 주입할 수 있습니다.
+필요하면 Registry, View Resolver, Drag Factory, Animation Options, Theme Resolver를 주입할 수 있습니다.
 
 ## Simple Window
 
@@ -155,9 +155,32 @@ IReadOnlyList<XeriWindowRecord> records =
     workspace.CaptureRecords();
 ```
 
-`CaptureRecords()`는 View Source의 session 저장을 먼저 수행한 뒤 ordered record snapshot을 반환합니다.
+`CaptureRecords()`는 Registry의 현재 Window 상태(적용된 Theme ID 포함)를 먼저 snapshot으로 확보한 뒤, 살아 있는 View Source의 `SaveSession`을 호출합니다. 저장 중 Window가 닫혀도 시작 시점의 record 목록은 유지됩니다. `UISession`은 deep copy가 아니라 Source와 공유하는 동일 객체이므로 `SaveSession`은 해당 객체의 값을 갱신해야 합니다. 저장 콜백이 실패하면 예외를 전달합니다.
 
-disk serialization 형식과 저장 시점은 프로젝트가 소유합니다.
+disk serialization 형식과 저장 시점은 프로젝트가 소유합니다. View Source의 자세한 수명 계약은 [Window View Source](view-source.md)를 참고합니다.
+
+## Window 테마
+
+기본 테마 ID는 `windows`, `mac`, `minimal`입니다. `XeriWindowPanel.ApplyTheme(themeID)`는 **테마 ID**만 받으며, USS 클래스 문자열은 입력 계약이 아닙니다. Resolver에서 해석되지 않는 임의의 ID는 `windows`로 폴백합니다.
+
+커스텀 테마는 `XeriWindowThemeAsset`에 고유 ID와 Window USS를 등록한 뒤 Resolver를 Workspace에 전달합니다.
+
+```csharp
+var themes = new XeriWindowThemeResolver();
+themes.Register(customWindowTheme);
+
+var workspace = new XeriWindowWorkspace(
+    runtime.Main,
+    PresentationTarget.Host("Window"),
+    themeResolver: themes);
+```
+
+`window.Panel.ApplyTheme("custom")`처럼 실행 중 테마를 바꿀 수 있습니다. 해당 Panel과 `window.Controller.ThemeID`, `Registry.TryGetRecord()`, `CaptureRecords()`의 Theme ID가 일치하도록 연결됩니다. Window 등록 이벤트에서도 이미 적용된 Theme ID를 조회할 수 있습니다.
+
+- `WindowStyleSheet` 및 `WindowThemeStyleSheet`는 Panel에 적용됩니다. 커스텀 테마에는 Windows 기본 클래스와 `xeri-window--theme-custom` 클래스가 함께 붙습니다.
+- 지원 범위는 Window USS 스타일 전환입니다. UXML 구조 교체와 Tray 테마는 이 Asset의 계약에 포함하지 않습니다.
+- Theme ID는 Resolver에 등록한 동안 변경하지 않습니다. ID를 바꿔야 한다면 새 Resolver를 구성해 등록합니다.
+- 외부에서 `IXeriWindowRegistry`를 구현한다면 `XeriWindowController.ThemeID`를 Registry snapshot에 반영해야 Window 테마 상태를 정확하게 반환합니다. Registry 자체에는 테마 변경 명령이 없으며 실제 변경 진입점은 Panel입니다.
 
 ## Tray
 

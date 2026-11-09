@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : XeriWindowThemeResolver.cs
-수정일 : 2026-09-20
+수정일 : 2026-11-10
 
 # 설명
 stable theme ID로 Xeri window theme asset을 등록하고 조회하는 기본 resolver.
@@ -31,7 +31,7 @@ namespace inonego.Xeri.UI.Window
         // ------------------------------------------------------------
         /// <summary>
         /// <br/> Theme ID가 비어 있거나 중복되면 예외를 던진다.
-        /// <br/> 유효한 ID에 대응하는 Theme asset을 등록한다.
+        /// <br/> 유효한 ID를 하나의 Theme asset에 등록한다.
         /// </summary>
         // ------------------------------------------------------------
         public void Register(XeriWindowThemeAsset theme)
@@ -46,29 +46,39 @@ namespace inonego.Xeri.UI.Window
                 throw new ArgumentException("Theme ID가 비어 있습니다.", nameof(theme));
             }
 
-            if (themes.ContainsKey(theme.ID))
+            var id = theme.ID;
+
+            if (themes.ContainsKey(id))
             {
-                throw new InvalidOperationException($"이미 등록된 theme ID입니다. ID: {theme.ID}");
+                throw new InvalidOperationException($"이미 등록된 theme ID입니다. ID: {id}");
             }
 
-            themes.Add(theme.ID, theme);
+            themes.Add(id, theme);
         }
 
         // ------------------------------------------------------------
         /// <summary>
         /// <br/> 등록된 Theme ID에 대응하는 Theme asset을 조회한다.
-        /// <br/> 비어 있거나 등록되지 않은 ID에는 false를 반환한다.
+        /// <br/> ID가 없거나 등록 후 ID가 바뀌었으면 조회 실패한다.
         /// </summary>
         // ------------------------------------------------------------
         public bool TryGetTheme(string id, out XeriWindowThemeAsset theme)
         {
-            if (string.IsNullOrEmpty(id))
+            if (string.IsNullOrWhiteSpace(id))
             {
                 theme = null;
                 return false;
             }
 
-            return themes.TryGetValue(id, out theme);
+            var key = id.Trim();
+
+            if (themes.TryGetValue(key, out theme) && theme != null && theme.ID == key)
+            {
+                return true;
+            }
+
+            theme = null;
+            return false;
         }
 
     #endregion

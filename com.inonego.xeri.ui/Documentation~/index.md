@@ -24,7 +24,7 @@ Xeri UI는 Unity UI Toolkit과 UGUI 위에서 application-level UI lifecycle, pr
 
 ## Window와 UI 모듈
 
-- [Window](window/index.md): Workspace, Simple/Application Window, ordering과 persistence
+- [Window](window/index.md): Workspace, Simple/Application Window, ordering, USS 테마와 persistence
 - [Window View Source](window/view-source.md): View acquire/release와 UI-local session
 - [Tray](tray.md): entry 표시, 선택, 닫기 요청과 optional reorder
 - [Bar](bar.md): UGUI/UITK 값 범위와 변화 표시

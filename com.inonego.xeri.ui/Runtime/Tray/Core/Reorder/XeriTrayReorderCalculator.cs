@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명: XeriTrayReorderCalculator.cs
-수정일 : 2026-09-20
+수정일 : 2026-11-02
 
 # 설명
 Tray entry bounds와 drag 좌표를 기준으로 reorder target index를 계산한다.
@@ -21,15 +21,6 @@ namespace inonego.Xeri.UI.Tray
     // ============================================================
     internal sealed class XeriTrayReorderCalculator
     {
-
-    #region 생성자
-
-        public XeriTrayReorderCalculator() : base()
-        {
-            // NONE
-        }
-
-    #endregion
 
     #region 메서드
 

@@ -101,6 +101,9 @@ namespace inonego.Xeri.UI
         internal UIContext Parent => parent;
         private UIContext parent = null;
 
+        internal UIRuntime Runtime => owner;
+        private readonly UIRuntime owner = null;
+
         internal bool HasFocusAuthority => focusController.HasAuthority;
 
         // ------------------------------------------------------------
@@ -113,7 +116,6 @@ namespace inonego.Xeri.UI
         private readonly List<UIContext> children = new();
         private readonly List<IDisposable> lifetimes = new();
 
-        private readonly UIRuntime owner = null;
         private readonly FocusController focusController = null;
 
     #endregion

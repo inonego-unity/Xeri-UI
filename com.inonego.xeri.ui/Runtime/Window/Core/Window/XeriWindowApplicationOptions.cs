@@ -1,6 +1,6 @@
 ﻿/* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : XeriWindowApplicationOptions.cs
-수정일 : 2026-10-28
+수정일 : 2026-11-02
 
 # 설명
 Application Window가 runtime에 선택할 Child PresentationLayout을 정의한다.

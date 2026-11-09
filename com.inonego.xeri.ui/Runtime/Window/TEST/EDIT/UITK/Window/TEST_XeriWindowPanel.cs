@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : TEST_XeriWindowPanel.cs
-수정일 : 2026-10-28
+수정일 : 2026-11-09
 
 # 설명
 XeriWindowPanel UITK view 테스트.
@@ -225,7 +225,7 @@ namespace inonego.Xeri.UI.TEST.Window
 
         // ------------------------------------------------------------
         /// <summary>
-        /// ApplyTheme은 theme ID를 USS class로 변환해 적용한다.
+        /// Theme ID에 대응하는 USS class를 적용한다.
         /// </summary>
         // ------------------------------------------------------------
         [Test]
@@ -235,24 +235,26 @@ namespace inonego.Xeri.UI.TEST.Window
 
             panel.ApplyTheme(XeriWindowThemeClass.MacID);
 
-            Assert.AreEqual(XeriWindowThemeClass.Mac, panel.ThemeClass);
+            Assert.AreEqual(XeriWindowThemeClass.MacID, panel.ThemeID);
             Assert.IsTrue(panel.ClassListContains(XeriWindowThemeClass.Mac));
             Assert.IsFalse(panel.ClassListContains(XeriWindowThemeClass.Windows));
         }
 
         // ------------------------------------------------------------
         /// <summary>
-        /// 알 수 없는 theme 값은 기본 Windows theme으로 정규화한다.
+        /// 등록되지 않은 ID와 USS class 문자열은 Windows로 정규화한다.
         /// </summary>
         // ------------------------------------------------------------
-        [Test]
-        public void TEST_XeriWindowPanel_ApplyTheme_Unknown_Windows_적용()
+        [TestCase("unknown")]
+        [TestCase(XeriWindowThemeClass.Mac)]
+        [TestCase(XeriWindowThemeClass.Minimal)]
+        public void TEST_XeriWindowPanel_ApplyTheme_UnknownID_Windows_적용(string themeID)
         {
             var panel = new XeriWindowPanel();
 
-            panel.ApplyTheme("unknown");
+            panel.ApplyTheme(themeID);
 
-            Assert.AreEqual(XeriWindowThemeClass.Windows, panel.ThemeClass);
+            Assert.AreEqual(XeriWindowThemeClass.WindowsID, panel.ThemeID);
             Assert.IsTrue(panel.ClassListContains(XeriWindowThemeClass.Windows));
         }
 

@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : UITKWindowDriver.cs
-수정일 : 2026-09-20
+수정일 : 2026-11-02
 
 # 설명
 Xeri 커스텀 윈도우 상태와 Core Presentation을 UITK VisualElement에 반영하는 driver.

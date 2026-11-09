@@ -288,7 +288,7 @@ namespace inonego.Xeri.UI.TEST.Window
 
     internal sealed class CallbackDragFactory : IXeriWindowDragFactory
     {
-        public Action Creating { get; set; }
+        public Action<XeriWindowPanel, XeriWindowController> Creating { get; set; }
 
         private readonly XeriWindowDragFactory inner = new();
 
@@ -298,7 +298,7 @@ namespace inonego.Xeri.UI.TEST.Window
             XeriWindowController controller
         )
         {
-            Creating?.Invoke();
+            Creating?.Invoke(panel, controller);
             return inner.CreateTitleBarDrag(panel, controller);
         }
     }
@@ -334,7 +334,8 @@ namespace inonego.Xeri.UI.TEST.Window
         (
             IXeriUIViewResolver viewResolver = null,
             IXeriWindowDragFactory dragFactory = null,
-            IXeriWindowRegistry registry = null
+            IXeriWindowRegistry registry = null,
+            IXeriWindowThemeResolver themeResolver = null
         )
         {
             UIRuntime.Clear();
@@ -446,7 +447,8 @@ namespace inonego.Xeri.UI.TEST.Window
                 registry: registry,
                 viewResolver: viewResolver,
                 dragFactory: dragFactory,
-                animationOptions: XeriWindowAnimationOptions.Immediate()
+                animationOptions: XeriWindowAnimationOptions.Immediate(),
+                themeResolver: themeResolver
             );
         }
 

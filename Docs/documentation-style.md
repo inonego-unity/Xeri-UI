@@ -118,4 +118,4 @@ Xeri UI 문서는 해당 기능을 자체 소유 API처럼 재정의하지 않�
 
 public API member 설명은 C# XML documentation과 DocFX generated API를 기준으로 합니다.
 
-public API 또는 assembly 구성이 바뀌면 `build-docs.ps1`로 API snapshot을 갱신합니다.
+Runtime/Editor production source나 assembly/package 구성이 바뀌면 `build-docs.ps1`로 API snapshot과 hash를 함께 갱신합니다. 생성된 `Docs/generated-api.zip`은 직접 편집하지 않으며, 필요한 Unity `.csproj` 조건은 [문서 사이트 유지보수](site-maintenance.md)를 따릅니다.

@@ -4,6 +4,7 @@
 
 # 설명
 Xeri Window Panel의 UITK hierarchy 부착·제거와 표시 순서만 담당하는 낮은 수준의 host.
+선택적 Theme Resolver를 Panel 생성에 전달한다.
 Window Controller, Registry 등록, View Source, 입력 binding 수명은 상위 Workspace/Session이 소유한다.
 ========================================================================= BLOCK_HEADER_END */
 
@@ -46,6 +47,7 @@ namespace inonego.Xeri.UI.Window
         internal IXeriWindowRegistry Registry => registry;
 
         private readonly IXeriWindowRegistry registry = null;
+        private readonly IXeriWindowThemeResolver themeResolver = null;
         private readonly Dictionary<XeriWindowHandle, XeriWindowPanel> panels = new();
         private bool isDisposed = false;
 
@@ -58,7 +60,11 @@ namespace inonego.Xeri.UI.Window
         /// 지정 Registry의 표시 순서를 반영하는 Window Container를 생성한다.
         /// </summary>
         // ----------------------------------------------------------------------
-        internal XeriWindowContainer(IXeriWindowRegistry registry) : base()
+        internal XeriWindowContainer
+        (
+            IXeriWindowRegistry registry,
+            IXeriWindowThemeResolver themeResolver = null
+        ) : base()
         {
             name = "xeri-window-container";
             AddToClassList("xeri-window-container");
@@ -67,6 +73,7 @@ namespace inonego.Xeri.UI.Window
             LoadStyleSheet();
 
             this.registry = registry ?? throw new ArgumentNullException(nameof(registry));
+            this.themeResolver = themeResolver;
             windowLayer = CreateWindowLayer();
 
             ApplyWindowLayerLayout();
@@ -77,7 +84,7 @@ namespace inonego.Xeri.UI.Window
 
     #endregion
 
-    #region 메서드
+    #region Window Panel 생성과 부착
 
         // ------------------------------------------------------------
         /// <summary>
@@ -97,7 +104,7 @@ namespace inonego.Xeri.UI.Window
                 throw new ArgumentNullException(nameof(record));
             }
 
-            var panel = new XeriWindowPanel();
+            var panel = new XeriWindowPanel(themeResolver);
             panel.ApplyOptions(options ?? XeriWindowOptions.Default());
             panel.ApplyTheme(record.ThemeID);
             panel.ApplyTitle(record.Title);
@@ -194,7 +201,7 @@ namespace inonego.Xeri.UI.Window
 
     #endregion
 
-    #region 내부 메서드
+    #region Container 스타일과 레이아웃
 
         // ------------------------------------------------------------
         /// <summary>
@@ -281,18 +288,9 @@ namespace inonego.Xeri.UI.Window
             return windowLayer;
         }
 
-        // ------------------------------------------------------------
-        /// <summary>
-        /// 종료된 Container 사용을 거부한다.
-        /// </summary>
-        // ------------------------------------------------------------
-        private void ThrowIfDisposed()
-        {
-            if (isDisposed)
-            {
-                throw new ObjectDisposedException(nameof(XeriWindowContainer));
-            }
-        }
+    #endregion
+
+    #region Window 순서 동기화
 
         // ------------------------------------------------------------
         /// <summary>
@@ -318,10 +316,6 @@ namespace inonego.Xeri.UI.Window
             }
         }
 
-    #endregion
-
-    #region 이벤트 핸들러
-
         // ------------------------------------------------------------
         /// <summary>
         /// Registry order 변경을 Window layer z-order에 반영한다.
@@ -337,6 +331,19 @@ namespace inonego.Xeri.UI.Window
     #endregion
 
     #region 수명 해제
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// 종료된 Container 사용을 거부한다.
+        /// </summary>
+        // ------------------------------------------------------------
+        private void ThrowIfDisposed()
+        {
+            if (isDisposed)
+            {
+                throw new ObjectDisposedException(nameof(XeriWindowContainer));
+            }
+        }
 
         // ------------------------------------------------------------
         /// <summary>

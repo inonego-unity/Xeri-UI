@@ -96,6 +96,7 @@ namespace inonego.Xeri.UI.Window
         private XeriWindowTitleBarManipulator titleBarManipulator = null;
 
         private bool isPanelFocusBound = false;
+        private bool isThemeBound = false;
         private bool isReleased = false;
         private bool isContentReleased = false;
         private readonly List<IDisposable> children = new();
@@ -288,7 +289,7 @@ namespace inonego.Xeri.UI.Window
 
     #endregion
 
-    #region 내부 수명
+    #region View Session 저장과 Terminal 해제
 
         // ------------------------------------------------------------
         /// <summary>
@@ -404,6 +405,10 @@ namespace inonego.Xeri.UI.Window
             return errors.AsReadOnlyList();
         }
 
+    #endregion
+
+    #region Application UI와 Focus 수명
+
         // --------------------------------------------------------------------------------
         /// <summary>
         /// Window ContentRoot에 Child PresentationSession과 독립 Child Context를 생성한다.
@@ -508,6 +513,10 @@ namespace inonego.Xeri.UI.Window
             return errors.AsReadOnlyList();
         }
 
+    #endregion
+
+    #region 입력과 상태 이벤트 연결
+
         // ------------------------------------------------------------
         /// <summary>
         /// Window 입력 binding과 Controller 이벤트를 Session에 연결한다.
@@ -520,6 +529,9 @@ namespace inonego.Xeri.UI.Window
 
             try
             {
+                panel.OnThemeChange += OnPanelThemeChange;
+                isThemeBound = true;
+
                 controlManipulator.Attach();
                 resizeManipulator.Attach();
                 titleBarManipulator = dragFactory.CreateTitleBarDrag(panel, Controller);
@@ -570,6 +582,12 @@ namespace inonego.Xeri.UI.Window
         // ------------------------------------------------------------
         private void Unbind(ref ExceptionBuffer errors)
         {
+            if (isThemeBound && panel != null)
+            {
+                panel.OnThemeChange -= OnPanelThemeChange;
+                isThemeBound = false;
+            }
+
             Controller.OnClose -= OnControllerClose;
             Controller.OnStateChange -= OnControllerStateChange;
 
@@ -626,6 +644,16 @@ namespace inonego.Xeri.UI.Window
     #endregion
 
     #region 이벤트 핸들러
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// 적용된 Panel 테마를 Controller의 현재 상태에 반영한다.
+        /// </summary>
+        // ------------------------------------------------------------
+        private void OnPanelThemeChange(string themeID)
+        {
+            Controller.SetThemeID(themeID);
+        }
 
         // ------------------------------------------------------------
         /// <summary>

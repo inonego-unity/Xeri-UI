@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : XeriWindowButtonIcon.cs
-수정일 : 2026-10-28
+수정일 : 2026-11-02
 
 # 설명
 XeriWindow control button에 표시되는 벡터 아이콘.
