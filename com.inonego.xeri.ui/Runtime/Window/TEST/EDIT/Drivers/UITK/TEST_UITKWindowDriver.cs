@@ -1,14 +1,13 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : TEST_UITKWindowDriver.cs
-수정일 : 2026-11-02
+수정일 : 2026-11-10
 
 # 설명
 UITKWindowDriver style 반영 테스트.
 
 # 테스트 구성
- B: Bounds 반영
- S: State 반영
- F: Core Focus Scope
+ A–D: 좌표·상태·최대화
+ E: 코어 포커스 범위
 ========================================================================= BLOCK_HEADER_END */
 
 using UnityEngine;
@@ -32,7 +31,7 @@ namespace inonego.Xeri.UI.TEST.Window
     public class TEST_UITKWindowDriver
     {
 
-    #region B-1: 경계
+    #region A: 경계
 
         // ------------------------------------------------------------
         /// <summary>
@@ -56,7 +55,7 @@ namespace inonego.Xeri.UI.TEST.Window
 
     #endregion
 
-    #region S-1: 상태
+    #region B: 상태
 
         // ------------------------------------------------------------
         /// <summary>
@@ -115,7 +114,7 @@ namespace inonego.Xeri.UI.TEST.Window
 
     #endregion
 
-    #region S-2: 최대화 복원
+    #region C: 최대화 복원
 
         // ----------------------------------------------------------------------
         /// <summary>
@@ -141,7 +140,7 @@ namespace inonego.Xeri.UI.TEST.Window
 
     #endregion
 
-    #region B-2: 최대화 경계
+    #region D: 최대화 경계
 
         // ------------------------------------------------------------
         /// <summary>
@@ -164,7 +163,7 @@ namespace inonego.Xeri.UI.TEST.Window
 
     #endregion
 
-    #region F-1: 코어 포커스 범위
+    #region E: 코어 포커스 범위
 
         // ------------------------------------------------------------
         /// <summary>

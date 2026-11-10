@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : XeriValidationSystemMonitor.cs
-수정일 : 2026-10-19
+수정일 : 2026-11-02
 
 # 설명
 authored Desktop.Status placement에서 Runtime, 출력 정책, Window와 입력 상태를 관찰한다.

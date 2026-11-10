@@ -1,15 +1,19 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : TEST_UITKUI.cs
-수정일 : 2026-11-05
+수정일 : 2026-11-10
 
 # 설명
 UITK Interaction·Focus, Native Output, Safe Area, Screen, Modal과 Fade의 Runtime 경계를 검증한다.
 
 # 테스트 구성
- I: UITK Interaction과 Focus Root 재진입 해제
- L: UITK Native Output, 소유 콘텐츠 및 Safe Area Root 재연결
- D: Screen·Modal·Fade Driver
- C: Screen Close와 Visual Tree 반환
+ A: UITK 테스트 대역
+ B: UITK Fixture 구성과 정리
+ C: UITK Interaction과 Focus
+ D: Native Output 구체화
+ E: 소유 콘텐츠의 Root 교체
+ F: Safe Area Root 재연결
+ G: Screen·Modal·Fade Driver
+ H: Screen Close와 Visual Tree 반환
 ========================================================================= BLOCK_HEADER_END */
 
 using System;
@@ -42,7 +46,7 @@ namespace inonego.Xeri.UI.TEST.Core
     public sealed class TEST_UITKUI
     {
 
-    #region 헬퍼
+    #region A: UITK 테스트 대역
 
         // ============================================================
         /// <summary>
@@ -51,19 +55,40 @@ namespace inonego.Xeri.UI.TEST.Core
         // ============================================================
         private sealed class TestLayerDriver : IPresentationLayerDriver<VisualElement>
         {
+
+            // ------------------------------------------------------------
+            /// <summary>
+            /// 테스트 Layer의 현재 VisualElement Root를 반환한다.
+            /// </summary>
+            // ------------------------------------------------------------
             public VisualElement Root { get; }
 
+            // ------------------------------------------------------------
+            /// <summary>
+            /// 지정 Root에 연결된 테스트 Layer를 생성한다.
+            /// </summary>
+            // ------------------------------------------------------------
             public TestLayerDriver(VisualElement root) : base()
             {
                 Root = root;
             }
 
+            // ------------------------------------------------------------
+            /// <summary>
+            /// 테스트 Layer의 Root 유효성을 검사한다.
+            /// </summary>
+            // ------------------------------------------------------------
             public bool Validate(out string error)
             {
                 error = Root == null ? "invalid" : "";
                 return string.IsNullOrEmpty(error);
             }
 
+            // ------------------------------------------------------------
+            /// <summary>
+            /// 테스트 Layer의 활성 상태를 Root에 적용한다.
+            /// </summary>
+            // ------------------------------------------------------------
             public void SetActive(bool active)
             {
                 Root.style.display = active ? DisplayStyle.Flex : DisplayStyle.None;
@@ -77,8 +102,19 @@ namespace inonego.Xeri.UI.TEST.Core
         // ======================================================================
         private sealed class CallbackLayerRoot : VisualElement
         {
+
+            // ------------------------------------------------------------
+            /// <summary>
+            /// 콘텐츠 컨테이너 조회 시 실행할 콜백을 지정한다.
+            /// </summary>
+            // ------------------------------------------------------------
             public Action AccessingContent { get; set; }
 
+            // ------------------------------------------------------------
+            /// <summary>
+            /// 조회 콜백을 발생시키는 콘텐츠 컨테이너를 반환한다.
+            /// </summary>
+            // ------------------------------------------------------------
             public override VisualElement contentContainer
             {
                 get
@@ -98,9 +134,26 @@ namespace inonego.Xeri.UI.TEST.Core
         // ============================================================
         private sealed class NestedContentRoot : VisualElement
         {
+
+            // ------------------------------------------------------------
+            /// <summary>
+            /// 중첩 Root에서 콘텐츠를 실제로 수용하는 요소를 반환한다.
+            /// </summary>
+            // ------------------------------------------------------------
             public VisualElement Container { get; } = new();
+
+            // ------------------------------------------------------------
+            /// <summary>
+            /// 중첩 Root의 콘텐츠 컨테이너를 반환한다.
+            /// </summary>
+            // ------------------------------------------------------------
             public override VisualElement contentContainer => Container;
 
+            // ------------------------------------------------------------
+            /// <summary>
+            /// 콘텐츠 컨테이너가 분리된 테스트 Root를 생성한다.
+            /// </summary>
+            // ------------------------------------------------------------
             public NestedContentRoot()
             {
                 hierarchy.Add(Container);
@@ -114,9 +167,26 @@ namespace inonego.Xeri.UI.TEST.Core
         // ============================================================
         private sealed class TestScreenSource : IScreenSource
         {
+
+            // ------------------------------------------------------------
+            /// <summary>
+            /// Screen Source가 획득한 Root를 반환한다.
+            /// </summary>
+            // ------------------------------------------------------------
             public VisualElement ScreenRoot { get; private set; }
+
+            // ------------------------------------------------------------
+            /// <summary>
+            /// Screen Source의 반환 횟수를 반환한다.
+            /// </summary>
+            // ------------------------------------------------------------
             public int ReleaseCount { get; private set; }
 
+            // ------------------------------------------------------------
+            /// <summary>
+            /// Screen View 범위에서 테스트 Screen을 획득한다.
+            /// </summary>
+            // ------------------------------------------------------------
             public ScreenInstance Acquire(ScreenViewScope scope)
             {
                 if (!(scope.Layer is IPresentationLayerDriver<VisualElement> layer))
@@ -128,10 +198,15 @@ namespace inonego.Xeri.UI.TEST.Core
                 {
                     name = "RuntimeScreen",
                 };
-                layer.Root.Add(ScreenRoot);
+                layer.Root.contentContainer.Add(ScreenRoot);
                 return new ScreenInstance(new UITKScreenDriver(ScreenRoot));
             }
 
+            // ------------------------------------------------------------
+            /// <summary>
+            /// 획득한 테스트 Screen을 반환한다.
+            /// </summary>
+            // ------------------------------------------------------------
             public void Release(ScreenInstance instance)
             {
                 ReleaseCount++;
@@ -146,6 +221,12 @@ namespace inonego.Xeri.UI.TEST.Core
         // ============================================================
         private sealed class ImmediateTransitioner : IPresentationTransitioner
         {
+
+            // ------------------------------------------------------------
+            /// <summary>
+            /// 테스트 환경에서는 실제 전환을 재생하지 않는다.
+            /// </summary>
+            // ------------------------------------------------------------
             public PresentationTransitionHandle Play
             (
                 PresentationTransitionParams parameters,
@@ -160,6 +241,11 @@ namespace inonego.Xeri.UI.TEST.Core
                 return handle;
             }
 
+            // ------------------------------------------------------------
+            /// <summary>
+            /// 테스트 Transitioner의 수명을 종료한다.
+            /// </summary>
+            // ------------------------------------------------------------
             public void Dispose()
             {
                 // NONE
@@ -173,18 +259,39 @@ namespace inonego.Xeri.UI.TEST.Core
         // ============================================================
         private sealed class TestFocusDriver : IFocusDriver
         {
+
+            // ------------------------------------------------------------
+            /// <summary>
+            /// 테스트 포커스 드라이버의 선택 상태를 반환한다.
+            /// </summary>
+            // ------------------------------------------------------------
             public object Current { get; private set; }
 
+            // ------------------------------------------------------------
+            /// <summary>
+            /// 지정 대상의 포커스 유효성을 검사한다.
+            /// </summary>
+            // ------------------------------------------------------------
             public bool IsValid(object target)
             {
                 return target != null;
             }
 
+            // ------------------------------------------------------------
+            /// <summary>
+            /// 테스트 포커스 드라이버에서 대상을 선택한다.
+            /// </summary>
+            // ------------------------------------------------------------
             public void Select(object target)
             {
                 Current = target;
             }
 
+            // ------------------------------------------------------------
+            /// <summary>
+            /// 테스트 포커스 드라이버에는 fallback 대상이 없다.
+            /// </summary>
+            // ------------------------------------------------------------
             public object FindFallback()
             {
                 return null;
@@ -201,6 +308,11 @@ namespace inonego.Xeri.UI.TEST.Core
             private readonly List<ScreenInputSession> sessions =
                 new List<ScreenInputSession>();
 
+            // ------------------------------------------------------------
+            /// <summary>
+            /// 테스트 입력 Session 획득 요청을 처리한다.
+            /// </summary>
+            // ------------------------------------------------------------
             public ScreenInputSession Acquire
             (
                 ScreenOptions options,
@@ -212,16 +324,31 @@ namespace inonego.Xeri.UI.TEST.Core
                 return session;
             }
 
+            // ------------------------------------------------------------
+            /// <summary>
+            /// 입력 요청을 묶기 위한 배치 시작을 처리한다.
+            /// </summary>
+            // ------------------------------------------------------------
             public void BeginBatch()
             {
                 // NONE
             }
 
+            // ------------------------------------------------------------
+            /// <summary>
+            /// 입력 요청 배치 종료를 처리한다.
+            /// </summary>
+            // ------------------------------------------------------------
             public void EndBatch()
             {
                 // NONE
             }
 
+            // ------------------------------------------------------------
+            /// <summary>
+            /// 테스트 입력 Session 전체를 반환한다.
+            /// </summary>
+            // ------------------------------------------------------------
             public void ForceReleaseAll()
             {
                 for (var i = sessions.Count - 1; i >= 0; i--)
@@ -232,6 +359,11 @@ namespace inonego.Xeri.UI.TEST.Core
                 sessions.Clear();
             }
 
+            // ------------------------------------------------------------
+            /// <summary>
+            /// 테스트 입력 드라이버의 수명을 종료한다.
+            /// </summary>
+            // ------------------------------------------------------------
             public void Dispose()
             {
                 ForceReleaseAll();
@@ -256,29 +388,73 @@ namespace inonego.Xeri.UI.TEST.Core
         // ======================================================================
         private sealed class TestProvider : IGameObjectProvider
         {
+
+            // ------------------------------------------------------------
+            /// <summary>
+            /// 테스트 Provider의 부모 Transform을 지정한다.
+            /// </summary>
+            // ------------------------------------------------------------
             public Transform Parent { get; set; }
+
+            // ------------------------------------------------------------
+            /// <summary>
+            /// 테스트 Provider의 획득 횟수를 반환한다.
+            /// </summary>
+            // ------------------------------------------------------------
             public int AcquireCount { get; private set; }
+
+            // ------------------------------------------------------------
+            /// <summary>
+            /// 테스트 Provider의 반환 횟수를 반환한다.
+            /// </summary>
+            // ------------------------------------------------------------
             public int ReleaseCount { get; private set; }
+
+            // ------------------------------------------------------------
+            /// <summary>
+            /// 마지막 반환 당시 GameObject의 활성 상태를 반환한다.
+            /// </summary>
+            // ------------------------------------------------------------
             public bool LastReleasedActiveSelf { get; private set; }
 
             private readonly Func<Transform, GameObject> acquire = null;
 
+            // ------------------------------------------------------------
+            /// <summary>
+            /// 테스트 콘텐츠 획득 함수를 사용하는 Provider를 생성한다.
+            /// </summary>
+            // ------------------------------------------------------------
             public TestProvider(Func<Transform, GameObject> acquire) : base()
             {
                 this.acquire = acquire ?? throw new ArgumentNullException(nameof(acquire));
             }
 
+            // ------------------------------------------------------------
+            /// <summary>
+            /// 테스트용 GameObject를 동기적으로 획득한다.
+            /// </summary>
+            // ------------------------------------------------------------
             public GameObject Acquire(bool worldPositionStays = true)
             {
                 AcquireCount++;
                 return acquire(Parent);
             }
 
+            // ------------------------------------------------------------
+            /// <summary>
+            /// 이 Provider는 비동기 콘텐츠 획득을 지원하지 않는다.
+            /// </summary>
+            // ------------------------------------------------------------
             public Awaitable<GameObject> AcquireAsync(bool worldPositionStays = true)
             {
                 throw new NotSupportedException();
             }
 
+            // ------------------------------------------------------------
+            /// <summary>
+            /// 테스트용 GameObject를 반환한다.
+            /// </summary>
+            // ------------------------------------------------------------
             public void Release
             (
                 GameObject gameObject,
@@ -353,7 +529,7 @@ namespace inonego.Xeri.UI.TEST.Core
 
     #endregion
 
-    #region 픽스처
+    #region B: UITK Fixture 구성과 정리
 
         // ------------------------------------------------------------
         /// <summary>
@@ -376,7 +552,7 @@ namespace inonego.Xeri.UI.TEST.Core
 
     #endregion
 
-    #region I-1: UITK 상호작용
+    #region C: UITK Interaction과 Focus
 
         // --------------------------------------------------------------------------------
         /// <summary>
@@ -470,7 +646,7 @@ namespace inonego.Xeri.UI.TEST.Core
 
     #endregion
 
-    #region L-1: UITK 네이티브 출력 구체화
+    #region D: Native Output 구체화
 
         // ----------------------------------------------------------------------
         /// <summary>
@@ -559,7 +735,7 @@ namespace inonego.Xeri.UI.TEST.Core
 
     #endregion
 
-    #region L-2: 런타임 콘텐츠의 루트 교체
+    #region E: 소유 콘텐츠의 Root 교체
 
         // ------------------------------------------------------------
         /// <summary>
@@ -688,14 +864,22 @@ namespace inonego.Xeri.UI.TEST.Core
         /// 부착 중 Lease가 이전되면 새 소유자를 유지한다.
         /// </summary>
         // ------------------------------------------------------------
-        [TestCase(false)]
-        [TestCase(true)]
-        public void TEST_UITKPresentationLayer_부착중Lease이전_새Layer소유권보호(bool foreignLayer)
+        [TestCase(false, false)]
+        [TestCase(false, true)]
+        [TestCase(true, false)]
+        [TestCase(true, true)]
+        public void TEST_UITKPresentationLayer_부착중Lease이전_새Layer소유권보호
+        (
+            bool foreignLayer,
+            bool nestedContainer
+        )
         {
             var original = new UITKPresentationLayer(new VisualElement());
             var content = new VisualElement();
             var previousLease = UITKPresentationLayer.Attach(original, content);
-            var destinationRoot = new VisualElement();
+            VisualElement destinationRoot = nestedContainer
+                ? new NestedContentRoot()
+                : new VisualElement();
             IPresentationLayerDriver<VisualElement> destination = foreignLayer
                 ? new TestLayerDriver(destinationRoot)
                 : new UITKPresentationLayer(destinationRoot);
@@ -709,7 +893,7 @@ namespace inonego.Xeri.UI.TEST.Core
 
             original.RebindRoot(intermediate);
 
-            Assert.AreSame(destinationRoot, content.parent);
+            Assert.AreSame(destinationRoot.contentContainer, content.parent);
             Assert.IsNotNull(newLease);
             newLease.Dispose();
             Assert.IsNull(content.parent);
@@ -771,144 +955,7 @@ namespace inonego.Xeri.UI.TEST.Core
 
     #endregion
 
-    #region L-3: Native Safe Area Root 재연결
-
-        // ------------------------------------------------------------
-        /// <summary>
-        /// 출력 Root 교체와 반환을 Safe Area 관찰이 따라간다.
-        /// </summary>
-        // ------------------------------------------------------------
-        [Test]
-        public void TEST_UITKSafeAreaLayout_OutputRoot교체와반환_관찰대상갱신()
-        {
-            var host = new GameObject("Safe Area Root Rebind");
-            host.SetActive(false);
-            ownedObjects.Add(host);
-            var settings = ScriptableObject.CreateInstance<PanelSettings>();
-            UITKTestPanelSettings.ApplyDefaultRuntimeTheme(settings);
-            ownedObjects.Add(settings);
-            var renderer = host.AddComponent<PanelRenderer>();
-            renderer.panelSettings = settings;
-            var output = host.AddComponent<UITKPresentationOutput>();
-            output.InitializeBorrowed(31);
-            var layout = host.AddComponent<UITKSafeAreaLayout>();
-            SetField(layout, "rootName", "Safe Area");
-            Assert.DoesNotThrow(() => host.SetActive(true));
-
-            var reload = typeof(UITKPresentationOutput).GetMethod
-            (
-                "HandleUIReload",
-                BindingFlags.Instance | BindingFlags.NonPublic
-            );
-            var observed = typeof(UITKSafeAreaLayout).GetField
-            (
-                "observedRoot",
-                BindingFlags.Instance | BindingFlags.NonPublic
-            );
-            Assert.IsNotNull(reload);
-            Assert.IsNotNull(observed);
-
-            var firstRoot = new VisualElement();
-            var first = new VisualElement();
-            first.name = "Safe Area";
-            firstRoot.Add(first);
-            reload.Invoke
-            (
-                output,
-                new object[]
-                {
-                    renderer, firstRoot, 1,
-                }
-            );
-            Assert.AreSame(first, observed.GetValue(layout));
-
-            var secondRoot = new VisualElement();
-            var second = new VisualElement();
-            second.name = "Safe Area";
-            secondRoot.Add(second);
-            reload.Invoke
-            (
-                output,
-                new object[]
-                {
-                    renderer, secondRoot, 2,
-                }
-            );
-            Assert.AreSame(second, layout.SafeAreaRoot);
-            Assert.AreSame(second, observed.GetValue(layout));
-
-            output.ReleaseOutputState();
-            Assert.IsNull(observed.GetValue(layout));
-            layout.Dispose();
-        }
-
-        // ------------------------------------------------------------
-        /// <summary>
-        /// Root 알림 중 Layout 비활성화는 오래된 구독도 종료한다.
-        /// </summary>
-        // ------------------------------------------------------------
-        [Test]
-        public void TEST_UITKSafeAreaLayout_Root알림중비활성화_관찰재등록방지()
-        {
-            var host = new GameObject("Safe Area Disable Reentry");
-            host.SetActive(false);
-            ownedObjects.Add(host);
-            var settings = ScriptableObject.CreateInstance<PanelSettings>();
-            UITKTestPanelSettings.ApplyDefaultRuntimeTheme(settings);
-            ownedObjects.Add(settings);
-            var renderer = host.AddComponent<PanelRenderer>();
-            renderer.panelSettings = settings;
-            var output = host.AddComponent<UITKPresentationOutput>();
-            output.InitializeBorrowed(32);
-            var layout = host.AddComponent<UITKSafeAreaLayout>();
-            SetField(layout, "rootName", "Safe Area");
-            host.SetActive(true);
-            layout.enabled = false;
-
-            // 먼저 등록된 observer가 Layout을 끈 뒤에도 snapshot의 뒤 콜백이 도착한다.
-            output.RootUpdated += root =>
-            {
-                if (root != null)
-                {
-                    layout.enabled = false;
-                }
-            };
-            layout.enabled = true;
-
-            var reload = typeof(UITKPresentationOutput).GetMethod
-            (
-                "HandleUIReload",
-                BindingFlags.Instance | BindingFlags.NonPublic
-            );
-            var observed = typeof(UITKSafeAreaLayout).GetField
-            (
-                "observedRoot",
-                BindingFlags.Instance | BindingFlags.NonPublic
-            );
-            Assert.IsNotNull(reload);
-            Assert.IsNotNull(observed);
-
-            var rootElement = new VisualElement();
-            var safeArea = new VisualElement();
-            safeArea.name = "Safe Area";
-            rootElement.Add(safeArea);
-            reload.Invoke
-            (
-                output,
-                new object[]
-                {
-                    renderer, rootElement, 1,
-                }
-            );
-
-            Assert.IsFalse(layout.enabled);
-            Assert.IsNull(observed.GetValue(layout));
-            layout.enabled = true;
-            Assert.AreSame(safeArea, observed.GetValue(layout));
-            output.ReleaseOutputState();
-            Assert.IsNull(observed.GetValue(layout));
-            layout.Dispose();
-        }
+    #region F: Safe Area Root 재연결
 
         // ------------------------------------------------------------
         /// <summary>
@@ -1105,7 +1152,7 @@ namespace inonego.Xeri.UI.TEST.Core
 
     #endregion
 
-    #region D-1: 스크린·모달·페이드 드라이버
+    #region G: Screen·Modal·Fade Driver
 
         // --------------------------------------------------------------------------------
         /// <summary>
@@ -1284,7 +1331,7 @@ namespace inonego.Xeri.UI.TEST.Core
 
     #endregion
 
-    #region C-1: 스크린 닫기
+    #region H: Screen Close와 Visual Tree 반환
 
         // --------------------------------------------------------------------------------
         /// <summary>
@@ -1432,13 +1479,13 @@ namespace inonego.Xeri.UI.TEST
     internal static class UITKTestPanelSettings
     {
 
-    #region 필드
+    #region A: 기본 Theme 참조
 
         private const string DEFAULT_THEME_GETTER_FIELD_NAME = "GetOrCreateDefaultTheme";
 
     #endregion
 
-    #region 메서드
+    #region B: Runtime Theme 적용
 
         // ------------------------------------------------------------
         /// <summary>

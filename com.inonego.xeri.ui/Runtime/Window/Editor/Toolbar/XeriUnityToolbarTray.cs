@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : XeriUnityToolbarTray.cs
-수정일 : 2026-11-08
+수정일 : 2026-11-10
 
 # 설명
 Unity Editor 상단 toolbar에 공통 XeriTrayPanel을 주입하는 Editor 전용 host.
@@ -191,6 +191,7 @@ namespace inonego.Xeri.UI.Window.Editor
 
             controller.OnEntrySelect += OnTrayEntrySelect;
             controller.OnEntryClose += OnTrayEntryClose;
+            trayPanel.OnEntryReorder += OnTrayEntryReorder;
 
             controller.Reload();
         }
@@ -208,6 +209,18 @@ namespace inonego.Xeri.UI.Window.Editor
             source = null;
 
             List<Exception> errors = null;
+
+            if (trayPanel != null)
+            {
+                try
+                {
+                    trayPanel.OnEntryReorder -= OnTrayEntryReorder;
+                }
+                catch (Exception exception)
+                {
+                    (errors ??= new List<Exception>()).Add(exception);
+                }
+            }
 
             if (currentController != null)
             {
@@ -348,6 +361,19 @@ namespace inonego.Xeri.UI.Window.Editor
         private void OnTrayEntryClose(object sender, XeriTrayEventArgs e)
         {
             source.Close(e.Entry);
+        }
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// Tray reorder 요청을 Window Source의 표시 순서 변경에 연결한다.
+        /// </summary>
+        // ------------------------------------------------------------
+        private void OnTrayEntryReorder(object sender, XeriTrayReorderEventArgs e)
+        {
+            if (e.Entry?.Payload is XeriWindowHandle handle)
+            {
+                source.MoveEntry(handle, e.TargetIndex);
+            }
         }
 
     #endregion

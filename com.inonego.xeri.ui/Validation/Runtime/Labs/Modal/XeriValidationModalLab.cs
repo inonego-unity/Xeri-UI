@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : XeriValidationModalLab.cs
-수정일 : 2026-10-19
+수정일 : 2026-11-02
 
 # 설명
 Root UIContext의 global Modal stack과 nested focus 복원을 자유롭게 조작하는 instrumented Modal Lab.

@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : XeriEditorWindowTrayToolbar.cs
-수정일 : 2026-11-08
+수정일 : 2026-11-10
 
 # 설명
 EditorWindow 내부에서 공통 XeriTrayPanel을 배치하는 toolbar view.
@@ -72,6 +72,7 @@ namespace inonego.Xeri.UI.Window.Editor
                 controller = new XeriTrayController(source, trayPanel, options);
                 controller.OnEntrySelect += OnTrayEntrySelect;
                 controller.OnEntryClose += OnTrayEntryClose;
+                trayPanel.OnEntryReorder += OnTrayEntryReorder;
                 RegisterCallback<DetachFromPanelEvent>(OnDetachedFromPanel);
                 controller.Reload();
             }
@@ -90,6 +91,7 @@ namespace inonego.Xeri.UI.Window.Editor
                     {
                         controller.OnEntrySelect -= OnTrayEntrySelect;
                         controller.OnEntryClose -= OnTrayEntryClose;
+                        trayPanel.OnEntryReorder -= OnTrayEntryReorder;
                         controller.Dispose();
                     }
                     catch (Exception cleanupException)
@@ -160,6 +162,19 @@ namespace inonego.Xeri.UI.Window.Editor
 
         // ------------------------------------------------------------
         /// <summary>
+        /// Tray reorder 요청을 Window Source의 표시 순서 변경에 연결한다.
+        /// </summary>
+        // ------------------------------------------------------------
+        private void OnTrayEntryReorder(object sender, XeriTrayReorderEventArgs e)
+        {
+            if (e.Entry?.Payload is XeriWindowHandle handle)
+            {
+                source.MoveEntry(handle, e.TargetIndex);
+            }
+        }
+
+        // ------------------------------------------------------------
+        /// <summary>
         /// Toolbar가 Panel에서 분리되면 소유 구독을 정리한다.
         /// </summary>
         // ------------------------------------------------------------
@@ -205,6 +220,15 @@ namespace inonego.Xeri.UI.Window.Editor
             try
             {
                 controller.OnEntryClose -= OnTrayEntryClose;
+            }
+            catch (Exception exception)
+            {
+                (errors ??= new List<Exception>()).Add(exception);
+            }
+
+            try
+            {
+                trayPanel.OnEntryReorder -= OnTrayEntryReorder;
             }
             catch (Exception exception)
             {

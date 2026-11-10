@@ -1,15 +1,14 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : TEST_XeriWindowDragFactory.cs
-수정일 : 2026-11-08
+수정일 : 2026-11-10
 
 # 설명
 XeriWindowDragFactory titlebar drag binding 테스트.
 
 # 테스트 구성
-- F-1: Factory 생성과 좌표계
-- T-1: Titlebar 동작 대상 판별
-- T-2: 더블클릭 이벤트 흐름
-- T-3: 최대화 상태에서 드래그 복원
+ A: 테스트 지원
+ B: Factory와 좌표
+ C–E: 제목 표시줄 입력과 드래그
 ========================================================================= BLOCK_HEADER_END */
 
 using UnityEditor;
@@ -34,7 +33,7 @@ namespace inonego.Xeri.UI.TEST.Window
     public class TEST_XeriWindowDragFactory
     {
 
-    #region 헬퍼
+    #region A: 헬퍼
 
         // ============================================================
         /// <summary>
@@ -282,7 +281,7 @@ namespace inonego.Xeri.UI.TEST.Window
 
     #endregion
 
-    #region F-1: Factory 생성과 좌표계
+    #region B: Factory 생성과 좌표계
 
         // ------------------------------------------------------------
         /// <summary>
@@ -345,7 +344,7 @@ namespace inonego.Xeri.UI.TEST.Window
 
     #endregion
 
-    #region T-1: 제목 표시줄 동작 대상 판별
+    #region C: 제목 표시줄 동작 대상 판별
 
         // --------------------------------------------------------------------------------
         /// <summary>
@@ -414,7 +413,7 @@ namespace inonego.Xeri.UI.TEST.Window
 
     #endregion
 
-    #region T-2: 제목 표시줄 더블클릭 이벤트
+    #region D: 제목 표시줄 더블클릭 이벤트
 
         // --------------------------------------------------------------------------------
         /// <summary>
@@ -569,7 +568,7 @@ namespace inonego.Xeri.UI.TEST.Window
 
     #endregion
 
-    #region T-3: 최대화 상태 드래그 복원
+    #region E: 최대화 상태 드래그 복원
 
         // ----------------------------------------------------------------------
         /// <summary>

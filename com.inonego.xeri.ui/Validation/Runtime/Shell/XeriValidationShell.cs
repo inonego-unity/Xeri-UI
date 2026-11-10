@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : XeriValidationShell.cs
-수정일 : 2026-11-07
+수정일 : 2026-11-11
 
 # 설명
 통합 Validation Desktop의 Window Workspace, Taskbar, Monitor, Checklist와 launcher를 조립한다.
@@ -751,10 +751,10 @@ namespace inonego.Xeri.UI.Validation
                 (errors ??= new List<Exception>()).Add(exception);
             }
 
-            // 종료 중인 Runtime을 읽지 않도록 상태 관찰부터 끊는다.
+            // 상태 관찰과 Tray 구독을 먼저 해제한 후 Window Workspace를 반환한다.
             var resources = new IDisposable[]
             {
-                monitor, workspace, taskbar, checklist, appearance,
+                monitor, taskbar, workspace, checklist, appearance,
             };
 
             foreach (var owned in resources)

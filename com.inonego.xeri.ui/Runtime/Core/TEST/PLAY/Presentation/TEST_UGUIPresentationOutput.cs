@@ -1,13 +1,13 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : TEST_UGUIPresentationOutput.cs
-수정일 : 2026-10-28
+수정일 : 2026-11-10
 
 # 설명
 PlayMode에서 Component 파괴 중 Scene-authored Canvas의 정렬 순서 복원을 검증한다.
 EditMode의 DestroyImmediate는 동일한 Unity MonoBehaviour lifetime 경계가 아니다.
 
 # 테스트 구성
- L: 대여 출력의 파괴와 순서 복원
+ A: Component 파괴와 Canvas 순서 복원
 ========================================================================= BLOCK_HEADER_END */
 
 using System;
@@ -30,7 +30,7 @@ namespace inonego.Xeri.UI.TEST.Core
     public sealed class TEST_UGUIPresentationOutput
     {
 
-    #region L-1: 대여 출력 파괴와 순서 복원
+    #region A: Component 파괴와 Canvas 순서 복원
 
         // --------------------------------------------------------------------------------
         /// <summary>

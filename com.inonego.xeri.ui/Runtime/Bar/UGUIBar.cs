@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : UGUIBar.cs
-수정일 : 2026-09-17
+수정일 : 2026-11-11
 # 설명
 값 범위를 Background, Change, Foreground Image 계층으로 표시하는 UGUI Bar 컴포넌트.
 
@@ -419,7 +419,7 @@ namespace inonego.Xeri.UI
         // ------------------------------------------------------------
         private void OnValidate()
         {
-            if (Application.isPlaying) return;
+            if (UnityEngine.Application.isPlaying) return;
 
             Refresh(true);
         }

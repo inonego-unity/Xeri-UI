@@ -1,14 +1,17 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : TEST_DragVisual.cs
-수정일 : 2026-10-28
+수정일 : 2026-11-10
 
 # 설명
 기존 DraggableUI와 UGUI Drag Visual의 좌표·Layer Usage·종료 수명 연동을 검증한다.
 
 # 테스트 구성
- L: 직접 Root·Presentation Layer 사용과 pose 복원
- B: DraggableUI Begin·End·Cancel 연결
- R: Runtime 종료 안전 경계
+ A: 입력과 Drag 테스트 지원
+ B: Drag 테스트 수명
+ C: Layer 점유와 자세 복원
+ D: Drag 시작과 종료
+ E: Binding 선종료
+ F: Controller 선종료
 ========================================================================= BLOCK_HEADER_END */
 
 using System;
@@ -39,7 +42,7 @@ namespace inonego.Xeri.UI.TEST.Core
     public sealed class TEST_DragVisual
     {
 
-    #region 헬퍼
+    #region A: 입력과 Drag 테스트 지원
 
         // ============================================================
         /// <summary>
@@ -123,7 +126,7 @@ namespace inonego.Xeri.UI.TEST.Core
 
     #endregion
 
-    #region 픽스처
+    #region B: Drag 테스트 수명
 
         private readonly List<UnityEngine.Object> ownedObjects =
             new List<UnityEngine.Object>();
@@ -231,7 +234,7 @@ namespace inonego.Xeri.UI.TEST.Core
 
     #endregion
 
-    #region L-1: 레이어 사용 수명과 자세 복원
+    #region C: Layer 점유와 자세 복원
 
         // --------------------------------------------------------------------------------
         /// <summary>
@@ -438,7 +441,7 @@ namespace inonego.Xeri.UI.TEST.Core
 
     #endregion
 
-    #region B-1: 드래그 대상 시작과 종료
+    #region D: Drag 시작과 종료
 
         // ----------------------------------------------------------------------
         /// <summary>
@@ -669,7 +672,7 @@ namespace inonego.Xeri.UI.TEST.Core
 
     #endregion
 
-    #region B-2: 연결 선종료
+    #region E: Binding 선종료
 
         // --------------------------------------------------------------------------------
         /// <summary>
@@ -714,7 +717,7 @@ namespace inonego.Xeri.UI.TEST.Core
 
     #endregion
 
-    #region R-1: 컨트롤러 종료
+    #region F: Controller 선종료
 
         // --------------------------------------------------------------------------------
         /// <summary>

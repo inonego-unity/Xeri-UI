@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : XeriValidationAppearance.cs
-수정일 : 2026-10-05
+수정일 : 2026-11-02
 
 # 설명
 Validation 수명 동안 공통 색상과 기존 Window theme 선택을 모든 스타일 root에 전파한다.
@@ -34,7 +34,6 @@ namespace inonego.Xeri.UI.Validation
         private const string PREFS_KEY = "Xeri.Validation.Appearance.";
         private readonly XeriValidationAssets assets;
         private readonly HashSet<VisualElement> roots = new();
-
 
         // ------------------------------------------------------------
         /// <summary>

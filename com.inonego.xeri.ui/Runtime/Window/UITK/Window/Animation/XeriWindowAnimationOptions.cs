@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : XeriWindowAnimationOptions.cs
-수정일 : 2026-11-02
+수정일 : 2026-11-10
 
 # 설명
 Xeri window 상태 전환 animation 옵션.
@@ -45,6 +45,34 @@ namespace inonego.Xeri.UI.Window
     #endregion
 
     #region 메서드
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// 실행 중 완료할 수 없는 nonfinite 보간 옵션을 거부한다.
+        /// </summary>
+        // ------------------------------------------------------------
+        internal static void Validate(XeriWindowAnimationOptions options)
+        {
+            if (!options.Enabled) return;
+
+            if (float.IsNaN(options.Duration) || float.IsInfinity(options.Duration))
+            {
+                throw new ArgumentOutOfRangeException
+                (
+                    nameof(options),
+                    "Window animation Duration은 유한한 값이어야 합니다."
+                );
+            }
+
+            if (float.IsNaN(options.HiddenOpacity) || float.IsInfinity(options.HiddenOpacity))
+            {
+                throw new ArgumentOutOfRangeException
+                (
+                    nameof(options),
+                    "Window animation HiddenOpacity는 유한한 값이어야 합니다."
+                );
+            }
+        }
 
         // ------------------------------------------------------------
         /// <summary>

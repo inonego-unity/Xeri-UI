@@ -1,16 +1,17 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명: TEST_XeriTrayReorder.cs
-수정일 : 2026-11-09
+수정일 : 2026-11-10
 
 # 설명
 공통 Tray reorder 계산과 panel 이벤트 전달을 검증한다.
 
 # 테스트 구성
- R: Reorder 계산
- P: Panel reorder 이벤트
- V: Reorder visual
+ A–B: Animator와 Reorder 계산
+ C–E: Panel 이벤트와 Animator
+ F–H: Visual·Pointer 수명·Bounds
 ========================================================================= BLOCK_HEADER_END */
 
+using UnityEditor;
 using UnityEngine;
 using UnityEngine.UIElements;
 
@@ -32,7 +33,34 @@ namespace inonego.Xeri.UI.TEST.Tray
     public class TEST_XeriTrayReorder
     {
 
-    #region 헬퍼
+    #region A: 테스트 Animator
+
+        private sealed class ThrowingPreviewAnimator : IXeriTrayReorderAnimator
+        {
+            public int PreviewCount { get; private set; }
+
+            public void Preview(IXeriTrayReorderTarget target, XeriTrayReorderSession session)
+            {
+                PreviewCount++;
+                target.GetEntryButtons()[1].style.translate = new Translate(18f, 0f, 0f);
+                throw new System.InvalidOperationException("preview failed");
+            }
+
+            public void Commit(IXeriTrayReorderTarget target, XeriTrayReorderSession session)
+            {
+                Clear(target);
+            }
+
+            public void Cancel(IXeriTrayReorderTarget target, XeriTrayReorderSession session)
+            {
+                Clear(target);
+            }
+
+            public void Clear(IXeriTrayReorderTarget target)
+            {
+                XeriTrayReorderVisual.ClearOffsets(target);
+            }
+        }
 
         private sealed class TestReorderAnimator : IXeriTrayReorderAnimator
         {
@@ -73,7 +101,7 @@ namespace inonego.Xeri.UI.TEST.Tray
 
     #endregion
 
-    #region R-1: 대상 인덱스
+    #region B: Reorder 계산
 
         // ------------------------------------------------------------
         /// <summary>
@@ -175,7 +203,7 @@ namespace inonego.Xeri.UI.TEST.Tray
 
     #endregion
 
-    #region P-1: 패널 이벤트
+    #region C: Panel 이벤트
 
         // ------------------------------------------------------------
         /// <summary>
@@ -208,7 +236,7 @@ namespace inonego.Xeri.UI.TEST.Tray
 
     #endregion
 
-    #region P-2: 재정렬 애니메이터 오버라이드
+    #region D: 사용자 정의 Animator
 
         // ----------------------------------------------------------------------
         /// <summary>
@@ -261,7 +289,7 @@ namespace inonego.Xeri.UI.TEST.Tray
 
     #endregion
 
-    #region V-1: 기본 애니메이터 종료 정리
+    #region E: Animator 정리
 
         // ------------------------------------------------------------
         /// <summary>
@@ -301,7 +329,7 @@ namespace inonego.Xeri.UI.TEST.Tray
 
     #endregion
 
-    #region V-2: 재정렬 시각물
+    #region F: Drag 시각 상태
 
         // --------------------------------------------------------------------------------
         /// <summary>
@@ -336,7 +364,413 @@ namespace inonego.Xeri.UI.TEST.Tray
 
     #endregion
 
-    #region 내부 메서드
+    #region G: Pointer 입력 수명
+
+        // ----------------------------------------------------------------------
+        /// <summary>
+        /// 외부에서 포인터 capture를 빼앗으면 drag proxy와 입력 세션을 종료한다.
+        /// </summary>
+        // ----------------------------------------------------------------------
+        [Test]
+        public void TEST_XeriTrayReorderManipulator_Capture상실_원본복원_재획득금지()
+        {
+            var panel = new XeriTrayPanel();
+            var options = XeriTrayOptions.Default();
+            options.Reorderable = true;
+            panel.Reload
+            (
+                new[]
+                {
+                    new XeriTrayEntry("a", "A"),
+                    new XeriTrayEntry("b", "B"),
+                },
+                options
+            );
+            var host = EditorWindow.CreateInstance<EditorWindow>();
+            host.Show();
+            host.rootVisualElement.Add(panel);
+            var button = panel.GetEntryButtons()[0];
+
+            try
+            {
+                var downEvent = new Event
+                {
+                    type = EventType.MouseDown,
+                    button = 0,
+                    mousePosition = Vector2.zero,
+                };
+
+                using (var down = PointerDownEvent.GetPooled(downEvent))
+                {
+                    down.target = button;
+                    button.SendEvent(down);
+                }
+
+                var firstMoveEvent = new Event
+                {
+                    type = EventType.MouseMove,
+                    mousePosition = new Vector2(15f, 0f),
+                };
+
+                using (var move = PointerMoveEvent.GetPooled(firstMoveEvent))
+                {
+                    move.target = button;
+                    button.SendEvent(move);
+                }
+
+                Assert.IsTrue(panel.EntryContainer.HasPointerCapture(PointerId.mousePointerId));
+                Assert.IsFalse(button.visible);
+
+                // 캡처 중에는 Tray 밖으로 나가도 진행 중인 drag 소유권을 유지한다.
+                using (var move = PointerMoveEvent.GetPooled(firstMoveEvent))
+                {
+                    using (var leave = PointerLeaveEvent.GetPooled(move))
+                    {
+                        leave.target = panel.EntryContainer;
+                        panel.EntryContainer.SendEvent(leave);
+                    }
+                }
+
+                Assert.IsTrue(panel.EntryContainer.HasPointerCapture(PointerId.mousePointerId));
+                Assert.IsFalse(button.visible);
+
+                panel.EntryContainer.ReleasePointer(PointerId.mousePointerId);
+
+                var secondMoveEvent = new Event
+                {
+                    type = EventType.MouseMove,
+                    mousePosition = new Vector2(30f, 0f),
+                };
+
+                using (var move = PointerMoveEvent.GetPooled(secondMoveEvent))
+                {
+                    move.target = button;
+                    button.SendEvent(move);
+                }
+
+                Assert.IsFalse(panel.EntryContainer.HasPointerCapture(PointerId.mousePointerId));
+                Assert.IsTrue(button.visible);
+                Assert.AreEqual(2, panel.EntryContainer.childCount);
+            }
+            finally
+            {
+                host.Close();
+            }
+        }
+
+        // ----------------------------------------------------------------------
+        /// <summary>
+        /// Drag 임계값 전 일반 클릭은 기존 Button 표시 offset을 변경하지 않는다.
+        /// </summary>
+        // ----------------------------------------------------------------------
+        [Test]
+        public void TEST_XeriTrayReorderManipulator_일반클릭_표시상태유지()
+        {
+            var panel = new XeriTrayPanel();
+            var options = XeriTrayOptions.Default();
+            options.Reorderable = true;
+            panel.Reload
+            (
+                new[]
+                {
+                    new XeriTrayEntry("a", "A"),
+                    new XeriTrayEntry("b", "B"),
+                },
+                options
+            );
+
+            var window = EditorWindow.CreateInstance<EditorWindow>();
+            window.Show();
+            window.rootVisualElement.Add(panel);
+            var button = panel.GetEntryButtons()[0];
+
+            try
+            {
+                button.style.translate = new Translate(12f, -8f, 0f);
+
+                var downEvent = new Event
+                {
+                    type = EventType.MouseDown,
+                    button = 0,
+                    mousePosition = Vector2.zero,
+                };
+
+                using (var down = PointerDownEvent.GetPooled(downEvent))
+                {
+                    down.target = button;
+                    button.SendEvent(down);
+                }
+
+                var upEvent = new Event
+                {
+                    type = EventType.MouseUp,
+                    button = 0,
+                    mousePosition = Vector2.zero,
+                };
+
+                using (var up = PointerUpEvent.GetPooled(upEvent))
+                {
+                    up.target = button;
+                    button.SendEvent(up);
+                }
+
+                Assert.AreEqual(12f, button.style.translate.value.x.value);
+                Assert.AreEqual(-8f, button.style.translate.value.y.value);
+                Assert.IsTrue(button.visible);
+                Assert.AreEqual(2, panel.EntryContainer.childCount);
+                Assert.IsFalse(panel.EntryContainer.HasPointerCapture(PointerId.mousePointerId));
+            }
+            finally
+            {
+                window.Close();
+            }
+        }
+
+        // ----------------------------------------------------------------------
+        /// <summary>
+        /// Preview 오류가 발생해도 capture, proxy, 원본 표시를 모두 복원한다.
+        /// </summary>
+        // ----------------------------------------------------------------------
+        [Test]
+        public void TEST_XeriTrayReorderManipulator_Preview실패_드래그수명복원()
+        {
+            var panel = new XeriTrayPanel();
+            var options = XeriTrayOptions.Default();
+            options.Reorderable = true;
+            panel.Reload
+            (
+                new[]
+                {
+                    new XeriTrayEntry("a", "A"),
+                    new XeriTrayEntry("b", "B"),
+                },
+                options
+            );
+            var animator = new ThrowingPreviewAnimator();
+            panel.SetReorderAnimator(animator);
+
+            var window = EditorWindow.CreateInstance<EditorWindow>();
+            window.Show();
+            window.rootVisualElement.Add(panel);
+            var button = panel.GetEntryButtons()[0];
+
+            try
+            {
+                var downEvent = new Event
+                {
+                    type = EventType.MouseDown,
+                    button = 0,
+                    mousePosition = Vector2.zero,
+                };
+                using (var down = PointerDownEvent.GetPooled(downEvent))
+                {
+                    down.target = button;
+                    button.SendEvent(down);
+                }
+
+                var moveEvent = new Event
+                {
+                    type = EventType.MouseMove,
+                    mousePosition = new Vector2(1000f, 0f),
+                };
+                var field = typeof(XeriTrayPanel).GetField
+                (
+                    "reorderManipulator",
+                    System.Reflection.BindingFlags.Instance |
+                    System.Reflection.BindingFlags.NonPublic
+                );
+                Assert.IsNotNull(field);
+                var manipulator = field.GetValue(panel);
+                var moveMethod = manipulator.GetType().GetMethod
+                (
+                    "OnPointerMove",
+                    System.Reflection.BindingFlags.Instance |
+                    System.Reflection.BindingFlags.NonPublic
+                );
+                Assert.IsNotNull(moveMethod);
+
+                using (var move = PointerMoveEvent.GetPooled(moveEvent))
+                {
+                    var failure = Assert.Throws<System.Reflection.TargetInvocationException>
+                    (
+                        () => moveMethod.Invoke
+                        (
+                            manipulator,
+                            new object[]
+                            {
+                                move,
+                            }
+                        )
+                    );
+                    Assert.IsInstanceOf<System.InvalidOperationException>(failure.InnerException);
+                }
+
+                Assert.AreEqual(1, animator.PreviewCount);
+                Assert.IsFalse(panel.EntryContainer.HasPointerCapture(PointerId.mousePointerId));
+                Assert.IsTrue(button.visible);
+                Assert.AreEqual(2, panel.EntryContainer.childCount);
+                Assert.AreEqual(0f, panel.GetEntryButtons()[1].style.translate.value.x.value);
+            }
+            finally
+            {
+                window.Close();
+            }
+        }
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// Drag 시작 전 포인터가 Tray를 떠나면 입력 후보를 종료한다.
+        /// </summary>
+        // ------------------------------------------------------------
+        [Test]
+        public void TEST_XeriTrayReorderManipulator_Drag전이탈_입력후보종료()
+        {
+            var panel = new XeriTrayPanel();
+            var options = XeriTrayOptions.Default();
+            options.Reorderable = true;
+            panel.Reload
+            (
+                new[]
+                {
+                    new XeriTrayEntry("a", "A"),
+                    new XeriTrayEntry("b", "B"),
+                },
+                options
+            );
+
+            var window = EditorWindow.CreateInstance<EditorWindow>();
+            window.Show();
+            window.rootVisualElement.Add(panel);
+
+            try
+            {
+                var button = panel.GetEntryButtons()[0];
+                var field = typeof(XeriTrayReorderManipulator).GetField
+                (
+                    "session",
+                    System.Reflection.BindingFlags.Instance |
+                    System.Reflection.BindingFlags.NonPublic
+                );
+                Assert.IsNotNull(field);
+
+                var manipulatorField = typeof(XeriTrayPanel).GetField
+                (
+                    "reorderManipulator",
+                    System.Reflection.BindingFlags.Instance |
+                    System.Reflection.BindingFlags.NonPublic
+                );
+                Assert.IsNotNull(manipulatorField);
+                var manipulator = manipulatorField.GetValue(panel);
+
+                var downEvent = new Event
+                {
+                    type = EventType.MouseDown,
+                    button = 0,
+                    mousePosition = Vector2.zero,
+                };
+
+                using (var down = PointerDownEvent.GetPooled(downEvent))
+                {
+                    down.target = button;
+                    button.SendEvent(down);
+                }
+
+                Assert.IsNotNull(field.GetValue(manipulator));
+
+                var moveEvent = new Event
+                {
+                    type = EventType.MouseMove,
+                    mousePosition = new Vector2(2f, 0f),
+                };
+
+                using (var source = PointerMoveEvent.GetPooled(moveEvent))
+                {
+                    using (var leave = PointerLeaveEvent.GetPooled(source))
+                    {
+                        leave.target = panel.EntryContainer;
+                        panel.EntryContainer.SendEvent(leave);
+                    }
+                }
+
+                Assert.IsNull(field.GetValue(manipulator));
+                Assert.IsTrue(button.visible);
+                Assert.AreEqual(2, panel.EntryContainer.childCount);
+            }
+            finally
+            {
+                window.Close();
+            }
+        }
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// Entry 닫기 버튼은 Reorder 입력 후보가 되지 않는다.
+        /// </summary>
+        // ------------------------------------------------------------
+        [Test]
+        public void TEST_XeriTrayReorderManipulator_닫기버튼_드래그후보제외()
+        {
+            var panel = new XeriTrayPanel();
+            var options = XeriTrayOptions.Default();
+            options.Reorderable = true;
+            panel.Reload
+            (
+                new[]
+                {
+                    new XeriTrayEntry("a", "A"),
+                    new XeriTrayEntry("b", "B"),
+                },
+                options
+            );
+
+            var window = EditorWindow.CreateInstance<EditorWindow>();
+            window.Show();
+            window.rootVisualElement.Add(panel);
+
+            try
+            {
+                var button = panel.GetEntryButtons()[0];
+                var closeButton = button.Q<Button>("entry-close-button");
+                Assert.IsNotNull(closeButton);
+
+                var downEvent = new Event
+                {
+                    type = EventType.MouseDown,
+                    button = 0,
+                    mousePosition = Vector2.zero,
+                };
+
+                using (var down = PointerDownEvent.GetPooled(downEvent))
+                {
+                    down.target = closeButton;
+                    closeButton.SendEvent(down);
+                }
+
+                var moveEvent = new Event
+                {
+                    type = EventType.MouseMove,
+                    mousePosition = new Vector2(30f, 0f),
+                };
+
+                using (var move = PointerMoveEvent.GetPooled(moveEvent))
+                {
+                    move.target = closeButton;
+                    closeButton.SendEvent(move);
+                }
+
+                Assert.IsFalse(panel.EntryContainer.HasPointerCapture(PointerId.mousePointerId));
+                Assert.IsTrue(button.visible);
+                Assert.AreEqual(2, panel.EntryContainer.childCount);
+            }
+            finally
+            {
+                window.Close();
+            }
+        }
+
+    #endregion
+
+    #region H: Bounds 테스트 데이터
 
         // ------------------------------------------------------------
         /// <summary>

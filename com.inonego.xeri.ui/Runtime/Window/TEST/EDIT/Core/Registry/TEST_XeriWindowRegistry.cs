@@ -1,14 +1,15 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : TEST_XeriWindowRegistry.cs
-수정일 : 2026-11-02
+수정일 : 2026-11-10
 
 # 설명
 Xeri 커스텀 윈도우 registry 테스트.
 
 # 테스트 구성
- R: 등록과 제거
- F: 포커스와 순서
- E: 이벤트
+ A: 테스트 지원
+ B–D: 등록·등록 해제
+ E–G: 포커스·상태·스택
+ H: 이벤트
 ========================================================================= BLOCK_HEADER_END */
 
 using System;
@@ -36,7 +37,7 @@ namespace inonego.Xeri.UI.TEST.Window
     public class TEST_XeriWindowRegistry
     {
 
-    #region 헬퍼
+    #region A: 헬퍼
 
         // ============================================================
         /// <summary>
@@ -97,7 +98,7 @@ namespace inonego.Xeri.UI.TEST.Window
 
     #endregion
 
-    #region R-1: 등록
+    #region B: 등록
 
         // ------------------------------------------------------------
         /// <summary>
@@ -179,7 +180,7 @@ namespace inonego.Xeri.UI.TEST.Window
 
     #endregion
 
-    #region R-2: 등록 해제
+    #region C: 등록 해제
 
         // ------------------------------------------------------------
         /// <summary>
@@ -201,7 +202,7 @@ namespace inonego.Xeri.UI.TEST.Window
 
     #endregion
 
-    #region R-3: 등록 해제 구독 해제
+    #region D: 등록 해제 구독 해제
 
         // --------------------------------------------------------------------------------
         /// <summary>
@@ -321,7 +322,7 @@ namespace inonego.Xeri.UI.TEST.Window
 
     #endregion
 
-    #region F-1: 포커스
+    #region E: 포커스
 
         // ------------------------------------------------------------
         /// <summary>
@@ -450,7 +451,7 @@ namespace inonego.Xeri.UI.TEST.Window
 
     #endregion
 
-    #region F-2: 상태 동기화
+    #region F: 상태 동기화
 
         // ------------------------------------------------------------
         /// <summary>
@@ -557,7 +558,7 @@ namespace inonego.Xeri.UI.TEST.Window
 
     #endregion
 
-    #region F-3: 스택 순서
+    #region G: 스택 순서
 
         // ----------------------------------------------------------------------
         /// <summary>
@@ -639,7 +640,7 @@ namespace inonego.Xeri.UI.TEST.Window
 
     #endregion
 
-    #region E-1: 이벤트
+    #region H: 이벤트
 
         // ------------------------------------------------------------
         /// <summary>

@@ -1,12 +1,12 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : TEST_XeriApplicationWindowModal.cs
-수정일 : 2026-11-02
+수정일 : 2026-11-10
 
 # 설명
 Application Window Child Context 내부 nested Modal과 Focus 복원을 검증한다.
 
 # 테스트 구성
- M: Window-local nested Modal과 underlying Screen Focus 복원
+ A: Window 로컬 중첩 Modal
 ========================================================================= BLOCK_HEADER_END */
 
 using System;
@@ -34,7 +34,7 @@ namespace inonego.Xeri.UI.TEST.Window
     public sealed class TEST_XeriApplicationWindowModal
     {
 
-    #region M-1: 애플리케이션 창 로컬 중첩 모달
+    #region A: 애플리케이션 창 로컬 중첩 모달
 
         // ----------------------------------------------------------------------
         /// <summary>

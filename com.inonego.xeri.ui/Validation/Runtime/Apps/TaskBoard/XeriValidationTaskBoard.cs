@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : XeriValidationTaskBoard.cs
-수정일 : 2026-10-19
+수정일 : 2026-11-02
 
 # 설명
 Validation Desktop에서 일반 사용 흐름을 제공하는 Task Board natural application.

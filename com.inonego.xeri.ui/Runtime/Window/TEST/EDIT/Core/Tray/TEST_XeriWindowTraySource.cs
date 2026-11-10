@@ -1,12 +1,14 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : TEST_XeriWindowTraySource.cs
-수정일 : 2026-11-09
+수정일 : 2026-11-10
 
 # 설명
 Xeri Window Tray Source의 entry 생성과 입력 명령 계약을 검증한다.
 
 # 테스트 구성
- S: Source entry 생성·상태 필터·명령
+ A: 테스트 지원
+ B–C: Entry 변환과 조회
+ D–E: 활성화와 닫기
 ========================================================================= BLOCK_HEADER_END */
 
 using UnityEngine;
@@ -30,7 +32,7 @@ namespace inonego.Xeri.UI.TEST.Window
     public class TEST_XeriWindowTraySource
     {
 
-    #region 헬퍼
+    #region A: 헬퍼
 
         // ============================================================
         /// <summary>
@@ -91,7 +93,7 @@ namespace inonego.Xeri.UI.TEST.Window
 
     #endregion
 
-    #region S-1: 항목 변환
+    #region B: 항목 변환
 
         // ------------------------------------------------------------
         /// <summary>
@@ -124,7 +126,7 @@ namespace inonego.Xeri.UI.TEST.Window
 
     #endregion
 
-    #region S-2: 소스 항목
+    #region C: 소스 항목
 
         // ------------------------------------------------------------
         /// <summary>
@@ -240,7 +242,7 @@ namespace inonego.Xeri.UI.TEST.Window
 
     #endregion
 
-    #region S-3: 활성화
+    #region D: 활성화
 
         // ----------------------------------------------------------------------
         /// <summary>
@@ -319,7 +321,7 @@ namespace inonego.Xeri.UI.TEST.Window
 
     #endregion
 
-    #region S-4: 닫기
+    #region E: 닫기
 
         // ----------------------------------------------------------------------
         /// <summary>

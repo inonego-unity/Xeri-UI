@@ -1,16 +1,17 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : TEST_XeriWindowController.cs
-수정일 : 2026-11-02
+수정일 : 2026-11-10
 
 # 설명
 Xeri 커스텀 윈도우 controller와 core 옵션 테스트.
 
 # 테스트 구성
- O: 옵션과 생성 초기화
- M: 이동과 크기 변경
- S: 상태 명령
- C: 취소 가능한 요청
- E: 이벤트
+ A: 테스트 지원
+ B–C: 옵션과 생성
+ D–E: 이동과 크기
+ F–K: 상태 명령과 전환
+ L–N: 취소와 재진입
+ O–P: 값·상태 이벤트
 ========================================================================= BLOCK_HEADER_END */
 
 using System;
@@ -37,7 +38,7 @@ namespace inonego.Xeri.UI.TEST.Window
     public class TEST_XeriWindowController
     {
 
-    #region 헬퍼
+    #region A: 헬퍼
 
         // ============================================================
         /// <summary>
@@ -234,7 +235,7 @@ namespace inonego.Xeri.UI.TEST.Window
 
     #endregion
 
-    #region O-1: 기본 옵션
+    #region B: 기본 옵션
 
         // ------------------------------------------------------------
         /// <summary>
@@ -336,7 +337,7 @@ namespace inonego.Xeri.UI.TEST.Window
 
     #endregion
 
-    #region O-2: 생성자 초기화 롤백
+    #region C: 생성자 초기화 롤백
 
         // --------------------------------------------------------------------------------
         /// <summary>
@@ -364,7 +365,7 @@ namespace inonego.Xeri.UI.TEST.Window
 
     #endregion
 
-    #region M-1: 이동
+    #region D: 이동
 
         // ------------------------------------------------------------
         /// <summary>
@@ -410,7 +411,7 @@ namespace inonego.Xeri.UI.TEST.Window
 
     #endregion
 
-    #region M-2: 크기 조절
+    #region E: 크기 조절
 
         // ------------------------------------------------------------
         /// <summary>
@@ -519,7 +520,7 @@ namespace inonego.Xeri.UI.TEST.Window
 
     #endregion
 
-    #region S-1: 상태 명령
+    #region F: 상태 명령
 
         // ------------------------------------------------------------
         /// <summary>
@@ -551,7 +552,7 @@ namespace inonego.Xeri.UI.TEST.Window
 
     #endregion
 
-    #region S-2: 상태 전환기
+    #region G: 상태 전환기
 
         // ------------------------------------------------------------
         /// <summary>
@@ -681,7 +682,7 @@ namespace inonego.Xeri.UI.TEST.Window
 
     #endregion
 
-    #region S-3: 전환 교체
+    #region H: 전환 교체
 
         // ------------------------------------------------------------
         /// <summary>
@@ -766,7 +767,7 @@ namespace inonego.Xeri.UI.TEST.Window
 
     #endregion
 
-    #region S-4: 상태 규칙
+    #region I: 상태 규칙
 
         // ------------------------------------------------------------
         /// <summary>
@@ -888,7 +889,7 @@ namespace inonego.Xeri.UI.TEST.Window
 
     #endregion
 
-    #region S-5: 비활성 옵션
+    #region J: 비활성 옵션
 
         // ------------------------------------------------------------
         /// <summary>
@@ -921,7 +922,7 @@ namespace inonego.Xeri.UI.TEST.Window
 
     #endregion
 
-    #region S-6: 닫힌 상태
+    #region K: 닫힌 상태
 
         // ------------------------------------------------------------
         /// <summary>
@@ -944,7 +945,7 @@ namespace inonego.Xeri.UI.TEST.Window
 
     #endregion
 
-    #region C-1: 닫기 취소
+    #region L: 닫기 취소
 
         // ------------------------------------------------------------
         /// <summary>
@@ -966,7 +967,7 @@ namespace inonego.Xeri.UI.TEST.Window
 
     #endregion
 
-    #region C-2: 상태 취소
+    #region M: 상태 취소
 
         // ------------------------------------------------------------
         /// <summary>
@@ -1014,7 +1015,7 @@ namespace inonego.Xeri.UI.TEST.Window
 
     #endregion
 
-    #region C-3: 상태 이벤트 재진입
+    #region N: 상태 이벤트 재진입
 
         // ----------------------------------------------------------------------
         /// <summary>
@@ -1076,7 +1077,7 @@ namespace inonego.Xeri.UI.TEST.Window
 
     #endregion
 
-    #region E-1: 값 변경 이벤트
+    #region O: 값 변경 이벤트
 
         // ------------------------------------------------------------
         /// <summary>
@@ -1105,7 +1106,7 @@ namespace inonego.Xeri.UI.TEST.Window
 
     #endregion
 
-    #region E-2: 상태 변경 이벤트
+    #region P: 상태 변경 이벤트
 
         // ------------------------------------------------------------
         /// <summary>

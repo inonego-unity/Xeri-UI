@@ -1,12 +1,12 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : TEST_UINativeOverlayOwnership.cs
-수정일 : 2026-10-18
+수정일 : 2026-11-10
 
 # 설명
 SRP 통합부 공통 Native UI Overlay 소유권의 단일 lease 및 복원 계약을 검증한다.
 
 # 테스트 구성
- O: 단일 소유권, 외부 억제, 예외 반환과 파이프라인 상태 교체
+ A: Native Overlay 획득과 반환
 ========================================================================= BLOCK_HEADER_END */
 
 using UnityEngine;
@@ -25,7 +25,7 @@ namespace inonego.Xeri.UI.TEST.Core
     public sealed class TEST_UINativeOverlayOwnership
     {
 
-    #region O-1: Native 상태의 단일 소유와 복원
+    #region A: Native Overlay 획득과 반환
 
         // ----------------------------------------------------------------------
         /// <summary>
@@ -98,11 +98,11 @@ namespace inonego.Xeri.UI.TEST.Core
 
         // ------------------------------------------------------------
         /// <summary>
-        /// 예외 후에도 다음 카메라가 Native 소유권을 다시 획득한다.
+        /// 명시적으로 반환한 Native 소유권은 다시 획득할 수 있다.
         /// </summary>
         // ------------------------------------------------------------
         [Test]
-        public void TEST_NativeOverlay_예외후복원하면재획득가능()
+        public void TEST_NativeOverlay_명시반환후재획득가능()
         {
             var previous = SupportedRenderingFeatures.active.rendersUIOverlay;
             var host = new GameObject("Native UI Lease Recovery Camera");
@@ -113,19 +113,15 @@ namespace inonego.Xeri.UI.TEST.Core
                 var camera = host.AddComponent<Camera>();
                 SupportedRenderingFeatures.active.rendersUIOverlay = true;
 
-                try
-                {
-                    Assert.IsTrue(NativeUIOverlayOwnership.TryAcquire(owner, camera));
-                    throw new System.InvalidOperationException("의도된 패스 등록 실패");
-                }
-                catch (System.InvalidOperationException)
-                {
-                    NativeUIOverlayOwnership.Release(owner, camera);
-                }
-
+                Assert.IsTrue(NativeUIOverlayOwnership.TryAcquire(owner, camera));
+                Assert.IsFalse(SupportedRenderingFeatures.active.rendersUIOverlay);
+                Assert.IsTrue(NativeUIOverlayOwnership.Release(owner, camera));
                 Assert.IsTrue(SupportedRenderingFeatures.active.rendersUIOverlay);
+
                 Assert.IsTrue(NativeUIOverlayOwnership.TryAcquire(owner, camera));
                 Assert.IsTrue(NativeUIOverlayOwnership.Release(owner, camera));
+                Assert.IsTrue(SupportedRenderingFeatures.active.rendersUIOverlay);
+                Assert.IsFalse(NativeUIOverlayOwnership.Release(null));
             }
             finally
             {

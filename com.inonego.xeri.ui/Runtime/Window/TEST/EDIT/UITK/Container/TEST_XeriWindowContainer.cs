@@ -1,15 +1,16 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : TEST_XeriWindowContainer.cs
-수정일 : 2026-11-02
+수정일 : 2026-11-10
 
 # 설명
 XeriWindowContainer의 낮은 수준 Panel host와 Registry order 반영을 검증한다.
 
 # 테스트 구성
- C: Container 구성
- W: Panel 부착·분리
- O: Window order
- R: Root 확장
+ A: 테스트 지원
+ B: Container 구성
+ C–D: Panel 부착·분리
+ E–F: Window 순서·루트
+ G: 테스트 메서드
 ========================================================================= BLOCK_HEADER_END */
 
 using UnityEngine;
@@ -33,7 +34,7 @@ namespace inonego.Xeri.UI.TEST.Window
     public class TEST_XeriWindowContainer
     {
 
-    #region 헬퍼
+    #region A: 헬퍼
 
         // ----------------------------------------------------------------------
         /// <summary>
@@ -83,7 +84,7 @@ namespace inonego.Xeri.UI.TEST.Window
 
     #endregion
 
-    #region C-1: 기본 구성
+    #region B: 기본 구성
 
         // ----------------------------------------------------------------------
         /// <summary>
@@ -112,7 +113,7 @@ namespace inonego.Xeri.UI.TEST.Window
 
     #endregion
 
-    #region W-1: 패널 부착
+    #region C: 패널 부착
 
         // ----------------------------------------------------------------------
         /// <summary>
@@ -165,7 +166,7 @@ namespace inonego.Xeri.UI.TEST.Window
 
     #endregion
 
-    #region W-2: 패널 분리
+    #region D: 패널 분리
 
         // ------------------------------------------------------------
         /// <summary>
@@ -251,7 +252,7 @@ namespace inonego.Xeri.UI.TEST.Window
 
     #endregion
 
-    #region O-1: 창 순서
+    #region E: 창 순서
 
         // ----------------------------------------------------------------------
         /// <summary>
@@ -324,7 +325,7 @@ namespace inonego.Xeri.UI.TEST.Window
 
     #endregion
 
-    #region R-1: 루트 확장
+    #region F: 루트 확장
 
         // ----------------------------------------------------------------------
         /// <summary>
@@ -366,7 +367,7 @@ namespace inonego.Xeri.UI.TEST.Window
 
     #endregion
 
-    #region 내부 메서드
+    #region G: 내부 메서드
 
         // ------------------------------------------------------------
         /// <summary>

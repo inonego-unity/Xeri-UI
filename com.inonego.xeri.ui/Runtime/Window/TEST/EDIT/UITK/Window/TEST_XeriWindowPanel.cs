@@ -1,15 +1,13 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : TEST_XeriWindowPanel.cs
-수정일 : 2026-11-09
+수정일 : 2026-11-10
 
 # 설명
 XeriWindowPanel UITK view 테스트.
 
 # 테스트 구성
- Q: Element query
- O: Option 반영
- S: State class 반영
- T: Theme 선택과 버튼 순서
+ A–D: Window Panel 요소·표시·버튼
+ E–G: 옵션·상태·테마
 ========================================================================= BLOCK_HEADER_END */
 
 using UnityEngine;
@@ -33,7 +31,7 @@ namespace inonego.Xeri.UI.TEST.Window
     public class TEST_XeriWindowPanel
     {
 
-    #region Q-1: 주요 요소
+    #region A: 주요 요소
 
         // --------------------------------------------------------------------------------
         /// <summary>
@@ -65,7 +63,7 @@ namespace inonego.Xeri.UI.TEST.Window
 
     #endregion
 
-    #region Q-2: 제목 표시
+    #region B: 제목 표시
 
         // ------------------------------------------------------------
         /// <summary>
@@ -106,7 +104,7 @@ namespace inonego.Xeri.UI.TEST.Window
 
     #endregion
 
-    #region Q-3: 제어 버튼 아이콘
+    #region C: 제어 버튼 아이콘
 
         // ----------------------------------------------------------------------
         /// <summary>
@@ -158,7 +156,7 @@ namespace inonego.Xeri.UI.TEST.Window
 
     #endregion
 
-    #region Q-4: 연결 뷰
+    #region D: 연결 뷰
 
         // ------------------------------------------------------------
         /// <summary>
@@ -179,7 +177,7 @@ namespace inonego.Xeri.UI.TEST.Window
 
     #endregion
 
-    #region O-1: 옵션
+    #region E: 옵션
 
         // ------------------------------------------------------------
         /// <summary>
@@ -201,7 +199,7 @@ namespace inonego.Xeri.UI.TEST.Window
 
     #endregion
 
-    #region S-1: 상태
+    #region F: 상태
 
         // ------------------------------------------------------------
         /// <summary>
@@ -221,7 +219,7 @@ namespace inonego.Xeri.UI.TEST.Window
 
     #endregion
 
-    #region T-1: 테마
+    #region G: 테마
 
         // ------------------------------------------------------------
         /// <summary>

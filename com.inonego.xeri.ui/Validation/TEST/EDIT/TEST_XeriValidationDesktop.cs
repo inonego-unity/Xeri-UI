@@ -1,13 +1,13 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : TEST_XeriValidationDesktop.cs
-수정일 : 2026-10-28
+수정일 : 2026-11-10
 
 # 설명
 실제 Validation Desktop UXML의 authored Placement topology를 검증한다.
 
 # 테스트 구성
- H: Layer ManagedRoot의 직계 자식이어야 하는 Placement 계약
- V: 16:9 Validation 출력 설정
+ A: Authored Placement 계층
+ B: Validation 화면 비율
 ========================================================================= BLOCK_HEADER_END */
 
 using UnityEditor;
@@ -28,7 +28,7 @@ namespace inonego.Xeri.UI.TEST.Validation
     public sealed class TEST_XeriValidationDesktop
     {
 
-    #region H-1: authored Placement topology
+    #region A: Authored Placement 계층
 
         // ----------------------------------------------------------------------
         /// <summary>
@@ -57,7 +57,7 @@ namespace inonego.Xeri.UI.TEST.Validation
 
     #endregion
 
-    #region V-1: Validation 화면 비율
+    #region B: Validation 화면 비율
 
         // ----------------------------------------------------------------------
         /// <summary>

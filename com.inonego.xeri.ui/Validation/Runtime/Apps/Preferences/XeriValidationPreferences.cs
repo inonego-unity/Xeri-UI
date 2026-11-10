@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : XeriValidationPreferences.cs
-수정일 : 2026-10-19
+수정일 : 2026-11-02
 
 # 설명
 Validation Desktop의 form/control natural application.

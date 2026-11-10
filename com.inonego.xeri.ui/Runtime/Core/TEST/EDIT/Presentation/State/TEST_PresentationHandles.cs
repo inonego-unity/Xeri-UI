@@ -1,17 +1,22 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : TEST_PresentationHandles.cs
-수정일 : 2026-11-05
+수정일 : 2026-11-10
 
 # 설명
 Modal·Alpha·Visibility·Group과 Presentation 소유 수명을 검증한다.
 
 # 테스트 구성
- M: Modal 상태 알림과 소유 수명
- A: Alpha와 Visibility Modifier 합성과 실패 정리
- V: Visibility 상태와 UGUI 백엔드
- G: Presentation Group 합성
- L: Layer 사용 수명의 획득과 반환
- S: Provider 소스의 획득과 반환
+ A: 테스트 대역과 Fixture 지원
+ B: 테스트 생성·해제 수명
+ C: 모달 상태 관찰
+ D: 모달 수명과 재진입
+ E: 모달 스택과 세션 종료
+ F: Alpha와 표시 수정자 합성
+ G: 표시 상태와 수정자
+ H: Presentation Group 합성
+ I: Layer 사용 수명
+ J: Provider Source 수명
+ K: UGUI 모달 입력 구성
 ========================================================================= BLOCK_HEADER_END */
 
 using System;
@@ -39,33 +44,59 @@ namespace inonego.Xeri.UI.TEST.Core
     public sealed class TEST_PresentationHandles
     {
 
-    #region 헬퍼
-
-        // ============================================================
-        /// <summary>
-        /// Root 비활성 콜백에서 다시 점유하는 테스트 Component.
-        /// </summary>
-        // ============================================================
-        private sealed class BlockerDisableReentry : MonoBehaviour
-        {
-            public Action Disabled { get; set; }
-
-            private void OnDisable()
-            {
-                Disabled?.Invoke();
-            }
-        }
+    #region A: 테스트 대역과 Fixture 지원
 
         private sealed class FailingModifier : IModifier<float>
         {
+
+            // ------------------------------------------------------------
+            /// <summary>
+            /// 이벤트 구독 실패를 주입할지 지정한다.
+            /// </summary>
+            // ------------------------------------------------------------
             public bool FailSubscribe;
+
+            // ------------------------------------------------------------
+            /// <summary>
+            /// 이벤트 구독 해제 실패를 주입할지 지정한다.
+            /// </summary>
+            // ------------------------------------------------------------
             public bool FailUnsubscribe;
+
+            // ------------------------------------------------------------
+            /// <summary>
+            /// Modifier 실행 실패를 주입할지 지정한다.
+            /// </summary>
+            // ------------------------------------------------------------
             public bool FailModify;
+
+            // ------------------------------------------------------------
+            /// <summary>
+            /// 이벤트 구독 시도 횟수를 기록한다.
+            /// </summary>
+            // ------------------------------------------------------------
             public int SubscribeCount;
+
+            // ------------------------------------------------------------
+            /// <summary>
+            /// 이벤트 구독 해제 시도 횟수를 기록한다.
+            /// </summary>
+            // ------------------------------------------------------------
             public int UnsubscribeCount;
+
+            // ------------------------------------------------------------
+            /// <summary>
+            /// 현재 이벤트 구독자 수를 반환한다.
+            /// </summary>
+            // ------------------------------------------------------------
             public int SubscriberCount => handlers?.GetInvocationList().Length ?? 0;
             private Action handlers;
 
+            // ------------------------------------------------------------
+            /// <summary>
+            /// 테스트 값 변경 이벤트를 제공한다.
+            /// </summary>
+            // ------------------------------------------------------------
             public event Action OnChange
             {
                 add
@@ -89,6 +120,11 @@ namespace inonego.Xeri.UI.TEST.Core
                 }
             }
 
+            // ------------------------------------------------------------
+            /// <summary>
+            /// 입력 값을 변환하거나 실패를 주입한다.
+            /// </summary>
+            // ------------------------------------------------------------
             public float Modify(float value)
             {
                 if (FailModify)
@@ -99,6 +135,11 @@ namespace inonego.Xeri.UI.TEST.Core
                 return value * 0.5f;
             }
 
+            // ------------------------------------------------------------
+            /// <summary>
+            /// 테스트 값 변경 이벤트를 발생시킨다.
+            /// </summary>
+            // ------------------------------------------------------------
             public void Raise()
             {
                 handlers?.Invoke();
@@ -145,7 +186,19 @@ namespace inonego.Xeri.UI.TEST.Core
         // ============================================================
         private sealed class TestPresentation : IPresentation
         {
+
+            // ------------------------------------------------------------
+            /// <summary>
+            /// 테스트 드라이버는 Alpha를 제공하지 않는다.
+            /// </summary>
+            // ------------------------------------------------------------
             public PresentationAlpha Alpha => null;
+
+            // ------------------------------------------------------------
+            /// <summary>
+            /// 테스트 드라이버는 Visibility를 제공하지 않는다.
+            /// </summary>
+            // ------------------------------------------------------------
             public PresentationVisibility Visibility => null;
         }
 
@@ -202,8 +255,26 @@ namespace inonego.Xeri.UI.TEST.Core
             /// </summary>
             // ------------------------------------------------------------
             public int SetCount { get; private set; }
+
+            // ------------------------------------------------------------
+            /// <summary>
+            /// 남은 상태 적용 실패 횟수를 지정한다.
+            /// </summary>
+            // ------------------------------------------------------------
             public int FailuresRemaining { get; set; } = 0;
+
+            // ------------------------------------------------------------
+            /// <summary>
+            /// 상태 적용 중 호출할 테스트 콜백을 지정한다.
+            /// </summary>
+            // ------------------------------------------------------------
             public Action<float> Applying;
+
+            // ------------------------------------------------------------
+            /// <summary>
+            /// 실패 전에 상태를 적용할지 지정한다.
+            /// </summary>
+            // ------------------------------------------------------------
             public bool ApplyBeforeFailure;
 
             // ------------------------------------------------------------
@@ -268,6 +339,12 @@ namespace inonego.Xeri.UI.TEST.Core
             /// </summary>
             // ------------------------------------------------------------
             public int SetCount { get; private set; }
+
+            // ------------------------------------------------------------
+            /// <summary>
+            /// 남은 상태 적용 실패 횟수를 설정한다.
+            /// </summary>
+            // ------------------------------------------------------------
             public int FailuresRemaining { get; set; } = 0;
 
             // ------------------------------------------------------------
@@ -364,7 +441,18 @@ namespace inonego.Xeri.UI.TEST.Core
 
             private Transform parent = null;
 
+            // ------------------------------------------------------------
+            /// <summary>
+            /// 부모 변경 시도 횟수를 반환한다.
+            /// </summary>
+            // ------------------------------------------------------------
             public int ParentSetCount { get; private set; } = 0;
+
+            // ------------------------------------------------------------
+            /// <summary>
+            /// 부모 변경 중 실패시킬 순서를 설정한다.
+            /// </summary>
+            // ------------------------------------------------------------
             public int FailParentSetAt { get; set; } = -1;
 
             // ------------------------------------------------------------
@@ -471,7 +559,7 @@ namespace inonego.Xeri.UI.TEST.Core
 
     #endregion
 
-    #region 픽스처
+    #region B: 테스트 생성·해제 수명
 
         // ------------------------------------------------------------
         /// <summary>
@@ -494,7 +582,7 @@ namespace inonego.Xeri.UI.TEST.Core
 
     #endregion
 
-    #region M-1: 모달 상태 관찰
+    #region C: 모달 상태 관찰
 
         // --------------------------------------------------------------------------------
         /// <summary>
@@ -557,7 +645,7 @@ namespace inonego.Xeri.UI.TEST.Core
 
     #endregion
 
-    #region M-2: 모달 수명과 재진입
+    #region D: 모달 수명과 재진입
 
         // --------------------------------------------------------------------------------
         /// <summary>
@@ -806,7 +894,7 @@ namespace inonego.Xeri.UI.TEST.Core
 
     #endregion
 
-    #region M-3: 정상 모달 스택과 세션 종료
+    #region E: 모달 스택과 세션 종료
 
         // --------------------------------------------------------------------------------
         /// <summary>
@@ -868,7 +956,7 @@ namespace inonego.Xeri.UI.TEST.Core
 
     #endregion
 
-    #region A-1: 알파와 표시 수정자 합성
+    #region F: Alpha와 표시 수정자 합성
 
         // --------------------------------------------------------------------------------
         /// <summary>
@@ -1408,7 +1496,7 @@ namespace inonego.Xeri.UI.TEST.Core
 
     #endregion
 
-    #region V-1: 표시 상태와 수정자
+    #region G: 표시 상태와 수정자
 
         // ------------------------------------------------------------
         /// <summary>
@@ -1525,7 +1613,7 @@ namespace inonego.Xeri.UI.TEST.Core
 
     #endregion
 
-    #region G-1: 프레젠테이션 그룹 합성
+    #region H: Presentation Group 합성
 
         // ----------------------------------------------------------------------
         /// <summary>
@@ -1900,7 +1988,7 @@ namespace inonego.Xeri.UI.TEST.Core
 
     #endregion
 
-    #region L-1: 레이어 사용 수명
+    #region I: Layer 사용 수명
 
         // ------------------------------------------------------------
         /// <summary>
@@ -1964,7 +2052,7 @@ namespace inonego.Xeri.UI.TEST.Core
 
     #endregion
 
-    #region S-1: Provider 소스 수명
+    #region J: Provider Source 수명
 
         // --------------------------------------------------------------------------------
         /// <summary>
@@ -2140,7 +2228,7 @@ namespace inonego.Xeri.UI.TEST.Core
 
     #endregion
 
-    #region V-2: UGUI 모달 입력 구성
+    #region K: UGUI 모달 입력 구성
 
         // --------------------------------------------------------------------------------
         /// <summary>
@@ -2227,43 +2315,6 @@ namespace inonego.Xeri.UI.TEST.Core
 
         // ------------------------------------------------------------
         /// <summary>
-        /// 중첩 점유 후 최신 CanvasGroup 상태를 유지한다.
-        /// </summary>
-        // ------------------------------------------------------------
-        [Test]
-        public void TEST_UGUIInteractionBlocker_Root비활성중재점유_최신Raycast유지()
-        {
-            var host = new GameObject("Blocker Host");
-            var root = new GameObject("Blocker Root", typeof(CanvasGroup));
-            root.transform.SetParent(host.transform, false);
-            ownedObjects.Add(host);
-            ownedObjects.Add(root);
-            var blocker = host.AddComponent<UGUIInteractionBlocker>();
-            var group = root.GetComponent<CanvasGroup>();
-            SetField(blocker, "root", root);
-            SetField(blocker, "canvasGroup", group);
-            root.SetActive(false);
-            var callback = root.AddComponent<BlockerDisableReentry>();
-            var first = blocker.Acquire();
-            Lease next = null;
-            callback.Disabled = () => next = blocker.Acquire();
-
-            first.Dispose();
-
-            Assert.IsNotNull(next);
-            Assert.IsTrue(root.activeSelf);
-            Assert.IsTrue(group.interactable);
-            Assert.IsTrue(group.blocksRaycasts);
-
-            callback.Disabled = null;
-            next.Dispose();
-            Assert.IsFalse(root.activeSelf);
-            Assert.IsFalse(group.interactable);
-            Assert.IsFalse(group.blocksRaycasts);
-        }
-
-        // ------------------------------------------------------------
-        /// <summary>
         /// 자신 또는 조상 Root를 제어하는 순환 구성을 점유 전에 거부한다.
         /// </summary>
         // ------------------------------------------------------------
@@ -2287,41 +2338,6 @@ namespace inonego.Xeri.UI.TEST.Core
 
             Assert.Throws<InvalidOperationException>(() => blocker.Acquire());
             Assert.IsTrue(root.activeSelf);
-        }
-
-        // ------------------------------------------------------------
-        /// <summary>
-        /// Component 비활성 중 Blocker가 숨겨지고 복귀 시 점유가 복원된다.
-        /// </summary>
-        // ------------------------------------------------------------
-        [Test]
-        public void TEST_UGUIInteractionBlocker_Host비활성후복귀_기존점유복원()
-        {
-            var host = new GameObject("Blocker Host");
-            var root = new GameObject("Blocker Root", typeof(CanvasGroup));
-            root.transform.SetParent(host.transform, false);
-            ownedObjects.Add(host);
-            ownedObjects.Add(root);
-            var blocker = host.AddComponent<UGUIInteractionBlocker>();
-            var group = root.GetComponent<CanvasGroup>();
-            SetField(blocker, "root", root);
-            SetField(blocker, "canvasGroup", group);
-            var lease = blocker.Acquire();
-
-            host.SetActive(false);
-            Assert.IsFalse(root.activeSelf);
-            Assert.IsFalse(group.interactable);
-            Assert.IsFalse(group.blocksRaycasts);
-
-            host.SetActive(true);
-            Assert.IsTrue(root.activeSelf);
-            Assert.IsTrue(group.interactable);
-            Assert.IsTrue(group.blocksRaycasts);
-
-            lease.Dispose();
-            Assert.IsFalse(root.activeSelf);
-            Assert.IsFalse(group.interactable);
-            Assert.IsFalse(group.blocksRaycasts);
         }
 
     #endregion

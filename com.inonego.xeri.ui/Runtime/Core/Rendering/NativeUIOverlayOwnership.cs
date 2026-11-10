@@ -1,6 +1,6 @@
 ﻿/* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : NativeUIOverlayOwnership.cs
-수정일 : 2026-11-02
+수정일 : 2026-11-10
 
 # 설명
 중복 SRP Feature가 공유하는 Unity Native UI Overlay 소유권 경계.
@@ -75,6 +75,7 @@ namespace inonego.Xeri.UI
         {
             if
             (
+                currentOwner == null ||
                 !ReferenceEquals(owner, currentOwner) ||
                 (camera != null && !ReferenceEquals(camera, currentCamera))
             )

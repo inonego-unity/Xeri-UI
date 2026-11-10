@@ -1,13 +1,14 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : TEST_UGUIPresentationOutput.cs
-수정일 : 2026-10-28
+수정일 : 2026-11-10
 
 # 설명
 UGUI Native Output의 Generated/Borrowed 수명·중복 획득·authoring 순서 복원을 검증한다.
 UITKPresentationOutput과 동일한 생성/대여/반환 계약을 보존한다.
 
 # 테스트 구성
- L: 생성·대여 출력의 순서와 해제 수명
+ A: UGUI 테스트 Output 구성
+ B: 생성과 대여 Output 수명
 ========================================================================= BLOCK_HEADER_END */
 
 using System;
@@ -28,7 +29,7 @@ namespace inonego.Xeri.UI.TEST.Core
     public sealed class TEST_UGUIPresentationOutput
     {
 
-    #region 헬퍼
+    #region A: UGUI 테스트 Output 구성
 
         private static UGUIPresentationOutput CreateOutput()
         {
@@ -50,7 +51,7 @@ namespace inonego.Xeri.UI.TEST.Core
 
     #endregion
 
-    #region L-1: 생성·대여 출력의 순서와 해제
+    #region B: 생성과 대여 Output 수명
 
         // ----------------------------------------------------------------------
         /// <summary>

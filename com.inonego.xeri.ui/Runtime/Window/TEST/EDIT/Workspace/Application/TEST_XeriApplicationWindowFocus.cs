@@ -1,12 +1,12 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : TEST_XeriApplicationWindowFocus.cs
-수정일 : 2026-11-02
+수정일 : 2026-11-10
 
 # 설명
 Application Window sibling Context의 LastFocus와 authority 전환을 검증한다.
 
 # 테스트 구성
- F: sibling Application Window Context Focus 복원
+ A: 형제 Context 포커스 복원
 ========================================================================= BLOCK_HEADER_END */
 
 using System;
@@ -34,7 +34,7 @@ namespace inonego.Xeri.UI.TEST.Window
     public sealed class TEST_XeriApplicationWindowFocus
     {
 
-    #region F-1: 애플리케이션 창 컨텍스트 마지막 포커스
+    #region A: 애플리케이션 창 컨텍스트 마지막 포커스
 
         // ------------------------------------------------------------
         /// <summary>

@@ -1,13 +1,14 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : TEST_UITKPresentationOutput.cs
-수정일 : 2026-10-18
+수정일 : 2026-11-10
 
 # 설명
 UITK Output 경계에서 생성·대여 및 Native Root 재연결의 소유권을 검증한다.
 
 # 테스트 구성
- L: 설정과 생성·대여 수명
- R: Root 재연결, 추가 스타일 반환 및 원래 스타일 보존
+ A: UITK Output 테스트 Fixture
+ B: PanelSettings 생성과 대여
+ C: Root 연결과 스타일 반환
 ========================================================================= BLOCK_HEADER_END */
 
 using System;
@@ -29,13 +30,18 @@ namespace inonego.Xeri.UI.TEST.Core
     public sealed class TEST_UITKPresentationOutput
     {
 
-    #region 픽스처
+    #region A: UITK Output 테스트 Fixture
 
         private GameObject host;
         private PanelSettings settings;
         private UITKPresentationOutput output;
         private StyleSheet baseline;
 
+        // ------------------------------------------------------------
+        /// <summary>
+        /// UITK 출력 테스트에서 사용하는 사전 상태를 구성한다.
+        /// </summary>
+        // ------------------------------------------------------------
         [SetUp]
         public void Setup()
         {
@@ -51,6 +57,11 @@ namespace inonego.Xeri.UI.TEST.Core
             Assert.IsNotNull(baseline);
         }
 
+        // ------------------------------------------------------------
+        /// <summary>
+        /// UITK 출력 테스트의 생성 객체를 해제한다.
+        /// </summary>
+        // ------------------------------------------------------------
         [TearDown]
         public void Teardown()
         {
@@ -78,7 +89,7 @@ namespace inonego.Xeri.UI.TEST.Core
 
     #endregion
 
-    #region L-1: 설정 수명
+    #region B: PanelSettings 생성과 대여
 
         // --------------------------------------------------------------------------------
         /// <summary>
@@ -129,7 +140,7 @@ namespace inonego.Xeri.UI.TEST.Core
 
     #endregion
 
-    #region R-1: 루트와 스타일 수명
+    #region C: Root 연결과 스타일 반환
 
         // --------------------------------------------------------------------------------
         /// <summary>

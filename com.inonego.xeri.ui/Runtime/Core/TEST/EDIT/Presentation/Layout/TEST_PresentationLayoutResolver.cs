@@ -1,14 +1,18 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : TEST_PresentationLayoutResolver.cs
-수정일 : 2026-09-24
+수정일 : 2026-11-10
 
 # 설명
 PresentationLayoutResolver의 순수 validation, deterministic order와 immutable PresentationPlan 계약을 검증한다.
 
 # 테스트 구성
- R: Layer/Placement resolve와 ordering
- V: ID·order·output topology validation
- I: Layout과 분리된 immutable Plan snapshot
+ A: Layout 테스트 지원
+ B: 테스트 자산 정리
+ C: Plan 정렬과 조회
+ D: Layer 경계의 LocalOrder
+ E: ID와 참조 유효성
+ F: 순서 충돌과 Native 범위
+ G: Plan 스냅샷 불변성
 ========================================================================= BLOCK_HEADER_END */
 
 using System;
@@ -34,7 +38,7 @@ namespace inonego.Xeri.UI.TEST.Core
     public sealed class TEST_PresentationLayoutResolver
     {
 
-    #region 헬퍼
+    #region A: Layout 테스트 지원
 
         private readonly List<UnityEngine.Object> ownedObjects = new();
 
@@ -71,8 +75,13 @@ namespace inonego.Xeri.UI.TEST.Core
 
     #endregion
 
-    #region 픽스처
+    #region B: 테스트 자산 정리
 
+        // ------------------------------------------------------------
+        /// <summary>
+        /// 테스트에서 생성한 GameObject를 정리한다.
+        /// </summary>
+        // ------------------------------------------------------------
         [TearDown]
         public void TearDown()
         {
@@ -89,7 +98,7 @@ namespace inonego.Xeri.UI.TEST.Core
 
     #endregion
 
-    #region R-1: 해석 결과와 조회
+    #region C: Plan 정렬과 조회
 
         // ----------------------------------------------------------------------
         /// <summary>
@@ -155,7 +164,7 @@ namespace inonego.Xeri.UI.TEST.Core
 
     #endregion
 
-    #region R-2: LocalOrder 레이어 경계
+    #region D: Layer 경계의 LocalOrder
 
         // --------------------------------------------------------------------------------
         /// <summary>
@@ -189,7 +198,7 @@ namespace inonego.Xeri.UI.TEST.Core
 
     #endregion
 
-    #region V-1: ID와 참조 검증
+    #region E: ID와 참조 유효성
 
         // ------------------------------------------------------------
         /// <summary>
@@ -271,7 +280,7 @@ namespace inonego.Xeri.UI.TEST.Core
 
     #endregion
 
-    #region V-2: 순서 충돌와 네이티브 범위
+    #region F: 순서 충돌과 Native 범위
 
         // ------------------------------------------------------------
         /// <summary>
@@ -349,7 +358,7 @@ namespace inonego.Xeri.UI.TEST.Core
 
     #endregion
 
-    #region I-1: 불변 스냅샷
+    #region G: Plan 스냅샷 불변성
 
         // ----------------------------------------------------------------------
         /// <summary>

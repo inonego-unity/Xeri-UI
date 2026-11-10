@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : XeriWindowWorkspace.cs
-수정일 : 2026-11-09
+수정일 : 2026-11-10
 
 # 설명
 UI Core Child Context의 단일 Screen 위에 Xeri Window Container와 Window Session을 조립한다.
@@ -288,6 +288,7 @@ namespace inonego.Xeri.UI.Window
             this.viewResolver = viewResolver ?? new XeriUIViewResolver();
             this.dragFactory = dragFactory ?? new XeriWindowDragFactory();
             this.animationOptions = animationOptions ?? XeriWindowAnimationOptions.Immediate();
+            XeriWindowAnimationOptions.Validate(this.animationOptions);
             containerSource = new ContainerScreenSource(this.registry, themeResolver);
 
             context = parentContext.CreateChild();

@@ -1,12 +1,14 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : TEST_XeriWindowTrayOrder.cs
-수정일 : 2026-10-03
+수정일 : 2026-11-10
 
 # 설명
 XeriWindowTraySource의 state-filtered Window projection과 Tray 표시 순서를 검증한다.
 
 # 테스트 구성
- T: Tray order
+ A: 테스트 드라이버
+ B–F: Tray 순서·상태·수명
+ G: 테스트 지원
 ========================================================================= BLOCK_HEADER_END */
 
 using System;
@@ -31,7 +33,7 @@ namespace inonego.Xeri.UI.TEST.Window
     public class TEST_XeriWindowTrayOrder
     {
 
-    #region 내부 데이터
+    #region A: 테스트 드라이버
 
         // ============================================================
         /// <summary>
@@ -82,7 +84,7 @@ namespace inonego.Xeri.UI.TEST.Window
 
     #endregion
 
-    #region T-1: 최소화 투영
+    #region B: 최소화 상태
 
         // ------------------------------------------------------------
         /// <summary>
@@ -107,7 +109,7 @@ namespace inonego.Xeri.UI.TEST.Window
 
     #endregion
 
-    #region T-2: 재정렬
+    #region C: 표시 순서
 
         // ------------------------------------------------------------
         /// <summary>
@@ -241,7 +243,7 @@ namespace inonego.Xeri.UI.TEST.Window
 
     #endregion
 
-    #region T-3: 순서 정리
+    #region D: 경계 조건
 
         // ------------------------------------------------------------
         /// <summary>
@@ -293,7 +295,7 @@ namespace inonego.Xeri.UI.TEST.Window
 
     #endregion
 
-    #region T-4: 활성 재로드
+    #region E: Active Reload
 
         // ----------------------------------------------------------------------
         /// <summary>
@@ -333,7 +335,7 @@ namespace inonego.Xeri.UI.TEST.Window
 
     #endregion
 
-    #region T-5: 해제
+    #region F: Source Dispose
 
         // --------------------------------------------------------------------------------
         /// <summary>
@@ -363,7 +365,7 @@ namespace inonego.Xeri.UI.TEST.Window
 
     #endregion
 
-    #region 내부 메서드
+    #region G: Window 테스트 지원
 
         // ------------------------------------------------------------
         /// <summary>

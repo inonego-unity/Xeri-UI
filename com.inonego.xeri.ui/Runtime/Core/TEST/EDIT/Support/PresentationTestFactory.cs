@@ -1,10 +1,17 @@
 ﻿/* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : PresentationTestFactory.cs
-수정일 : 2026-09-24
+수정일 : 2026-11-10
 
 # 설명
 EditMode Core 테스트에서 PresentationLayout, immutable PresentationPlan과 실제 PresentationSession을 간결하게 조립한다.
 serialized Layout 주입에 필요한 reflection은 이 fixture 내부로 격리한다.
+
+# 구성
+ A: 테스트 Scope 상태
+ B: Scope 생성자
+ C: Layout과 Session 생성
+ D: Serialized Layout 필드 주입
+ E: 테스트 Scope 수명 종료
 ========================================================================= BLOCK_HEADER_END */
 
 using System;
@@ -28,15 +35,32 @@ namespace inonego.Xeri.UI.TEST.Core
     internal sealed class PresentationTestScope : IDisposable
     {
 
-    #region 필드
+    #region A: 테스트 Scope 상태
 
+        // ------------------------------------------------------------
+        /// <summary>
+        /// 테스트 Fixture의 Presentation Session을 반환한다.
+        /// </summary>
+        // ------------------------------------------------------------
         public PresentationSession Session { get; }
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// 테스트 Fixture의 Presentation Plan을 반환한다.
+        /// </summary>
+        // ------------------------------------------------------------
         public PresentationPlan Plan { get; }
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// 테스트 Fixture가 생성한 Unity Root를 반환한다.
+        /// </summary>
+        // ------------------------------------------------------------
         public GameObject Root { get; }
 
     #endregion
 
-    #region 생성자
+    #region B: Scope 생성자
 
         private PresentationTestScope
         (
@@ -52,7 +76,7 @@ namespace inonego.Xeri.UI.TEST.Core
 
     #endregion
 
-    #region 생성
+    #region C: Layout과 Session 생성
 
         // ----------------------------------------------------------------------
         /// <summary>
@@ -81,6 +105,11 @@ namespace inonego.Xeri.UI.TEST.Core
             return layout;
         }
 
+        // ------------------------------------------------------------
+        /// <summary>
+        /// UGUI Presentation 검증에 필요한 Session과 Root를 생성한다.
+        /// </summary>
+        // ------------------------------------------------------------
         public static PresentationTestScope CreateUGUI
         (
             string layerID,
@@ -134,6 +163,11 @@ namespace inonego.Xeri.UI.TEST.Core
             return new PresentationTestScope(plan, root, session);
         }
 
+        // ------------------------------------------------------------
+        /// <summary>
+        /// 지정 ID와 정렬 순서로 테스트 Layer 정의를 생성한다.
+        /// </summary>
+        // ------------------------------------------------------------
         public static PresentationPlanLayer CreateLayer
         (
             string layerID,
@@ -152,7 +186,7 @@ namespace inonego.Xeri.UI.TEST.Core
 
     #endregion
 
-    #region 내부 처리
+    #region D: Serialized Layout 필드 주입
 
         // ----------------------------------------------------------------------
         /// <summary>
@@ -180,8 +214,13 @@ namespace inonego.Xeri.UI.TEST.Core
 
     #endregion
 
-    #region 수명 해제
+    #region E: 테스트 Scope 수명 종료
 
+        // ------------------------------------------------------------
+        /// <summary>
+        /// 테스트 Fixture가 소유한 Presentation 리소스를 해제한다.
+        /// </summary>
+        // ------------------------------------------------------------
         public void Dispose()
         {
             Exception failure = null;

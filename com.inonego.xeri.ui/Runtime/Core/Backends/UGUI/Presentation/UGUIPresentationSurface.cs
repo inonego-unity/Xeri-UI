@@ -1,6 +1,6 @@
 ﻿/* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : UGUIPresentationSurface.cs
-수정일 : 2026-11-02
+수정일 : 2026-11-11
 
 # 설명
 Embedded UGUI Session이 부모 Canvas를 공유하면서 Plan Layer roots를 containment한다.
@@ -19,12 +19,22 @@ namespace inonego.Xeri.UI
 
     #region 필드
 
+        // ------------------------------------------------------------
+        /// <summary>
+        /// 생성된 UGUI Surface의 Root RectTransform.
+        /// </summary>
+        // ------------------------------------------------------------
         public RectTransform Root { get; private set; }
 
     #endregion
 
     #region 생성자
 
+        // ------------------------------------------------------------
+        /// <summary>
+        /// 부모 RectTransform에 Presentation Layer를 구성한다.
+        /// </summary>
+        // ------------------------------------------------------------
         public UGUIPresentationSurface
         (
             RectTransform parent,
@@ -131,7 +141,7 @@ namespace inonego.Xeri.UI
         {
             if (gameObject == null) return;
 
-            if (Application.isPlaying)
+            if (UnityEngine.Application.isPlaying)
             {
                 UnityEngine.Object.Destroy(gameObject);
             }

@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : UIRuntime.cs
-수정일 : 2026-11-08
+수정일 : 2026-11-11
 # 설명
 App 단위 Singleton으로 Root PresentationSession, PresentationHost, Main UIContext를 조립하고 역순 해제한다.
 Context Authority 선택·적용·복구 상태는 별도 Coordinator에 위임한다.
@@ -254,7 +254,7 @@ namespace inonego.Xeri.UI
         // ----------------------------------------------------------------------
         private void OnDisable()
         {
-            if (!Application.isPlaying || IsReleased) return;
+            if (!UnityEngine.Application.isPlaying || IsReleased) return;
 
             ShutdownFallback();
         }
@@ -368,7 +368,7 @@ namespace inonego.Xeri.UI
                 SubscribeSceneValidation();
 
                 // 초기화 완료 구독자가 동기 Scene 전환을 시작해도 Host가 유지되도록 알림 전에 App 수명으로 확정한다.
-                if (Application.isPlaying)
+                if (UnityEngine.Application.isPlaying)
                 {
                     DontDestroyOnLoad(gameObject);
                 }

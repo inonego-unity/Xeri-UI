@@ -6,8 +6,9 @@
 Xeri 커스텀 윈도우 theme resolver 테스트.
 
 # 테스트 구성
- R: Theme 조회
- A: 등록 테마의 Window USS 적용
+ A–C: 필드·수명·테스트 지원
+ D: 테마 ID 등록·조회
+ E: USS 적용
 ========================================================================= BLOCK_HEADER_END */
 
 using System;
@@ -36,13 +37,13 @@ namespace inonego.Xeri.UI.TEST.Window
     public class TEST_XeriWindowThemeResolver
     {
 
-    #region 필드
+    #region A: 필드
 
         private readonly List<UnityEngine.Object> ownedAssets = new();
 
     #endregion
 
-    #region 수명
+    #region B: 수명
 
         [TearDown]
         public void TearDown()
@@ -60,7 +61,7 @@ namespace inonego.Xeri.UI.TEST.Window
 
     #endregion
 
-    #region 헬퍼
+    #region C: 헬퍼
 
         // ------------------------------------------------------------
         /// <summary>
@@ -83,7 +84,7 @@ namespace inonego.Xeri.UI.TEST.Window
 
     #endregion
 
-    #region R-1: 테마 고정 ID 등록과 조회
+    #region D: 테마 고정 ID 등록과 조회
 
         // ------------------------------------------------------------
         /// <summary>
@@ -186,7 +187,7 @@ namespace inonego.Xeri.UI.TEST.Window
 
     #endregion
 
-    #region A-1: 등록된 테마의 Window USS 적용
+    #region E: 등록된 테마의 Window USS 적용
 
         // ----------------------------------------------------------------------
         /// <summary>

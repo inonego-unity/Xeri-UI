@@ -1,17 +1,15 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : TEST_XeriWindowWorkspace.cs
-수정일 : 2026-11-09
+수정일 : 2026-11-10
 
 # 설명
 XeriWindowWorkspace의 기본 Window 수명, View Source, rollback과 Record 복원 계약을 검증한다.
 
 # 테스트 구성
- W: Window 열기·닫기와 Workspace Screen 수명
- V: View Source와 UI Session 수명
- D: Open 실패 rollback
- R: Record 검증과 복원
- T: Workspace → Tray Source integration
- H: Theme ID 저장과 복원
+ A–C: Window·Tray·View 수명
+ D: 실패 롤백
+ E–H: Record 검증·복원
+ I: 테마 ID 보존
 ========================================================================= BLOCK_HEADER_END */
 
 using System;
@@ -40,7 +38,36 @@ namespace inonego.Xeri.UI.TEST.Window
     public sealed class TEST_XeriWindowWorkspace
     {
 
-    #region W-1: 창 열기와 닫기 수명
+    #region A: 창 열기와 닫기 수명
+
+        // --------------------------------------------------------------------------------
+        /// <summary>
+        /// Workspace 생성 시 완료 불능의 animation duration을 자식 Context 생성 전에 거부한다.
+        /// </summary>
+        // --------------------------------------------------------------------------------
+        [Test]
+        public void TEST_XeriWindowWorkspace_AnimationDurationNonFinite_생성거부()
+        {
+            using var fixture = new WorkspaceFixture();
+            var options = new XeriWindowAnimationOptions
+            {
+                Enabled = true,
+                Duration = float.PositiveInfinity,
+                HiddenOpacity = 0f,
+            };
+
+            Assert.Throws<ArgumentOutOfRangeException>
+            (
+                () => new XeriWindowWorkspace
+                (
+                    fixture.ParentContext,
+                    PresentationTarget.Local("TEST.Window"),
+                    animationOptions: options
+                )
+            );
+
+            Assert.IsFalse(fixture.Workspace.IsDisposed);
+        }
 
         // --------------------------------------------------------------------------------
         /// <summary>
@@ -86,7 +113,7 @@ namespace inonego.Xeri.UI.TEST.Window
 
     #endregion
 
-    #region T-1: 트레이 소스 통합
+    #region B: 트레이 소스 통합
 
         // --------------------------------------------------------------------------------
         /// <summary>
@@ -163,7 +190,7 @@ namespace inonego.Xeri.UI.TEST.Window
 
     #endregion
 
-    #region V-1: 뷰 소스와 UI 세션 수명
+    #region C: 뷰 소스와 UI 세션 수명
 
         // ----------------------------------------------------------------------
         /// <summary>
@@ -262,7 +289,7 @@ namespace inonego.Xeri.UI.TEST.Window
 
     #endregion
 
-    #region D-1: 열기 실패 롤백
+    #region D: 열기 실패 롤백
 
         // --------------------------------------------------------------------------------
         /// <summary>
@@ -472,7 +499,7 @@ namespace inonego.Xeri.UI.TEST.Window
 
     #endregion
 
-    #region R-1: 뷰 연결 검증
+    #region E: 뷰 연결 검증
 
         // ------------------------------------------------------------
         /// <summary>
@@ -495,7 +522,7 @@ namespace inonego.Xeri.UI.TEST.Window
 
     #endregion
 
-    #region R-2: 레코드 옵션 복원
+    #region F: 레코드 옵션 복원
 
         // ----------------------------------------------------------------------
         /// <summary>
@@ -537,7 +564,7 @@ namespace inonego.Xeri.UI.TEST.Window
 
     #endregion
 
-    #region R-3: 일반 경계 복원
+    #region G: 일반 경계 복원
 
         // ----------------------------------------------------------------------
         /// <summary>
@@ -608,7 +635,7 @@ namespace inonego.Xeri.UI.TEST.Window
 
     #endregion
 
-    #region R-4: 기록된 창 상태 적용
+    #region H: 기록된 창 상태 적용
 
         // --------------------------------------------------------------------------------
         /// <summary>
@@ -666,7 +693,7 @@ namespace inonego.Xeri.UI.TEST.Window
 
     #endregion
 
-    #region H-1: 테마 ID 보존
+    #region I: 테마 ID 보존
 
         // ------------------------------------------------------------
         /// <summary>

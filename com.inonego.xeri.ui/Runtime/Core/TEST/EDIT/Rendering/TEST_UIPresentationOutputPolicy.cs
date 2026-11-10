@@ -1,13 +1,13 @@
 ﻿/* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : TEST_UIPresentationOutputPolicy.cs
-수정일 : 2026-10-18
+수정일 : 2026-11-10
 
 # 설명
 프로젝트 단위 출력 정밀도/후처리 독립 설정과 단일 UIRuntime 소유권을 검증한다.
 
 # 테스트 구성
- E: 정밀도·후처리 네 정책과 Native 기본값
- S: 설정 소유권의 중복 획득 방지
+ A: 출력 정책 조합과 Native 기본값
+ B: 출력 설정 단일 소유권
 ========================================================================= BLOCK_HEADER_END */
 
 using System;
@@ -27,7 +27,7 @@ namespace inonego.Xeri.UI.TEST.Core
     public sealed class TEST_UIPresentationOutputPolicy
     {
 
-    #region E-1: 출력 정책과 Native 기본값
+    #region A: 출력 정책 조합과 Native 기본값
 
         // --------------------------------------------------------------------------------
         /// <summary>
@@ -104,7 +104,7 @@ namespace inonego.Xeri.UI.TEST.Core
 
     #endregion
 
-    #region S-1: 단일 설정 소유권
+    #region B: 출력 설정 단일 소유권
 
         // ------------------------------------------------------------
         /// <summary>

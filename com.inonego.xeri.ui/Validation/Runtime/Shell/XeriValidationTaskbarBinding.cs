@@ -1,14 +1,16 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : XeriValidationTaskbarBinding.cs
-수정일 : 2026-10-07
+수정일 : 2026-11-11
 
 # 설명
 Window Workspace Registry를 production XeriWindowTraySource → XeriTrayController → XeriTrayPanel 경로로 authored Taskbar placement에 연결한다.
 Taskbar는 모든 live Window state를 표시하며 선택은 활성화/최소화/이전 상태 복원, 닫기는 Close, drag reorder는 Source order 변경으로 전달한다.
-직계 자식인 authored Placement 내부에 가로 ScrollView를 획득하고 그 콘텐츠로 Tray를 배치한다.
+authored Placement의 가로 ScrollView와 Registry 이벤트는 생성 실패와 종료에서도 함께 반환한다.
 ========================================================================= BLOCK_HEADER_END */
 
 using System;
+using System.Collections;
+using System.Collections.Generic;
 
 using UnityEngine;
 using UnityEngine.UIElements;
@@ -31,20 +33,7 @@ namespace inonego.Xeri.UI.Validation
 
     #region 상태
 
-        // ------------------------------------------------------------
-        /// <summary>
-        /// 전체 live Window 상태를 제공하는 Tray source.
-        /// </summary>
-        // ------------------------------------------------------------
-        public XeriWindowTraySource Source => source;
         private readonly XeriWindowTraySource source = null;
-
-        // ------------------------------------------------------------
-        /// <summary>
-        /// 스크롤 콘텐츠로 표시하는 Tray view.
-        /// </summary>
-        // ------------------------------------------------------------
-        public XeriTrayPanel Panel => panel;
         private readonly XeriTrayPanel panel = null;
 
         private readonly IXeriWindowRegistry registry = null;
@@ -82,38 +71,56 @@ namespace inonego.Xeri.UI.Validation
 
             this.registry = registry ?? throw new ArgumentNullException(nameof(registry));
             this.checklist = checklist;
-            source = workspace.CreateTraySource(XeriWindowTrayStateMask.All);
-            panel = new XeriTrayPanel();
-            // Placement topology는 유지하고 overflow만 획득한 view 내부에서 처리한다.
-            var scroll = new ScrollView(ScrollViewMode.Horizontal)
-            {
-                name = "DesktopTaskbarScroll",
-                verticalScrollerVisibility = ScrollerVisibility.Hidden,
-                horizontalScrollerVisibility = ScrollerVisibility.Auto,
-            };
-            scroll.AddToClassList("xeri-validation-taskbar");
-            scroll.Add(panel);
-            placementLease = context.AcquirePlacement
-            (
-                XeriValidationIDs.TaskbarPresentation,
-                new XeriValidationPlacementSource(scroll, attach: true)
-            );
-            var options = new XeriTrayOptions
-            {
-                VisibleContent =
-                    XeriTrayContent.Title |
-                    XeriTrayContent.CloseButton,
-                UssClass = "xeri-validation-taskbar__tray",
-                Reorderable = true,
-                ReorderAxis = XeriTrayReorderAxis.Horizontal,
-                AnimateReorder = true,
-            };
-            controller = new XeriTrayController(source, panel, options);
 
-            controller.OnEntrySelect += OnEntrySelect;
-            controller.OnEntryClose += OnEntryClose;
-            panel.OnEntryReorder += OnEntryReorder;
-            controller.Reload();
+            try
+            {
+                source = workspace.CreateTraySource(XeriWindowTrayStateMask.All);
+                panel = new XeriTrayPanel();
+
+                // Placement topology는 유지하고 overflow만 획득한 view 내부에서 처리한다.
+                var scroll = new ScrollView(ScrollViewMode.Horizontal)
+                {
+                    name = "DesktopTaskbarScroll",
+                    verticalScrollerVisibility = ScrollerVisibility.Hidden,
+                    horizontalScrollerVisibility = ScrollerVisibility.Auto,
+                };
+                scroll.AddToClassList("xeri-validation-taskbar");
+                scroll.Add(panel);
+                placementLease = context.AcquirePlacement
+                (
+                    XeriValidationIDs.TaskbarPresentation,
+                    new XeriValidationPlacementSource(scroll, attach: true)
+                );
+                var options = new XeriTrayOptions
+                {
+                    VisibleContent =
+                        XeriTrayContent.Title |
+                        XeriTrayContent.CloseButton,
+                    UssClass = "xeri-validation-taskbar__tray",
+                    Reorderable = true,
+                    ReorderAxis = XeriTrayReorderAxis.Horizontal,
+                    AnimateReorder = true,
+                };
+                controller = new XeriTrayController(source, panel, options);
+
+                controller.OnEntrySelect += OnEntrySelect;
+                controller.OnEntryClose += OnEntryClose;
+                panel.OnEntryReorder += OnEntryReorder;
+                controller.Reload();
+            }
+            catch (Exception exception)
+            {
+                try
+                {
+                    Dispose();
+                }
+                catch (Exception cleanupException)
+                {
+                    throw new AggregateException(exception, cleanupException);
+                }
+
+                throw;
+            }
         }
 
         // ------------------------------------------------------------
@@ -126,15 +133,53 @@ namespace inonego.Xeri.UI.Validation
             if (isDisposed) return;
             isDisposed = true;
 
-            // 닫기와 선택 콜백이 해제 중인 source에 접근하지 않도록 먼저 끊는다.
-            controller.OnEntrySelect -= OnEntrySelect;
-            controller.OnEntryClose -= OnEntryClose;
-            panel.OnEntryReorder -= OnEntryReorder;
+            // 닫기와 선택 콜백이 해제 중인 Source에 접근하지 않도록 먼저 끊는다.
+            if (controller != null)
+            {
+                controller.OnEntrySelect -= OnEntrySelect;
+                controller.OnEntryClose -= OnEntryClose;
+            }
 
-            controller.Dispose();
-            source.Dispose();
-            placementLease?.Dispose();
+            if (panel != null)
+            {
+                panel.OnEntryReorder -= OnEntryReorder;
+            }
+
+            List<Exception> errors = null;
+
+            try
+            {
+                controller?.Dispose();
+            }
+            catch (Exception exception)
+            {
+                (errors ??= new List<Exception>()).Add(exception);
+            }
+
+            try
+            {
+                source?.Dispose();
+            }
+            catch (Exception exception)
+            {
+                (errors ??= new List<Exception>()).Add(exception);
+            }
+
+            var lease = placementLease;
             placementLease = null;
+            try
+            {
+                lease?.Dispose();
+            }
+            catch (Exception exception)
+            {
+                (errors ??= new List<Exception>()).Add(exception);
+            }
+
+            if (errors != null)
+            {
+                throw new AggregateException("Validation Taskbar 해제가 실패했습니다.", errors);
+            }
         }
 
     #endregion

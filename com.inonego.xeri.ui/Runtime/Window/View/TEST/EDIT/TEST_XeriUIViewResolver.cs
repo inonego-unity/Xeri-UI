@@ -1,13 +1,14 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : TEST_XeriUIViewResolver.cs
-수정일 : 2026-11-09
+수정일 : 2026-11-10
 
 # 설명
 공통 UI view source resolver 테스트.
 
 # 테스트 구성
- R: Resolver stable ID 등록과 조회
- V: View Source scope와 UI session 전달
+ A: 테스트 지원과 View Source 대역
+ B: Resolver ID 등록·조회
+ C: View Source·UI Session
 ========================================================================= BLOCK_HEADER_END */
 
 using UnityEngine;
@@ -31,7 +32,7 @@ namespace inonego.Xeri.UI.TEST.Window.View
     public class TEST_XeriUIViewResolver
     {
 
-    #region 헬퍼
+    #region A: 헬퍼
 
         // ============================================================
         /// <summary>
@@ -51,7 +52,7 @@ namespace inonego.Xeri.UI.TEST.Window.View
         private sealed class TestViewSource : IXeriUIViewSource, IXeriUIViewSessionPersistence
         {
 
-        #region 필드
+        #region A: 필드
 
             public string ID => id;
 
@@ -65,7 +66,7 @@ namespace inonego.Xeri.UI.TEST.Window.View
 
         #endregion
 
-        #region 생성자
+        #region B: 생성자
 
             public TestViewSource(string id) : base()
             {
@@ -74,7 +75,7 @@ namespace inonego.Xeri.UI.TEST.Window.View
 
         #endregion
 
-        #region 메서드
+        #region C: View Source 계약
 
             // ------------------------------------------------------------
             /// <summary>
@@ -130,7 +131,7 @@ namespace inonego.Xeri.UI.TEST.Window.View
 
     #endregion
 
-    #region R-1: 해석기 고정 ID 등록과 조회
+    #region B: 해석기 고정 ID 등록과 조회
 
         // ------------------------------------------------------------
         /// <summary>
@@ -229,7 +230,7 @@ namespace inonego.Xeri.UI.TEST.Window.View
 
     #endregion
 
-    #region V-1: 뷰 소스 범위와 UI 세션
+    #region C: 뷰 소스 범위와 UI 세션
 
         // ----------------------------------------------------------------------
         /// <summary>

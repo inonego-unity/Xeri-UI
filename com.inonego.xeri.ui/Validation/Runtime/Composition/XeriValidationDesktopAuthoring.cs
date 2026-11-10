@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : XeriValidationDesktopAuthoring.cs
-수정일 : 2026-10-05
+수정일 : 2026-11-02
 
 # 설명
 Validation Scene의 scene-authored Desktop UITK Layer Host를 실제 PanelRenderer tree와 연결한다.

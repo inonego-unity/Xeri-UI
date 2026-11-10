@@ -1,12 +1,13 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : TEST_XeriSimpleWindowWorkspace.cs
-수정일 : 2026-11-02
+수정일 : 2026-11-10
 
 # 설명
 Simple Window의 persistent Focus record와 Minimize 복원 계약을 검증한다.
 
 # 테스트 구성
- F: persistent LastFocus와 Minimize fallback 복원
+ A: 마지막 포커스 기록
+ B: 최소화 후 포커스 복원
 ========================================================================= BLOCK_HEADER_END */
 
 using System;
@@ -34,7 +35,7 @@ namespace inonego.Xeri.UI.TEST.Window
     public sealed class TEST_XeriSimpleWindowWorkspace
     {
 
-    #region F-1: 영속 마지막 포커스
+    #region A: 영속 마지막 포커스
 
         // --------------------------------------------------------------------------------
         /// <summary>
@@ -78,7 +79,7 @@ namespace inonego.Xeri.UI.TEST.Window
 
     #endregion
 
-    #region F-2: 최소화 포커스 복원
+    #region B: 최소화 포커스 복원
 
         // ----------------------------------------------------------------------
         /// <summary>

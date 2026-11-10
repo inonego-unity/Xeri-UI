@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : BarState.cs
-수정일 : 2026-09-17
+수정일 : 2026-11-11
 # 설명
 UGUI와 UI Toolkit Bar가 공유하는 방향, Fill 상태 계산, 표시 비율 전이를 정의한다.
 ========================================================================= BLOCK_HEADER_END */
@@ -270,7 +270,7 @@ namespace inonego.Xeri.UI
             this.targetRatio = Mathf.Clamp01(targetRatio);
 
         #if DOTWEEN
-            if (!instant && Application.isPlaying && curve.Duration > 0.0f)
+            if (!instant && UnityEngine.Application.isPlaying && curve.Duration > 0.0f)
             {
                 StartTween(curve, onUpdate);
                 return;
@@ -332,21 +332,36 @@ namespace inonego.Xeri.UI
                 onUpdate(currentRatio, targetRatio);
             }
 
-            // Delay 동안에도 현재 값과 새 목표의 차이를 먼저 보여준다.
-            onUpdate(currentRatio, targetRatio);
-
-            currentTween = DOTween.To
+            // 외부 observer를 호출하기 전에 새 Tween의 소유권을 확보한다.
+            var tween = DOTween.To
             (
                 GetCurrentRatio,
                 SetCurrentRatio,
                 targetRatio,
                 curve.Duration
             );
+            currentTween = tween;
 
-            currentTween
-                .SetDelay(Mathf.Max(0.0f, curve.Delay))
-                .SetEase(curve.Ease);
-            currentTween.onComplete = OnComplete;
+            try
+            {
+                tween
+                    .SetDelay(Mathf.Max(0.0f, curve.Delay))
+                    .SetEase(curve.Ease);
+                tween.onComplete = OnComplete;
+
+                // Delay 동안에도 현재 값과 새 목표의 차이를 먼저 보여준다.
+                onUpdate(currentRatio, targetRatio);
+            }
+            catch
+            {
+                // 재진입으로 새로운 전이가 시작됐다면 그 전이는 종료하지 않는다.
+                if (ReferenceEquals(currentTween, tween))
+                {
+                    Stop();
+                }
+
+                throw;
+            }
         }
 
     #endif

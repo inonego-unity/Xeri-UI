@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : XeriWindowStateTransitionRequest.cs
-수정일 : 2026-11-02
+수정일 : 2026-11-10
 
 # 설명
 Xeri window 상태 전환 실행에 필요한 요청 데이터.
@@ -84,6 +84,31 @@ namespace inonego.Xeri.UI.Window
         /// </summary>
         // ------------------------------------------------------------
         public Action<Exception> OnError = null;
+
+    #endregion
+
+    #region 실행 Snapshot
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// 외부에서 변경 가능한 요청을 실행 시점의 독립된 사본으로 고정한다.
+        /// </summary>
+        // ------------------------------------------------------------
+        internal XeriWindowStateTransitionRequest Snapshot()
+        {
+            return new XeriWindowStateTransitionRequest
+            {
+                Driver = this.Driver,
+                PreviousState = this.PreviousState,
+                NextState = this.NextState,
+                TargetBounds = this.TargetBounds,
+                InterruptPolicy = this.InterruptPolicy,
+                Animate = this.Animate,
+                OnComplete = this.OnComplete,
+                OnCancel = this.OnCancel,
+                OnError = this.OnError,
+            };
+        }
 
     #endregion
 

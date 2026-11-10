@@ -1,15 +1,15 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : TEST_XeriTrayController.cs
-수정일 : 2026-11-09
+수정일 : 2026-11-10
 
 # 설명
 공통 Tray controller 이벤트 라우팅 테스트.
 
 # 테스트 구성
- C: 생성 인자 검증
- R: Reload 흐름
- E: Entry 이벤트 전달
- D: Dispose 구독 해제
+ A–B: 테스트 지원과 구성
+ C–E: Reload와 알림
+ F–I: Entry 이벤트와 콜백 종료
+ J: Dispose와 구독 해제
 ========================================================================= BLOCK_HEADER_END */
 
 using System;
@@ -34,7 +34,7 @@ namespace inonego.Xeri.UI.TEST.Tray
     public class TEST_XeriTrayController
     {
 
-    #region 헬퍼
+    #region A: 테스트 지원
 
         // ============================================================
         /// <summary>
@@ -122,7 +122,7 @@ namespace inonego.Xeri.UI.TEST.Tray
 
     #endregion
 
-    #region C-1: 구성
+    #region B: Controller 구성
 
         // ------------------------------------------------------------
         /// <summary>
@@ -144,7 +144,7 @@ namespace inonego.Xeri.UI.TEST.Tray
 
     #endregion
 
-    #region R-1: 재로드
+    #region C: Reload
 
         // ------------------------------------------------------------
         /// <summary>
@@ -173,7 +173,7 @@ namespace inonego.Xeri.UI.TEST.Tray
 
     #endregion
 
-    #region R-2: 조회 중 수명 종료
+    #region D: 조회와 수명 종료
 
         // ------------------------------------------------------------
         /// <summary>
@@ -199,7 +199,7 @@ namespace inonego.Xeri.UI.TEST.Tray
 
     #endregion
 
-    #region R-3: 재로드 필요
+    #region E: Reload 통지
 
         // ----------------------------------------------------------------------
         /// <summary>
@@ -266,7 +266,7 @@ namespace inonego.Xeri.UI.TEST.Tray
 
     #endregion
 
-    #region E-1: 선택
+    #region F: Entry 선택
 
         // ------------------------------------------------------------
         /// <summary>
@@ -319,7 +319,7 @@ namespace inonego.Xeri.UI.TEST.Tray
 
     #endregion
 
-    #region E-2: 닫기
+    #region G: Entry 닫기
 
         // ------------------------------------------------------------
         /// <summary>
@@ -383,7 +383,7 @@ namespace inonego.Xeri.UI.TEST.Tray
 
     #endregion
 
-    #region E-3: 닫기 승인
+    #region H: 닫기 승인
 
         // ------------------------------------------------------------
         /// <summary>
@@ -436,7 +436,7 @@ namespace inonego.Xeri.UI.TEST.Tray
 
     #endregion
 
-    #region E-4: 콜백 종료 재진입
+    #region I: 콜백 중 종료
 
         // ----------------------------------------------------------------------
         /// <summary>
@@ -530,7 +530,7 @@ namespace inonego.Xeri.UI.TEST.Tray
 
     #endregion
 
-    #region D-1: 해제
+    #region J: Dispose
 
         // ----------------------------------------------------------------------
         /// <summary>

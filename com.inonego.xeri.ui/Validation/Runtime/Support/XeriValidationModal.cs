@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : XeriValidationModal.cs
-수정일 : 2026-10-19
+수정일 : 2026-11-02
 
 # 설명
 Validation Lab과 Application Window가 production UITKModal 경로로 Modal을 열 수 있게 하는 공통 helper.

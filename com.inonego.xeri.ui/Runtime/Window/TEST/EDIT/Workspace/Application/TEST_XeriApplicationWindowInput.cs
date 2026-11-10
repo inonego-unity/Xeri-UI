@@ -1,12 +1,12 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : TEST_XeriApplicationWindowInput.cs
-수정일 : 2026-11-02
+수정일 : 2026-11-10
 
 # 설명
 Application Window sibling Context의 Input contribution 전환을 검증한다.
 
 # 테스트 구성
- I: inactive sibling Input contribution 제외와 재활성 복원
+ A: 비활성 형제 Context의 입력 기여
 ========================================================================= BLOCK_HEADER_END */
 
 using System;
@@ -34,7 +34,7 @@ namespace inonego.Xeri.UI.TEST.Window
     public sealed class TEST_XeriApplicationWindowInput
     {
 
-    #region I-1: 비활성 형제 입력 기여
+    #region A: 비활성 형제 입력 기여
 
         // --------------------------------------------------------------------------------
         /// <summary>

@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : XeriValidationUI.cs
-수정일 : 2026-10-05
+수정일 : 2026-11-02
 
 # 설명
 Validation UXML 인스턴스의 필수 element 조회, Presentation placement 획득과 Modal focus containment 공통 처리를 제공한다.

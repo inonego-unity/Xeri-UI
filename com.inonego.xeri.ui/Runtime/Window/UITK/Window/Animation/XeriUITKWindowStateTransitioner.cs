@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : XeriUITKWindowStateTransitioner.cs
-수정일 : 2026-11-08
+수정일 : 2026-11-10
 
 # 설명
 Xeri window 상태 전환 lifecycle과 UITK animator를 연결한다.
@@ -35,25 +35,23 @@ namespace inonego.Xeri.UI.Window
         /// 현재 전환 실행 상태.
         /// </summary>
         // ------------------------------------------------------------
-        public XeriWindowTransitionStatus Status => status;
-
-        private XeriWindowTransitionStatus status = XeriWindowTransitionStatus.Idle;
+        public XeriWindowTransitionStatus Status => IsRunning
+            ? XeriWindowTransitionStatus.Running
+            : XeriWindowTransitionStatus.Idle;
 
         // ------------------------------------------------------------
         /// <summary>
         /// 전환 실행 중 여부.
         /// </summary>
         // ------------------------------------------------------------
-        public bool IsRunning => status == XeriWindowTransitionStatus.Running;
+        public bool IsRunning => currentRequest != null;
 
         // ------------------------------------------------------------
         /// <summary>
         /// 진행 중 전환 목표 상태.
         /// </summary>
         // ------------------------------------------------------------
-        public XeriWindowState? PendingState => pendingState;
-
-        private XeriWindowState? pendingState = null;
+        public XeriWindowState? PendingState => currentRequest?.NextState;
 
     #endregion
 
@@ -86,7 +84,7 @@ namespace inonego.Xeri.UI.Window
             }
 
             // 외부에서 변경 가능한 요청을 실행 단위의 독립 사본으로 고정한다.
-            var execution = SnapshotRequest(request);
+            var execution = request.Snapshot();
             if (execution.Driver == null)
             {
                 throw new ArgumentNullException(nameof(request.Driver));
@@ -94,15 +92,13 @@ namespace inonego.Xeri.UI.Window
 
             if (!ResolveRunningRequest(execution)) return false;
 
-            // Snapshot 생성에 실패해도 실행 중 상태가 게시되지 않는다.
+            // Driver Bounds 조회 중 다른 전환이 시작되면 그 실행을 덮어쓰지 않는다.
             var expectedID = transitionID;
             var context = new XeriWindowStateTransitionContext(execution);
             if (expectedID != transitionID) return false;
 
             currentRequest = execution;
             currentContext = context;
-            pendingState = execution.NextState;
-            status = XeriWindowTransitionStatus.Running;
             var id = ++transitionID;
 
             try
@@ -188,28 +184,7 @@ namespace inonego.Xeri.UI.Window
 
     #endregion
 
-    #region 요청 Snapshot과 충돌 정책
-
-        // ------------------------------------------------------------
-        /// <summary>
-        /// 실행 요청의 Driver·상태·bounds·콜백을 한 시점의 사본으로 확정한다.
-        /// </summary>
-        // ------------------------------------------------------------
-        private static XeriWindowStateTransitionRequest SnapshotRequest(XeriWindowStateTransitionRequest request)
-        {
-            return new XeriWindowStateTransitionRequest
-            {
-                Driver = request.Driver,
-                PreviousState = request.PreviousState,
-                NextState = request.NextState,
-                TargetBounds = request.TargetBounds,
-                InterruptPolicy = request.InterruptPolicy,
-                Animate = request.Animate,
-                OnComplete = request.OnComplete,
-                OnCancel = request.OnCancel,
-                OnError = request.OnError,
-            };
-        }
+    #region 요청 충돌 정책
 
         // ------------------------------------------------------------
         /// <summary>
@@ -222,7 +197,7 @@ namespace inonego.Xeri.UI.Window
 
             if
             (
-             pendingState == request.NextState &&
+             PendingState == request.NextState &&
              request.InterruptPolicy == XeriWindowTransitionInterruptPolicy.IgnoreSameTarget
             )
             {
@@ -468,8 +443,6 @@ namespace inonego.Xeri.UI.Window
             transitionID++;
             currentRequest = null;
             currentContext = default;
-            pendingState = null;
-            status = XeriWindowTransitionStatus.Idle;
         }
 
         // ------------------------------------------------------------

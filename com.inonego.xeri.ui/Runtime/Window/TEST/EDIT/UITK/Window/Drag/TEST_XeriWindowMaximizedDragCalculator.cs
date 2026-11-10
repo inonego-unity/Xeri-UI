@@ -1,12 +1,12 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : TEST_XeriWindowMaximizedDragCalculator.cs
-수정일 : 2026-11-08
+수정일 : 2026-11-10
 
 # 설명
 XeriWindowMaximizedDragCalculator 테스트.
 
 # 테스트 구성
-- C-1: Maximized drag 계산
+ A: 최대화 상태의 드래그 위치 계산
 ========================================================================= BLOCK_HEADER_END */
 
 using UnityEngine;
@@ -29,7 +29,7 @@ namespace inonego.Xeri.UI.TEST.Window
     public class TEST_XeriWindowMaximizedDragCalculator
     {
 
-    #region C-1: 최대화 드래그 위치 계산
+    #region A: 최대화 드래그 위치 계산
 
         // --------------------------------------------------------------------------------
         /// <summary>

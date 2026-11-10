@@ -1,11 +1,16 @@
 ﻿/* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : XeriWindowWorkspaceTestSupport.cs
-수정일 : 2026-11-09
+수정일 : 2026-11-10
 
 # 설명
 Window Workspace 통합 테스트가 공유하는 test double, runtime fixture와 Application helper를 제공한다.
 
 테스트 대역과 Workspace fixture, Application helper를 선언 순서에 따라 구분한다.
+
+# 테스트 구성
+ A–F: 테스트 대역
+ G: Workspace 테스트 환경
+ H: 공용 테스트 지원
 ========================================================================= BLOCK_HEADER_END */
 
 using System;
@@ -31,7 +36,7 @@ using inonego.Xeri.UI.Window;
 
 namespace inonego.Xeri.UI.TEST.Window
 {
-    #region 테스트 대역: 창 Driver
+    #region A: 테스트 대역: 창 Driver
 
     internal sealed class TestWindowDriver : IXeriWindowDriver
     {
@@ -76,7 +81,7 @@ namespace inonego.Xeri.UI.TEST.Window
 
     #endregion
 
-    #region 테스트 대역: Focus Driver
+    #region B: 테스트 대역: Focus Driver
 
     internal sealed class TestFocusDriver : FocusDriverBehaviour
     {
@@ -109,7 +114,7 @@ namespace inonego.Xeri.UI.TEST.Window
 
     #endregion
 
-    #region 테스트 대역: UI Session
+    #region C: 테스트 대역: UI Session
 
     internal sealed class TestSession : IXeriUISession
     {
@@ -118,7 +123,7 @@ namespace inonego.Xeri.UI.TEST.Window
 
     #endregion
 
-    #region 테스트 대역: Application Screen과 Focus Scope
+    #region D: 테스트 대역: Application Screen과 Focus Scope
 
     internal sealed class TestApplicationScreenSource : IScreenSource
     {
@@ -196,7 +201,7 @@ namespace inonego.Xeri.UI.TEST.Window
 
     #endregion
 
-    #region 테스트 대역: View Source
+    #region E: 테스트 대역: View Source
 
     internal sealed class TestViewSource : IXeriUIViewSource, IXeriUIViewSessionPersistence
     {
@@ -284,7 +289,7 @@ namespace inonego.Xeri.UI.TEST.Window
 
     #endregion
 
-    #region 테스트 대역: Drag Factory 재진입
+    #region F: 테스트 대역: Drag Factory 재진입
 
     internal sealed class CallbackDragFactory : IXeriWindowDragFactory
     {
@@ -305,7 +310,7 @@ namespace inonego.Xeri.UI.TEST.Window
 
     #endregion
 
-    #region Workspace fixture
+    #region G: Workspace 테스트 환경
 
     internal sealed class WorkspaceFixture : IDisposable
     {
@@ -328,6 +333,7 @@ namespace inonego.Xeri.UI.TEST.Window
         private readonly InputActionAsset gameplayActions = null;
         private readonly UISettingsAsset settings = null;
         private readonly PanelSettings panelSettings = null;
+        public UIContext ParentContext => rootContext;
         private readonly UIContext rootContext = null;
 
         public WorkspaceFixture
@@ -573,7 +579,7 @@ namespace inonego.Xeri.UI.TEST.Window
 
     #endregion
 
-    #region 공용 테스트 헬퍼
+    #region H: 공용 테스트 헬퍼
 
     internal static class XeriWindowWorkspaceTestSupport
     {

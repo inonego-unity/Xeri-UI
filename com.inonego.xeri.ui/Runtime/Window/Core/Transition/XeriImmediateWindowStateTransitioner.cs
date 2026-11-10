@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : XeriImmediateWindowStateTransitioner.cs
-수정일 : 2026-11-02
+수정일 : 2026-11-10
 
 # 설명
 애니메이션 없이 Xeri window 상태 전환을 즉시 완료하는 transitioner.
@@ -57,16 +57,18 @@ namespace inonego.Xeri.UI.Window
                 throw new ArgumentNullException(nameof(request));
             }
 
-            if (request.Driver == null)
+            var execution = request.Snapshot();
+
+            if (execution.Driver == null)
             {
                 throw new ArgumentNullException(nameof(request.Driver));
             }
 
-            var context = new XeriWindowStateTransitionContext(request);
+            var context = new XeriWindowStateTransitionContext(execution);
 
             try
             {
-                ApplyImmediate(request);
+                ApplyImmediate(execution);
             }
             catch (Exception exception)
             {
@@ -74,7 +76,7 @@ namespace inonego.Xeri.UI.Window
 
                 try
                 {
-                    Rollback(request, context);
+                    Rollback(execution, context);
                 }
                 catch (Exception rollbackException)
                 {
@@ -83,7 +85,7 @@ namespace inonego.Xeri.UI.Window
 
                 try
                 {
-                    request.OnError?.Invoke(failure);
+                    execution.OnError?.Invoke(failure);
                 }
                 catch (Exception callbackException)
                 {
@@ -98,7 +100,7 @@ namespace inonego.Xeri.UI.Window
                 throw failure;
             }
 
-            request.OnComplete?.Invoke();
+            execution.OnComplete?.Invoke();
             return true;
         }
 

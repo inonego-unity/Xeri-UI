@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : XeriUITKWindowStateAnimator.cs
-수정일 : 2026-11-08
+수정일 : 2026-11-10
 
 # 설명
 Xeri window 상태 전환의 Alpha는 UI Core Presentation에 적용하고 bounds는 UITK style로 보간한다.
@@ -62,6 +62,7 @@ namespace inonego.Xeri.UI.Window
         ) : base()
         {
             this.target = target ?? throw new ArgumentNullException(nameof(target));
+            XeriWindowAnimationOptions.Validate(options);
             panel = target as XeriWindowPanel;
             this.options = options;
             this.targetProvider = targetProvider ?? new XeriDefaultWindowAnimationTargetProvider(target);
@@ -94,9 +95,17 @@ namespace inonego.Xeri.UI.Window
 
             try
             {
+                // 애니메이션을 사용하지 않으면 시각 보간과 입력 잠금을 수행하지 않는다.
+                if (!options.Enabled || options.Duration <= 0f)
+                {
+                    Complete()?.Invoke();
+                    return;
+                }
+
                 BlockContentInput();
 
-                if (!options.Enabled || options.Duration <= 0f || target.panel == null)
+                // Panel에 부착되기 전에는 최종 visual을 즉시 적용한다.
+                if (target.panel == null)
                 {
                     ApplyProgressVisual(1f);
                     Complete()?.Invoke();

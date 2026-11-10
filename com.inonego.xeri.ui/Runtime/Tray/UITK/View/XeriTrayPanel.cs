@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명: XeriTrayPanel.cs
-수정일 : 2026-10-28
+수정일 : 2026-11-10
 
 # 설명
 공통 Tray entry 목록을 표시하고 UI Core Presentation 상태를 제공하는 UITK Tray panel.
@@ -101,6 +101,8 @@ namespace inonego.Xeri.UI.Tray
         private readonly XeriTrayReorderManipulator reorderManipulator = null;
         private readonly List<XeriTrayButton> entryButtons = new();
         private readonly List<Rect> entryBounds = new();
+        private readonly IReadOnlyList<XeriTrayButton> readOnlyEntryButtons = null;
+        private readonly IReadOnlyList<Rect> readOnlyEntryBounds = null;
 
         private string appliedOptionClass = string.Empty;
 
@@ -144,6 +146,9 @@ namespace inonego.Xeri.UI.Tray
             AddToClassList("xeri-tray");
             presentation = new UITKPresentation(this);
             LoadStyleSheet();
+
+            readOnlyEntryButtons = entryButtons.AsReadOnly();
+            readOnlyEntryBounds = entryBounds.AsReadOnly();
 
             entryContainer = CreateEntryContainer();
             reorderManipulator = new XeriTrayReorderManipulator(this);
@@ -206,7 +211,7 @@ namespace inonego.Xeri.UI.Tray
         // ------------------------------------------------------------
         public IReadOnlyList<XeriTrayButton> GetEntryButtons()
         {
-            return entryButtons;
+            return readOnlyEntryButtons;
         }
 
         // ------------------------------------------------------------
@@ -225,7 +230,7 @@ namespace inonego.Xeri.UI.Tray
                 entryBounds.Add(button.layout);
             }
 
-            return entryBounds;
+            return readOnlyEntryBounds;
         }
 
         // ------------------------------------------------------------

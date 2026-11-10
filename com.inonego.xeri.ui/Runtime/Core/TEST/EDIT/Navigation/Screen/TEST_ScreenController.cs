@@ -1,21 +1,33 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : TEST_ScreenController.cs
-수정일 : 2026-11-07
+수정일 : 2026-11-10
 
 # 설명
 Screen 수명·상태 훅 정리, Focus 복원과 입력 정책 적용 완료 전 활성화 경계를 검증한다.
 
 # 테스트 구성
- N: 정상 Open·Close 수명과 Scope 전달
- H: 상태 훅 취소와 Open 재진입 경계
- D: 중복 정책과 동적 등록 수명
- O: 수락 전 자원 정리와 이전 Focus 복원
- C: Close 입력 장벽과 Focus 복원
- R: Replace 입력 정책 분리
- T: Transition 취소 Terminal 처리·실패·Clear
- F: persistent Focus Scope와 LastFocus
- X: 완료 훅 예외 정리
- Y: 입력·커서·전환 실패 시 트랜잭션 정리
+ A: 테스트 Backend와 Source 지원
+ B: Controller 테스트 수명
+ C: 정상 Open·Close 수명
+ D: Screen Focus 기본값
+ E: Cursor 정책 소유권
+ F: 상태 Hook 재진입
+ G: Close 취소
+ H: 상태 명령과 Open 예외
+ I: 중복 정책과 등록 수명
+ J: 자원 수락 전 정리
+ K: Source 실패와 Focus 복원
+ L: 첫 Screen 실패와 Focus 복원
+ M: Transition 완료와 늦은 Callback
+ N: Replace 실패와 성공
+ O: Replace 트랜잭션
+ P: 전체 Clear와 배치 종료
+ Q: Close 입력 장벽과 Focus
+ R: Close 종료 상태 정리
+ S: Screen Focus Scope 수명
+ T: 완료 Hook 예외
+ U: Replace 입력 정책
+ V: 입력·Cursor·Transition 실패
 ========================================================================= BLOCK_HEADER_END */
 
 using System;
@@ -48,10 +60,16 @@ namespace inonego.Xeri.UI.TEST.Core
     public sealed class TEST_ScreenController
     {
 
-    #region 헬퍼
+    #region A: 테스트 Backend와 Source 지원
 
         private sealed class ImmediateTransitioner : IPresentationTransitioner
         {
+
+            // ------------------------------------------------------------
+            /// <summary>
+            /// 테스트 전환 요청을 시작하고 완료 콜백을 보유한다.
+            /// </summary>
+            // ------------------------------------------------------------
             public PresentationTransitionHandle Play
             (
                 PresentationTransitionParams parameters,
@@ -66,6 +84,11 @@ namespace inonego.Xeri.UI.TEST.Core
                 return handle;
             }
 
+            // ------------------------------------------------------------
+            /// <summary>
+            /// 테스트 전환기에서 보유 자원을 정리한다.
+            /// </summary>
+            // ------------------------------------------------------------
             public void Dispose()
             {
                 // NONE
@@ -86,11 +109,40 @@ namespace inonego.Xeri.UI.TEST.Core
             // ============================================================
             public sealed class Request
             {
+
+                // ------------------------------------------------------------
+                /// <summary>
+                /// 테스트 전환 요청에 전달된 매개변수를 반환한다.
+                /// </summary>
+                // ------------------------------------------------------------
                 public PresentationTransitionParams Params { get; }
+
+                // ------------------------------------------------------------
+                /// <summary>
+                /// 테스트 전환 요청의 Handle을 저장한다.
+                /// </summary>
+                // ------------------------------------------------------------
                 public PresentationTransitionHandle Handle { get; set; }
+
+                // ------------------------------------------------------------
+                /// <summary>
+                /// 전환 완료 시 호출할 콜백을 반환한다.
+                /// </summary>
+                // ------------------------------------------------------------
                 public Action Completed { get; }
+
+                // ------------------------------------------------------------
+                /// <summary>
+                /// 전환 실패 시 호출할 콜백을 반환한다.
+                /// </summary>
+                // ------------------------------------------------------------
                 public Action<Exception> Failed { get; }
 
+                // ------------------------------------------------------------
+                /// <summary>
+                /// 전환 요청 기록을 생성한다.
+                /// </summary>
+                // ------------------------------------------------------------
                 public Request
                 (
                     PresentationTransitionParams parameters,
@@ -242,22 +294,61 @@ namespace inonego.Xeri.UI.TEST.Core
 
         private sealed class TestFocusDriver : IFocusDriver
         {
+
+            // ------------------------------------------------------------
+            /// <summary>
+            /// 현재 테스트 포커스 대상을 반환한다.
+            /// </summary>
+            // ------------------------------------------------------------
             public object Current => CurrentValue;
+
+            // ------------------------------------------------------------
+            /// <summary>
+            /// 현재 포커스 값을 직접 지정한다.
+            /// </summary>
+            // ------------------------------------------------------------
             public object CurrentValue { get; set; }
+
+            // ------------------------------------------------------------
+            /// <summary>
+            /// 포커스가 없을 때 대체할 대상을 반환한다.
+            /// </summary>
+            // ------------------------------------------------------------
             public object Fallback { get; } = new object();
+
+            // ------------------------------------------------------------
+            /// <summary>
+            /// 선택 변경 시 호출하는 테스트 콜백을 설정한다.
+            /// </summary>
+            // ------------------------------------------------------------
             public Action<object> Selected { get; set; }
 
+            // ------------------------------------------------------------
+            /// <summary>
+            /// 지정 대상의 포커스 유효성을 확인한다.
+            /// </summary>
+            // ------------------------------------------------------------
             public bool IsValid(object target)
             {
                 return target != null;
             }
 
+            // ------------------------------------------------------------
+            /// <summary>
+            /// 테스트 드라이버의 포커스 대상을 선택한다.
+            /// </summary>
+            // ------------------------------------------------------------
             public void Select(object target)
             {
                 CurrentValue = target;
                 Selected?.Invoke(target);
             }
 
+            // ------------------------------------------------------------
+            /// <summary>
+            /// 대체 포커스 대상을 반환한다.
+            /// </summary>
+            // ------------------------------------------------------------
             public object FindFallback()
             {
                 return Fallback;
@@ -271,10 +362,21 @@ namespace inonego.Xeri.UI.TEST.Core
         // ============================================================
         private sealed class TestFocusScope : IFocusScope
         {
+
+            // ------------------------------------------------------------
+            /// <summary>
+            /// 화면의 기본 포커스 대상을 반환한다.
+            /// </summary>
+            // ------------------------------------------------------------
             public object DefaultFocus { get; }
 
             private readonly HashSet<object> targets = new();
 
+            // ------------------------------------------------------------
+            /// <summary>
+            /// 기본 포커스와 추가 허용 대상을 지정한다.
+            /// </summary>
+            // ------------------------------------------------------------
             public TestFocusScope(object defaultFocus, params object[] additionalTargets)
             {
                 DefaultFocus = defaultFocus;
@@ -288,6 +390,11 @@ namespace inonego.Xeri.UI.TEST.Core
                 }
             }
 
+            // ------------------------------------------------------------
+            /// <summary>
+            /// 대상이 테스트 포커스 범위에 속하는지 확인한다.
+            /// </summary>
+            // ------------------------------------------------------------
             public bool ContainsFocus(object target)
             {
                 return target != null && targets.Contains(target);
@@ -301,6 +408,12 @@ namespace inonego.Xeri.UI.TEST.Core
         // ============================================================
         private sealed class SelectCallback : MonoBehaviour, ISelectHandler
         {
+
+            // ------------------------------------------------------------
+            /// <summary>
+            /// 테스트 선택 처리 시 호출할 콜백을 지정한다.
+            /// </summary>
+            // ------------------------------------------------------------
             public Action Selected { get; set; }
 
             // ------------------------------------------------------------
@@ -318,10 +431,39 @@ namespace inonego.Xeri.UI.TEST.Core
         {
             private readonly List<ScreenInputSession> sessions = new List<ScreenInputSession>();
 
+            // ------------------------------------------------------------
+            /// <summary>
+            /// 입력 해제를 보류할지 지정한다.
+            /// </summary>
+            // ------------------------------------------------------------
             public bool HoldRelease { get; set; }
+
+            // ------------------------------------------------------------
+            /// <summary>
+            /// 입력 해제 중 실패를 발생시킬지 지정한다.
+            /// </summary>
+            // ------------------------------------------------------------
             public bool FailRelease { get; set; }
+
+            // ------------------------------------------------------------
+            /// <summary>
+            /// 입력 기여 변경 시 호출할 콜백을 지정한다.
+            /// </summary>
+            // ------------------------------------------------------------
             public Action<ScreenInputSession> ContributionChanged { get; set; }
+
+            // ------------------------------------------------------------
+            /// <summary>
+            /// 배치 시작 호출 횟수를 반환한다.
+            /// </summary>
+            // ------------------------------------------------------------
             public int BeginBatchCount { get; private set; }
+
+            // ------------------------------------------------------------
+            /// <summary>
+            /// 배치 종료 호출 횟수를 반환한다.
+            /// </summary>
+            // ------------------------------------------------------------
             public int EndBatchCount { get; private set; }
 
             // ----------------------------------------------------------------------
@@ -331,9 +473,25 @@ namespace inonego.Xeri.UI.TEST.Core
             // ----------------------------------------------------------------------
             public Action Acquiring { get; set; }
 
+            // ------------------------------------------------------------
+            /// <summary>
+            /// 마지막으로 획득한 입력 Session을 반환한다.
+            /// </summary>
+            // ------------------------------------------------------------
             public ScreenInputSession LastAcquired { get; private set; }
+
+            // ------------------------------------------------------------
+            /// <summary>
+            /// 현재 보유한 입력 Session 수를 반환한다.
+            /// </summary>
+            // ------------------------------------------------------------
             public int Count => sessions.Count;
 
+            // ------------------------------------------------------------
+            /// <summary>
+            /// 화면 옵션의 입력 Session을 획득한다.
+            /// </summary>
+            // ------------------------------------------------------------
             public ScreenInputSession Acquire
             (
                 ScreenOptions options,
@@ -352,22 +510,42 @@ namespace inonego.Xeri.UI.TEST.Core
                 return LastAcquired;
             }
 
+            // ------------------------------------------------------------
+            /// <summary>
+            /// 지정 입력 Session의 완료 처리를 수행한다.
+            /// </summary>
+            // ------------------------------------------------------------
             public void Complete(ScreenInputSession session)
             {
                 sessions.Remove(session);
                 session.MarkReleased();
             }
 
+            // ------------------------------------------------------------
+            /// <summary>
+            /// 입력 변경 배치를 시작한다.
+            /// </summary>
+            // ------------------------------------------------------------
             public void BeginBatch()
             {
                 BeginBatchCount++;
             }
 
+            // ------------------------------------------------------------
+            /// <summary>
+            /// 입력 변경 배치를 종료한다.
+            /// </summary>
+            // ------------------------------------------------------------
             public void EndBatch()
             {
                 EndBatchCount++;
             }
 
+            // ------------------------------------------------------------
+            /// <summary>
+            /// 보유한 입력 Session을 모두 해제한다.
+            /// </summary>
+            // ------------------------------------------------------------
             public void ForceReleaseAll()
             {
                 for (var i = sessions.Count - 1; i >= 0; i--)
@@ -378,6 +556,11 @@ namespace inonego.Xeri.UI.TEST.Core
                 sessions.Clear();
             }
 
+            // ------------------------------------------------------------
+            /// <summary>
+            /// 테스트 입력 드라이버를 정리한다.
+            /// </summary>
+            // ------------------------------------------------------------
             public void Dispose()
             {
                 ForceReleaseAll();
@@ -417,19 +600,70 @@ namespace inonego.Xeri.UI.TEST.Core
             IPresentationAlphaTarget,
             IPresentationVisibilityTarget
         {
+
+            // ------------------------------------------------------------
+            /// <summary>
+            /// 테스트 Screen Driver의 유효성을 반환한다.
+            /// </summary>
+            // ------------------------------------------------------------
             public bool IsValid => true;
+
+            // ------------------------------------------------------------
+            /// <summary>
+            /// 테스트 Screen Driver의 Alpha 상태를 반환한다.
+            /// </summary>
+            // ------------------------------------------------------------
             public PresentationAlpha Alpha { get; }
+
+            // ------------------------------------------------------------
+            /// <summary>
+            /// 테스트 Screen Driver의 Visibility 상태를 반환한다.
+            /// </summary>
+            // ------------------------------------------------------------
             public PresentationVisibility Visibility { get; }
 
-
+            // ------------------------------------------------------------
+            /// <summary>
+            /// Screen Driver의 기본 포커스 대상을 반환한다.
+            /// </summary>
+            // ------------------------------------------------------------
             public object DefaultFocus { get; }
+
+            // ------------------------------------------------------------
+            /// <summary>
+            /// Screen Driver의 상호작용 가능 상태를 반환한다.
+            /// </summary>
+            // ------------------------------------------------------------
             public bool IsInteractable { get; private set; }
+
+            // ------------------------------------------------------------
+            /// <summary>
+            /// 상호작용 변경 시 호출할 콜백을 지정한다.
+            /// </summary>
+            // ------------------------------------------------------------
             public Action<bool> InteractableChanged { get; set; }
+
+            // ------------------------------------------------------------
+            /// <summary>
+            /// 화면 표시 상태를 반환한다.
+            /// </summary>
+            // ------------------------------------------------------------
             public bool IsVisible { get; private set; } = true;
+
+            // ------------------------------------------------------------
+            /// <summary>
+            /// 마지막으로 적용된 Alpha 값을 반환한다.
+            /// </summary>
+            // ------------------------------------------------------------
             public float AppliedAlpha { get; private set; } = 1.0f;
 
             private readonly HashSet<object> focusTargets = new();
 
+            // ------------------------------------------------------------
+            /// <summary>
+            /// 기본 포커스로 테스트 Screen Driver를 생성한다.
+            /// </summary>
+            // ------------------------------------------------------------
             public TestScreenDriver(object defaultFocus) : base()
             {
                 DefaultFocus = defaultFocus;
@@ -438,6 +672,11 @@ namespace inonego.Xeri.UI.TEST.Core
                 Visibility = new PresentationVisibility(this);
             }
 
+            // ------------------------------------------------------------
+            /// <summary>
+            /// Screen Driver에 포커스 대상을 추가한다.
+            /// </summary>
+            // ------------------------------------------------------------
             public void AddFocusTarget(object target)
             {
                 focusTargets.Add(target);
@@ -458,11 +697,21 @@ namespace inonego.Xeri.UI.TEST.Core
                 IsVisible = visible;
             }
 
+            // ------------------------------------------------------------
+            /// <summary>
+            /// 지정 대상의 Screen 포커스 포함 여부를 확인한다.
+            /// </summary>
+            // ------------------------------------------------------------
             public bool ContainsFocus(object target)
             {
                 return target != null && focusTargets.Contains(target);
             }
 
+            // ------------------------------------------------------------
+            /// <summary>
+            /// Screen 상호작용 가능 상태를 적용한다.
+            /// </summary>
+            // ------------------------------------------------------------
             public void SetInteractable(bool interactable)
             {
                 IsInteractable = interactable;
@@ -472,30 +721,80 @@ namespace inonego.Xeri.UI.TEST.Core
 
         private sealed class TestStateHandler : IScreenStateHandler
         {
+
+            // ------------------------------------------------------------
+            /// <summary>
+            /// Screen 열기 시작 시 호출할 콜백을 지정한다.
+            /// </summary>
+            // ------------------------------------------------------------
             public Action<ScreenStateContext> Opening { get; set; }
+
+            // ------------------------------------------------------------
+            /// <summary>
+            /// Screen 열기 완료 시 호출할 콜백을 지정한다.
+            /// </summary>
+            // ------------------------------------------------------------
             public Action<ScreenStateContext> Opened { get; set; }
+
+            // ------------------------------------------------------------
+            /// <summary>
+            /// Screen 닫기 시작 시 호출할 콜백을 지정한다.
+            /// </summary>
+            // ------------------------------------------------------------
             public Action<ScreenStateContext> Closing { get; set; }
+
+            // ------------------------------------------------------------
+            /// <summary>
+            /// Screen 닫기 완료 시 호출할 콜백을 지정한다.
+            /// </summary>
+            // ------------------------------------------------------------
             public Action<ScreenStateContext> Closed { get; set; }
+
+            // ------------------------------------------------------------
+            /// <summary>
+            /// 호출한 Screen 상태 훅의 기록을 반환한다.
+            /// </summary>
+            // ------------------------------------------------------------
             public List<string> Calls { get; } = new List<string>();
 
+            // ------------------------------------------------------------
+            /// <summary>
+            /// Screen 열기 시작 상태 훅을 호출한다.
+            /// </summary>
+            // ------------------------------------------------------------
             public void OnOpening(ScreenStateContext context)
             {
                 Calls.Add("Opening");
                 Opening?.Invoke(context);
             }
 
+            // ------------------------------------------------------------
+            /// <summary>
+            /// Screen 열기 완료 상태 훅을 호출한다.
+            /// </summary>
+            // ------------------------------------------------------------
             public void OnOpened(ScreenStateContext context)
             {
                 Calls.Add("Opened");
                 Opened?.Invoke(context);
             }
 
+            // ------------------------------------------------------------
+            /// <summary>
+            /// Screen 닫기 시작 상태 훅을 호출한다.
+            /// </summary>
+            // ------------------------------------------------------------
             public void OnClosing(ScreenStateContext context)
             {
                 Calls.Add("Closing");
                 Closing?.Invoke(context);
             }
 
+            // ------------------------------------------------------------
+            /// <summary>
+            /// Screen 닫기 완료 상태 훅을 호출한다.
+            /// </summary>
+            // ------------------------------------------------------------
             public void OnClosed(ScreenStateContext context)
             {
                 Calls.Add("Closed");
@@ -507,13 +806,53 @@ namespace inonego.Xeri.UI.TEST.Core
         {
             private readonly IScreenStateHandler stateHandler = null;
 
+            // ------------------------------------------------------------
+            /// <summary>
+            /// Screen Source에 연결된 드라이버를 반환한다.
+            /// </summary>
+            // ------------------------------------------------------------
             public TestScreenDriver Driver { get; }
+
+            // ------------------------------------------------------------
+            /// <summary>
+            /// 획득 전 실행할 테스트 콜백을 지정한다.
+            /// </summary>
+            // ------------------------------------------------------------
             public Action<ScreenViewScope> Acquiring { get; set; }
+
+            // ------------------------------------------------------------
+            /// <summary>
+            /// 반환 중 실행할 테스트 콜백을 지정한다.
+            /// </summary>
+            // ------------------------------------------------------------
             public Action Releasing { get; set; }
+
+            // ------------------------------------------------------------
+            /// <summary>
+            /// 마지막으로 획득한 Screen 범위를 반환한다.
+            /// </summary>
+            // ------------------------------------------------------------
             public ScreenViewScope LastScope { get; private set; }
+
+            // ------------------------------------------------------------
+            /// <summary>
+            /// Screen 획득 횟수를 반환한다.
+            /// </summary>
+            // ------------------------------------------------------------
             public int AcquireCount { get; private set; }
+
+            // ------------------------------------------------------------
+            /// <summary>
+            /// Screen 반환 횟수를 반환한다.
+            /// </summary>
+            // ------------------------------------------------------------
             public int ReleaseCount { get; private set; }
 
+            // ------------------------------------------------------------
+            /// <summary>
+            /// Screen Driver와 획득 동작을 설정한다.
+            /// </summary>
+            // ------------------------------------------------------------
             public TestScreenSource
             (
                 object defaultFocus,
@@ -524,6 +863,11 @@ namespace inonego.Xeri.UI.TEST.Core
                 this.stateHandler = stateHandler;
             }
 
+            // ------------------------------------------------------------
+            /// <summary>
+            /// 지정 Screen 범위에서 테스트 Instance를 생성한다.
+            /// </summary>
+            // ------------------------------------------------------------
             public ScreenInstance Acquire(ScreenViewScope scope)
             {
                 AcquireCount++;
@@ -532,6 +876,11 @@ namespace inonego.Xeri.UI.TEST.Core
                 return new ScreenInstance(Driver, stateHandler);
             }
 
+            // ------------------------------------------------------------
+            /// <summary>
+            /// 테스트 Screen Instance를 반환한다.
+            /// </summary>
+            // ------------------------------------------------------------
             public void Release(ScreenInstance instance)
             {
                 Releasing?.Invoke();
@@ -541,8 +890,19 @@ namespace inonego.Xeri.UI.TEST.Core
 
         private sealed class ThrowingHandle : IDisposable
         {
+
+            // ------------------------------------------------------------
+            /// <summary>
+            /// 테스트 자원의 Dispose 호출 횟수를 반환한다.
+            /// </summary>
+            // ------------------------------------------------------------
             public int DisposeCount { get; private set; }
 
+            // ------------------------------------------------------------
+            /// <summary>
+            /// 테스트 자원을 해제하고 호출 횟수를 기록한다.
+            /// </summary>
+            // ------------------------------------------------------------
             public void Dispose()
             {
                 DisposeCount++;
@@ -658,7 +1018,7 @@ namespace inonego.Xeri.UI.TEST.Core
 
     #endregion
 
-    #region 픽스처
+    #region B: Controller 테스트 수명
 
         // ----------------------------------------------------------------------
         /// <summary>
@@ -730,7 +1090,7 @@ namespace inonego.Xeri.UI.TEST.Core
 
     #endregion
 
-    #region N-1: 정상 열기·닫기 수명
+    #region C: 정상 Open·Close 수명
 
         // --------------------------------------------------------------------------------
         /// <summary>
@@ -814,7 +1174,7 @@ namespace inonego.Xeri.UI.TEST.Core
 
     #endregion
 
-    #region N-2: 포커스 기본값
+    #region D: Screen Focus 기본값
 
         // ------------------------------------------------------------
         /// <summary>
@@ -877,7 +1237,7 @@ namespace inonego.Xeri.UI.TEST.Core
 
     #endregion
 
-    #region N-3: 커서 정책 소유권
+    #region E: Cursor 정책 소유권
 
         // --------------------------------------------------------------------------------
         /// <summary>
@@ -911,7 +1271,7 @@ namespace inonego.Xeri.UI.TEST.Core
 
     #endregion
 
-    #region H-1: 상태 훅 재진입
+    #region F: 상태 Hook 재진입
 
         // --------------------------------------------------------------------------------
         /// <summary>
@@ -1425,7 +1785,7 @@ namespace inonego.Xeri.UI.TEST.Core
 
     #endregion
 
-    #region H-2: 닫기 취소
+    #region G: Close 취소
 
         // --------------------------------------------------------------------------------
         /// <summary>
@@ -1532,6 +1892,8 @@ namespace inonego.Xeri.UI.TEST.Core
             var eventSystem = focusHost.GetComponent<EventSystem>();
             var uguiFocus = focusHost.GetComponent<UGUIFocusDriver>();
             SetField(uguiFocus, "eventSystem", eventSystem);
+            var unifiedFocus = focusHost.AddComponent<UIFocusDriver>();
+            unifiedFocus.Initialize();
             RegisterUGUIFocusLayer
             (
                 uguiFocus,
@@ -1544,7 +1906,7 @@ namespace inonego.Xeri.UI.TEST.Core
                 screenRegistry,
                 target => presentation.Session.AcquireLayer(target.ID),
                 new ImmediateTransitioner(),
-                new FocusController(uguiFocus),
+                new FocusController(unifiedFocus),
                 inputDriver
             );
             controller.Activate();
@@ -1611,6 +1973,8 @@ namespace inonego.Xeri.UI.TEST.Core
             var eventSystem = focusHost.GetComponent<EventSystem>();
             var uguiFocus = focusHost.GetComponent<UGUIFocusDriver>();
             SetField(uguiFocus, "eventSystem", eventSystem);
+            var unifiedFocus = focusHost.AddComponent<UIFocusDriver>();
+            unifiedFocus.Initialize();
             RegisterUGUIFocusLayer
             (
                 uguiFocus,
@@ -1623,7 +1987,7 @@ namespace inonego.Xeri.UI.TEST.Core
                 screenRegistry,
                 target => presentation.Session.AcquireLayer(target.ID),
                 new ImmediateTransitioner(),
-                new FocusController(uguiFocus),
+                new FocusController(unifiedFocus),
                 inputDriver
             );
             controller.Activate();
@@ -1750,7 +2114,7 @@ namespace inonego.Xeri.UI.TEST.Core
 
     #endregion
 
-    #region H-3: 상태 명령 표와 열기 예외
+    #region H: 상태 명령과 Open 예외
 
         // ----------------------------------------------------------------------
         /// <summary>
@@ -1848,7 +2212,7 @@ namespace inonego.Xeri.UI.TEST.Core
 
     #endregion
 
-    #region D-1: 중복과 등록 수명
+    #region I: 중복 정책과 등록 수명
 
         // --------------------------------------------------------------------------------
         /// <summary>
@@ -1904,7 +2268,7 @@ namespace inonego.Xeri.UI.TEST.Core
 
     #endregion
 
-    #region O-1: 수락 전 자식 정리
+    #region J: 자원 수락 전 정리
 
         // --------------------------------------------------------------------------------
         /// <summary>
@@ -1940,7 +2304,7 @@ namespace inonego.Xeri.UI.TEST.Core
 
     #endregion
 
-    #region O-2: 소스 실패 포커스 복원
+    #region K: Source 실패와 Focus 복원
 
         // ----------------------------------------------------------------------
         /// <summary>
@@ -1982,7 +2346,7 @@ namespace inonego.Xeri.UI.TEST.Core
 
     #endregion
 
-    #region O-3: 첫 스크린 실패 포커스 복원
+    #region L: 첫 Screen 실패와 Focus 복원
 
         // --------------------------------------------------------------------------------
         /// <summary>
@@ -2013,7 +2377,7 @@ namespace inonego.Xeri.UI.TEST.Core
 
     #endregion
 
-    #region T-1: 열기 닫기와 늦은 콜백
+    #region M: Transition 완료와 늦은 Callback
 
         // --------------------------------------------------------------------------------
         /// <summary>
@@ -2068,7 +2432,7 @@ namespace inonego.Xeri.UI.TEST.Core
 
     #endregion
 
-    #region T-2: 교체 실패와 성공
+    #region N: Replace 실패와 성공
 
         // --------------------------------------------------------------------------------
         /// <summary>
@@ -2116,7 +2480,7 @@ namespace inonego.Xeri.UI.TEST.Core
 
     #endregion
 
-    #region T-3: 교체 트랜잭션
+    #region O: Replace 트랜잭션
 
         // --------------------------------------------------------------------------------
         /// <summary>
@@ -2170,7 +2534,7 @@ namespace inonego.Xeri.UI.TEST.Core
 
     #endregion
 
-    #region T-4: 전체 정리 배치 종료
+    #region P: 전체 Clear와 배치 종료
 
         // ------------------------------------------------------------
         /// <summary>
@@ -2262,7 +2626,7 @@ namespace inonego.Xeri.UI.TEST.Core
 
     #endregion
 
-    #region C-1: 닫기 입력 장벽과 포커스
+    #region Q: Close 입력 장벽과 Focus
 
         // ----------------------------------------------------------------------
         /// <summary>
@@ -2305,7 +2669,7 @@ namespace inonego.Xeri.UI.TEST.Core
 
     #endregion
 
-    #region C-2: 닫기 종료 상태 정리
+    #region R: Close 종료 상태 정리
 
         // --------------------------------------------------------------------------------
         /// <summary>
@@ -2395,7 +2759,7 @@ namespace inonego.Xeri.UI.TEST.Core
 
     #endregion
 
-    #region F-1: 스크린 결합 포커스 범위
+    #region S: Screen Focus Scope 수명
 
         // ----------------------------------------------------------------------
         /// <summary>
@@ -2435,7 +2799,7 @@ namespace inonego.Xeri.UI.TEST.Core
 
     #endregion
 
-    #region X-1: 완료 훅 예외
+    #region T: 완료 Hook 예외
 
         // --------------------------------------------------------------------------------
         /// <summary>
@@ -2490,7 +2854,7 @@ namespace inonego.Xeri.UI.TEST.Core
 
     #endregion
 
-    #region R-1: 교체 입력 정책
+    #region U: Replace 입력 정책
 
         // ----------------------------------------------------------------------
         /// <summary>
@@ -2522,7 +2886,7 @@ namespace inonego.Xeri.UI.TEST.Core
 
     #endregion
 
-    #region Y-1: 실패 트랜잭션 회귀
+    #region V: 입력·Cursor·Transition 실패
 
         // ------------------------------------------------------------
         /// <summary>

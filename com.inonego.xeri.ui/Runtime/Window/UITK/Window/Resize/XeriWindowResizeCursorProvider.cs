@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : XeriWindowResizeCursorProvider.cs
-수정일 : 2026-11-08
+수정일 : 2026-11-11
 
 # 설명
 Xeri 커스텀 윈도우 resize cursor texture를 생성하고 전역 Cursor 소유권을 관리한다.
@@ -110,7 +110,7 @@ namespace inonego.Xeri.UI.Window
 
             if (texture == null) return;
 
-            if (Application.isPlaying)
+            if (UnityEngine.Application.isPlaying)
             {
                 UnityEngine.Object.Destroy(texture);
                 return;

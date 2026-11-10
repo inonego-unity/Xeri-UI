@@ -1,13 +1,13 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : TEST_XeriTrayPanel.cs
-수정일 : 2026-10-04
+수정일 : 2026-11-10
 
 # 설명
 공통 UITK Tray panel/button 표시 테스트.
 
 # 테스트 구성
- P: Panel entry 생성과 Core Presentation
- V: VisibleContent 표시 조합
+ A–F: Panel 구성·조회·옵션·관찰자
+ G–I: Button 표시·배치·상태
 ========================================================================= BLOCK_HEADER_END */
 
 using System;
@@ -33,7 +33,7 @@ namespace inonego.Xeri.UI.TEST.Tray
     public class TEST_XeriTrayPanel
     {
 
-    #region 헬퍼
+    #region A: 테스트 지원
 
         private sealed class TestReorderAnimator : IXeriTrayReorderAnimator
         {
@@ -80,7 +80,7 @@ namespace inonego.Xeri.UI.TEST.Tray
 
     #endregion
 
-    #region P-1: 항목 생성
+    #region B: Entry 구성
 
         // ------------------------------------------------------------
         /// <summary>
@@ -107,7 +107,7 @@ namespace inonego.Xeri.UI.TEST.Tray
 
     #endregion
 
-    #region P-2: 항목 순서
+    #region C: Entry 조회와 순서
 
         // ------------------------------------------------------------
         /// <summary>
@@ -134,9 +134,57 @@ namespace inonego.Xeri.UI.TEST.Tray
             Assert.AreEqual("top", ((XeriTrayButton)container[2]).Entry.ID);
         }
 
+        // ------------------------------------------------------------
+        /// <summary>
+        /// Panel 조회 목록은 외부에서 변경할 수 없고 Reload에 따라 갱신된다.
+        /// </summary>
+        // ------------------------------------------------------------
+        [Test]
+        public void TEST_XeriTrayPanel_조회목록_외부수정거부_Reload반영()
+        {
+            var panel = new XeriTrayPanel();
+            panel.Reload
+            (
+                new[]
+                {
+                    new XeriTrayEntry("a", "A"),
+                    new XeriTrayEntry("b", "B"),
+                },
+                XeriTrayOptions.Default()
+            );
+
+            var buttons = panel.GetEntryButtons();
+            var bounds = panel.GetEntryBounds();
+            Assert.IsInstanceOf<System.Collections.Generic.IList<XeriTrayButton>>(buttons);
+            Assert.IsInstanceOf<System.Collections.Generic.IList<Rect>>(bounds);
+
+            Assert.Throws<NotSupportedException>
+            (
+                () => ((System.Collections.Generic.IList<XeriTrayButton>)buttons).Clear()
+            );
+            Assert.Throws<NotSupportedException>
+            (
+                () => ((System.Collections.Generic.IList<Rect>)bounds).Clear()
+            );
+
+            panel.Reload
+            (
+                new[]
+                {
+                    new XeriTrayEntry("c", "C"),
+                },
+                XeriTrayOptions.Default()
+            );
+
+            Assert.AreEqual(1, buttons.Count);
+            Assert.AreEqual("c", buttons[0].Entry.ID);
+            Assert.AreSame(bounds, panel.GetEntryBounds());
+            Assert.AreEqual(1, bounds.Count);
+        }
+
     #endregion
 
-    #region P-3: 코어 프레젠테이션 연동
+    #region D: 프레젠테이션
 
         // ----------------------------------------------------------------------
         /// <summary>
@@ -157,7 +205,7 @@ namespace inonego.Xeri.UI.TEST.Tray
 
     #endregion
 
-    #region P-4: 옵션 검증
+    #region E: 옵션 검사
 
         // ------------------------------------------------------------
         /// <summary>
@@ -237,7 +285,7 @@ namespace inonego.Xeri.UI.TEST.Tray
 
     #endregion
 
-    #region P-5: 관찰자 격리
+    #region F: 관찰자 격리
 
         // ----------------------------------------------------------------------
         /// <summary>
@@ -269,7 +317,7 @@ namespace inonego.Xeri.UI.TEST.Tray
 
     #endregion
 
-    #region V-1: 아이콘 전용
+    #region G: Button 내용
 
         // ------------------------------------------------------------
         /// <summary>
@@ -297,7 +345,7 @@ namespace inonego.Xeri.UI.TEST.Tray
 
     #endregion
 
-    #region V-2: 배지
+    #region H: Button 배치
 
         // ------------------------------------------------------------
         /// <summary>
@@ -325,7 +373,7 @@ namespace inonego.Xeri.UI.TEST.Tray
 
     #endregion
 
-    #region V-3: 상태 표시
+    #region I: Button 상태 표시
 
         // ----------------------------------------------------------------------
         /// <summary>

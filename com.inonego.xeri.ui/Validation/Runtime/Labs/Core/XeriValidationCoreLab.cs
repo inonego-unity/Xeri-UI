@@ -1,10 +1,10 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : XeriValidationCoreLab.cs
-수정일 : 2026-11-08
+수정일 : 2026-11-11
 
 # 설명
 Root UIContext의 Host Target 기반 Presentation, Spotlight, Scene Fade와 Splash를 실제 public API로 행사하는 instrumented Core Lab.
-각 동작은 자유롭게 반복할 수 있으며 ValidationChecklist는 결과를 관찰만 하고 진행을 제한하지 않는다.
+Scene Fade 실패와 Lab 종료 시 복원 책임을 정리하고, ValidationChecklist는 결과를 관찰만 하며 진행을 제한하지 않는다.
 ========================================================================= BLOCK_HEADER_END */
 
 using System;
@@ -348,21 +348,29 @@ namespace inonego.Xeri.UI.Validation
             revealSchedule = null;
 
             ownsFade = true;
-            runtime.SceneFader.Cover
-            (
-                runtime.DefaultSceneFadeParams,
-                () =>
-                {
-                    status.text = "화면 가려짐";
-                    checklist?.Mark(XeriValidationChecklist.Item.Fade);
-                    revealSchedule = Root.schedule.Execute(RevealFade).StartingIn(450);
-                },
-                exception =>
-                {
-                    status.text = $"화면 전환 실패 · {exception.GetType().Name}";
-                }
-            );
             status.text = "화면 전환 중";
+
+            try
+            {
+                runtime.SceneFader.Cover
+                (
+                    runtime.DefaultSceneFadeParams,
+                    () =>
+                    {
+                        if (isDisposed) return;
+
+                        status.text = "화면 가려짐";
+                        checklist?.Mark(XeriValidationChecklist.Item.Fade);
+                        revealSchedule = Root.schedule.Execute(RevealFade).StartingIn(450);
+                    },
+                    exception => HandleFadeFailure(exception, "화면 전환")
+                );
+            }
+            catch (Exception exception)
+            {
+                HandleFadeFailure(exception, "화면 전환");
+                Debug.LogException(exception);
+            }
         }
 
         // ------------------------------------------------------------
@@ -373,13 +381,49 @@ namespace inonego.Xeri.UI.Validation
         private void RevealFade()
         {
             revealSchedule = null;
-            ownsFade = false;
-            runtime.SceneFader.Reveal
-            (
-                runtime.DefaultSceneFadeParams,
-                () => status.text = "화면 전환 완료",
-                exception => status.text = $"화면 복원 실패 · {exception.GetType().Name}"
-            );
+
+            if (isDisposed) return;
+
+            if (!ownsFade || runtime.SceneFader.State == SceneFadeState.Clear)
+            {
+                ownsFade = false;
+                return;
+            }
+
+            try
+            {
+                runtime.SceneFader.Reveal
+                (
+                    runtime.DefaultSceneFadeParams,
+                    () =>
+                    {
+                        ownsFade = false;
+                        if (!isDisposed)
+                        {
+                            status.text = "화면 전환 완료";
+                        }
+                    },
+                    exception => HandleFadeFailure(exception, "화면 복원")
+                );
+            }
+            catch (Exception exception)
+            {
+                HandleFadeFailure(exception, "화면 복원");
+                Debug.LogException(exception);
+            }
+        }
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// 실패한 Fade가 복원한 안정 상태에 맞춰 Lab의 해제 책임을 유지한다.
+        /// </summary>
+        // ------------------------------------------------------------
+        private void HandleFadeFailure(Exception exception, string phase)
+        {
+            ownsFade = runtime.SceneFader.State != SceneFadeState.Clear;
+            if (isDisposed) return;
+
+            status.text = $"{phase} 실패 · {exception.GetType().Name}";
         }
 
     #endregion
@@ -497,11 +541,29 @@ namespace inonego.Xeri.UI.Validation
             revealSchedule?.Pause();
             revealSchedule = null;
 
-            // 닫힌 Lab의 스케줄에 화면 복원을 맡기지 않는다.
+            // Lab 종료 뒤에는 스케줄에 의존하지 않고 즉시 화면 복원을 요청한다.
             if (ownsFade && runtime.IsInitialized && !runtime.IsReleasing)
             {
-                RevealFade();
+                try
+                {
+                    if (runtime.SceneFader.State != SceneFadeState.Clear)
+                    {
+                        var parameters = runtime.DefaultSceneFadeParams;
+                        runtime.SceneFader.Reveal
+                        (
+                            new SceneFadeParams(parameters.Color, 0f),
+                            onFailed: exception => Debug.LogException(exception)
+                        );
+                    }
+                }
+                catch (Exception exception)
+                {
+                    // Fade 복원 실패가 Screen과 Overlay 반환까지 중단하지 않도록 기록한다.
+                    Debug.LogException(exception);
+                }
             }
+
+            ownsFade = false;
 
             if
             (

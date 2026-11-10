@@ -1,18 +1,21 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : UIBootstrapperModuleAsset.cs
-수정일 : 2026-11-02
+수정일 : 2026-11-11
 # 설명
 Initial Scene 확정 뒤 App 단위 UI Host를 조립하고 Unity native UI output으로 초기화한다.
 Application startup policy는 Host 내부의 프로젝트 composition에 위임한다.
 ========================================================================= BLOCK_HEADER_END */
 
 using System;
+using System.Threading;
+using System.Threading.Tasks;
 
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
 using inonego;
 using inonego.Xeri;
+using inonego.Xeri.Application;
 using inonego.Xeri.Bootstrapper;
 
 namespace inonego.Xeri.UI
@@ -59,10 +62,16 @@ namespace inonego.Xeri.UI
         /// <br/> 실패 시 기존 Host를 건드리지 않고 이번에 생성한 Host만 제거한다.
         /// </summary>
         // --------------------------------------------------------------------------------
-        public override async Awaitable Init()
+        public override Task StartAsync(ApplicationContext context, CancellationToken cancellationToken)
         {
-            // Initial Scene이 자체 UIRuntime composition을 제공하거나
-            // 이미 초기화된 Runtime이 있으면 Bootstrapper fallback Host를 생성하지 않는다.
+            if (context == null)
+            {
+                throw new ArgumentNullException(nameof(context));
+            }
+
+            cancellationToken.ThrowIfCancellationRequested();
+
+            // Scene 소유 UI가 있으면 별도 Application Host를 만들지 않는다.
             if
             (
                 HasSceneOwnedRuntime(SceneManager.GetActiveScene()) ||
@@ -73,7 +82,7 @@ namespace inonego.Xeri.UI
                 )
             )
             {
-                return;
+                return Task.CompletedTask;
             }
 
             if (hostPrefab == null)
@@ -87,11 +96,15 @@ namespace inonego.Xeri.UI
             }
 
             var instance = Instantiate(hostPrefab);
+            var ownership = new Lease(() => ReleaseHost(instance));
 
             try
             {
-                var runtime = instance.GetComponent<UIRuntime>();
+                // UI Host는 Application 서비스보다 먼저 종료되어야 한다.
+                context.Scope.Own(ownership);
+                cancellationToken.ThrowIfCancellationRequested();
 
+                var runtime = instance.GetComponent<UIRuntime>();
                 if (runtime == null)
                 {
                     throw new InvalidOperationException
@@ -101,14 +114,26 @@ namespace inonego.Xeri.UI
                 }
 
                 runtime.Initialize(settings);
+                return Task.CompletedTask;
             }
             catch
             {
-                // 초기화에 실패한 Host가 Scene의 Runtime·EventSystem 구성을 막지 않도록 제거한다.
-                instance.SetActive(false);
-                Destroy(instance);
+                ownership.Release();
                 throw;
             }
+        }
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// UI Runtime의 비활성화 종료 계약을 실행하고 Host 파괴를 예약한다.
+        /// </summary>
+        // ------------------------------------------------------------
+        private static void ReleaseHost(GameObject host)
+        {
+            if (host == null) return;
+
+            host.SetActive(false);
+            Destroy(host);
         }
 
         // ----------------------------------------------------------------------

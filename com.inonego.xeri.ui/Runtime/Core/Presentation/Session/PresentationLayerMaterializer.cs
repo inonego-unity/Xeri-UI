@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : PresentationLayerMaterializer.cs
-수정일 : 2026-11-02
+수정일 : 2026-11-11
 
 # 설명
 Top-level Presentation Layer를 Unity Native Output, LayerRoot와 ManagedRoot로 materialize하는 구현 경계다.
@@ -323,7 +323,7 @@ namespace inonego.Xeri.UI
         {
             if (gameObject == null) return;
 
-            if (Application.isPlaying)
+            if (UnityEngine.Application.isPlaying)
             {
                 UnityEngine.Object.Destroy(gameObject);
             }

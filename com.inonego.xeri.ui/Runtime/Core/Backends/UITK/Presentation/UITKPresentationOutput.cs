@@ -1,6 +1,6 @@
 ﻿/* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : UITKPresentationOutput.cs
-수정일 : 2026-11-04
+수정일 : 2026-11-11
 
 # 설명
 Native PanelRenderer의 생성·대여, Root 재연결 및 원래 설정 복원을 소유한다.
@@ -245,7 +245,7 @@ namespace inonego.Xeri.UI
         private static void DestroyOwnedObject(UnityEngine.Object value)
         {
             if (value == null) return;
-            if (Application.isPlaying)
+            if (UnityEngine.Application.isPlaying)
             {
                 Destroy(value);
             }

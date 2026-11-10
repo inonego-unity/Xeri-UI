@@ -1,12 +1,12 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : TEST_XeriApplicationWindowDispose.cs
-수정일 : 2026-11-02
+수정일 : 2026-11-10
 
 # 설명
 Application Window 종료 시 Child Context와 Presentation 자원 정리를 검증한다.
 
 # 테스트 구성
- D: Child Screen·Modal·Context·Presentation teardown
+ A: Child Context와 Presentation 해제
 ========================================================================= BLOCK_HEADER_END */
 
 using System;
@@ -34,7 +34,7 @@ namespace inonego.Xeri.UI.TEST.Window
     public sealed class TEST_XeriApplicationWindowDispose
     {
 
-    #region D-1: 애플리케이션 창 자식 UI 해제
+    #region A: 애플리케이션 창 자식 UI 해제
 
         // ----------------------------------------------------------------------
         /// <summary>

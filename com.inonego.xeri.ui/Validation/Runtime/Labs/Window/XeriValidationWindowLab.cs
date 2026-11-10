@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : XeriValidationWindowLab.cs
-수정일 : 2026-10-19
+수정일 : 2026-11-02
 
 # 설명
 Window state, StackLayer와 Tray projection을 한 화면에서 조작하는 instrumented Window Lab.

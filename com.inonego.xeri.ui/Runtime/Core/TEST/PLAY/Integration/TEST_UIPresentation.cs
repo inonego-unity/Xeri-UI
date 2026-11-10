@@ -1,17 +1,20 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : TEST_UIPresentation.cs
-수정일 : 2026-11-07
+수정일 : 2026-11-10
 
 # 설명
 실제 Runtime Panel과 Canvas에서 UGUI·UITK 표시와 mixed Focus의 대표 경로를 검증한다.
 
 # 테스트 구성
- I: Input System Map·해제 장벽·Context contribution
- P: DOTween Presentation Transition
- U: UGUI Layer·Screen·Modal·Fade·Layout
- T: UITK Panel·Focus·Screen·Modal·Fade
- M: UGUI·UITK mixed Focus
- O: UITK·UGUI Native 출력 순서
+ A: 테스트 생성·설정·UI 입력 지원
+ B: Input System과 입력 해제 장벽
+ C: Context 기여 일시 중단과 재개
+ D: DOTween Presentation 전환
+ E: UGUI Runtime
+ F: UITK Runtime
+ G: Embedded UITK Pointer Picking
+ H: UITK·UGUI Native 출력 순서
+ I: UGUI·UITK 통합 Focus
 ========================================================================= BLOCK_HEADER_END */
 
 using System;
@@ -51,7 +54,7 @@ namespace inonego.Xeri.UI.TEST.Core
     public sealed class TEST_UIPresentation
     {
 
-    #region 헬퍼
+    #region A: 테스트 생성·설정·UI 입력 지원
 
         // ============================================================
         /// <summary>
@@ -168,7 +171,7 @@ namespace inonego.Xeri.UI.TEST.Core
                     name = "UITK Default Focus",
                 };
                 root.Add(DefaultFocus);
-                layer.Root.Add(root);
+                layer.Root.contentContainer.Add(root);
                 return new ScreenInstance(new UITKScreenDriver(root, DefaultFocus));
             }
 
@@ -218,14 +221,36 @@ namespace inonego.Xeri.UI.TEST.Core
         // ============================================================
         private sealed class FailingTransitionTarget : IValueSetter<float>
         {
+
+            // ------------------------------------------------------------
+            /// <summary>
+            /// 전환 시작 시 실패를 주입할지 반환한다.
+            /// </summary>
+            // ------------------------------------------------------------
             public bool FailOnStart { get; }
+
+            // ------------------------------------------------------------
+            /// <summary>
+            /// 전환 대상에 값이 설정된 횟수를 반환한다.
+            /// </summary>
+            // ------------------------------------------------------------
             public int SetCount { get; private set; }
 
+            // ------------------------------------------------------------
+            /// <summary>
+            /// 전환 실패 동작을 지정한 테스트 대상을 생성한다.
+            /// </summary>
+            // ------------------------------------------------------------
             public FailingTransitionTarget(bool failOnStart)
             {
                 FailOnStart = failOnStart;
             }
 
+            // ------------------------------------------------------------
+            /// <summary>
+            /// 테스트 전환 대상에 값을 적용한다.
+            /// </summary>
+            // ------------------------------------------------------------
             public void Set(float value)
             {
                 SetCount++;
@@ -248,10 +273,25 @@ namespace inonego.Xeri.UI.TEST.Core
             private readonly float disposeAt;
             private readonly bool throwAfterDispose;
 
+            // ------------------------------------------------------------
+            /// <summary>
+            /// 전환 대상 값 변경 횟수를 반환한다.
+            /// </summary>
+            // ------------------------------------------------------------
             public int SetCount { get; private set; }
 
+            // ------------------------------------------------------------
+            /// <summary>
+            /// 전환 대상 해제 횟수를 반환한다.
+            /// </summary>
+            // ------------------------------------------------------------
             public int DisposeCount { get; private set; }
 
+            // ------------------------------------------------------------
+            /// <summary>
+            /// 자원 해제 동작을 가진 테스트 전환 대상을 생성한다.
+            /// </summary>
+            // ------------------------------------------------------------
             public DisposingTransitionTarget
             (
                 DOTweenPresentationTransitioner transitioner,
@@ -264,6 +304,11 @@ namespace inonego.Xeri.UI.TEST.Core
                 this.throwAfterDispose = throwAfterDispose;
             }
 
+            // ------------------------------------------------------------
+            /// <summary>
+            /// 테스트 전환 값을 설정한다.
+            /// </summary>
+            // ------------------------------------------------------------
             public void Set(float value)
             {
                 SetCount++;
@@ -573,7 +618,7 @@ namespace inonego.Xeri.UI.TEST.Core
 
     #endregion
 
-    #region I-1: 입력 시스템 입력 해제 장벽
+    #region B: Input System과 입력 해제 장벽
 
         // --------------------------------------------------------------------------------
         /// <summary>
@@ -1119,6 +1164,11 @@ namespace inonego.Xeri.UI.TEST.Core
             }
         }
 
+        // ------------------------------------------------------------
+        /// <summary>
+        /// 입력 전체 해제 재진입 시 Action 상태 복원을 검증한다.
+        /// </summary>
+        // ------------------------------------------------------------
         [UnityTest]
         public IEnumerator TEST_InputSystemScreenInputDriver_전체해제재진입_Action별기준상태복원()
         {
@@ -1432,7 +1482,7 @@ namespace inonego.Xeri.UI.TEST.Core
 
     #endregion
 
-    #region I-2: 컨텍스트 기여 일시중단와 재개
+    #region C: Context 기여 일시 중단과 재개
 
         // --------------------------------------------------------------------------------
         /// <summary>
@@ -1632,7 +1682,7 @@ namespace inonego.Xeri.UI.TEST.Core
 
     #endregion
 
-    #region P-1: DOTween 프레젠테이션 전환
+    #region D: DOTween Presentation 전환
 
         // --------------------------------------------------------------------------------
         /// <summary>
@@ -1925,7 +1975,7 @@ namespace inonego.Xeri.UI.TEST.Core
 
     #endregion
 
-    #region U-1: UGUI 런타임
+    #region E: UGUI Runtime
 
         // ----------------------------------------------------------------------
         /// <summary>
@@ -2178,7 +2228,7 @@ namespace inonego.Xeri.UI.TEST.Core
 
     #endregion
 
-    #region T-1: UITK 런타임
+    #region F: UITK Runtime
 
         // ----------------------------------------------------------------------
         /// <summary>
@@ -2500,7 +2550,7 @@ namespace inonego.Xeri.UI.TEST.Core
 
     #endregion
 
-    #region T-2: 임베디드 UITK 포인터 피킹
+    #region G: Embedded UITK Pointer Picking
 
         // ----------------------------------------------------------------------
         /// <summary>
@@ -2591,7 +2641,7 @@ namespace inonego.Xeri.UI.TEST.Core
 
     #endregion
 
-    #region O-1: 백엔드 간 네이티브 정렬
+    #region H: UITK·UGUI Native 출력 순서
 
         // --------------------------------------------------------------------------------
         /// <summary>
@@ -2604,7 +2654,7 @@ namespace inonego.Xeri.UI.TEST.Core
         [UnityTest]
         public IEnumerator TEST_PresentationSession_UITK_UGUI_UITK_LayerOrder_실제PixelInterleave()
         {
-            if (Application.isBatchMode)
+            if (UnityEngine.Application.isBatchMode)
             {
                 Assert.Ignore
                 (
@@ -2719,7 +2769,7 @@ namespace inonego.Xeri.UI.TEST.Core
 
     #endregion
 
-    #region M-1: 혼합 포커스
+    #region I: UGUI·UITK 통합 Focus
 
         // --------------------------------------------------------------------------------
         /// <summary>
@@ -2991,13 +3041,13 @@ namespace inonego.Xeri.UI.TEST
     internal static class UITKTestPanelSettings
     {
 
-    #region 필드
+    #region A: Theme 조회 이름
 
         private const string DEFAULT_THEME_GETTER_FIELD_NAME = "GetOrCreateDefaultTheme";
 
     #endregion
 
-    #region 메서드
+    #region B: Runtime Theme 보정
 
         // ------------------------------------------------------------
         /// <summary>

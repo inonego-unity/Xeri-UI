@@ -1,12 +1,15 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : TEST_UITKPresentationOutput.cs
-수정일 : 2026-10-18
+수정일 : 2026-11-10
 
 # 설명
 실제 Unity 활성 전환·씬 종료에서 Root 재연결과 빌린 설정의 복원을 확인한다.
 
 # 테스트 구성
- L: Native Output의 파괴·재활성·씬 종료와 대여 상태 반환
+ A: Scene 정리 Fixture
+ B: Output 파괴와 대여 설정 반환
+ C: 재활성화와 Root 재연결
+ D: Scene 종료와 대여 상태 반환
 ========================================================================= BLOCK_HEADER_END */
 
 using System;
@@ -30,10 +33,15 @@ namespace inonego.Xeri.UI.TEST.Core
     public sealed class TEST_UITKPresentationOutput
     {
 
-    #region 픽스처
+    #region A: Scene 정리 Fixture
 
         private Scene createdScene;
 
+        // ------------------------------------------------------------
+        /// <summary>
+        /// PlayMode UITK Output 테스트에서 생성한 Scene 자원을 정리한다.
+        /// </summary>
+        // ------------------------------------------------------------
         [UnityTearDown]
         public IEnumerator TeardownScene()
         {
@@ -48,7 +56,7 @@ namespace inonego.Xeri.UI.TEST.Core
 
     #endregion
 
-    #region L-1: 대여 출력의 파괴
+    #region B: Output 파괴와 대여 설정 반환
 
         // --------------------------------------------------------------------------------
         /// <summary>
@@ -97,7 +105,7 @@ namespace inonego.Xeri.UI.TEST.Core
 
     #endregion
 
-    #region L-2: 활성 전환의 루트 재연결
+    #region C: 재활성화와 Root 재연결
 
         // --------------------------------------------------------------------------------
         /// <summary>
@@ -151,7 +159,7 @@ namespace inonego.Xeri.UI.TEST.Core
 
     #endregion
 
-    #region L-3: 씬 종료에서 대여 상태 반환
+    #region D: Scene 종료와 대여 상태 반환
 
         // --------------------------------------------------------------------------------
         /// <summary>

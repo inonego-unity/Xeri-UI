@@ -1,9 +1,18 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : TEST_UISpotlight.cs
-수정일 : 2026-11-06
+수정일 : 2026-11-10
 
 # 설명
 실제 Canvas와 Runtime Panel에서 Spotlight 표시·클리핑·입력·수명주기 계약을 검증한다.
+
+# 테스트 구성
+ A: Spotlight 테스트 구성
+ B: Spotlight 요청 불변성
+ C: UGUI 표시와 수명
+ D: UGUI 클리핑과 입력
+ E: UGUI 메시 갱신
+ F: UITK 표시와 수명
+ G: UITK Scroll과 Clipping
 ========================================================================= BLOCK_HEADER_END */
 
 using System;
@@ -36,7 +45,7 @@ namespace inonego.Xeri.UI.TEST.Core
     public sealed class TEST_UISpotlight
     {
 
-    #region 테스트 준비
+    #region A: Spotlight 테스트 구성
 
         // ------------------------------------------------------------
         /// <summary>
@@ -97,7 +106,7 @@ namespace inonego.Xeri.UI.TEST.Core
 
     #endregion
 
-    #region 호출 인자 소유권
+    #region B: Spotlight 요청 불변성
 
         // ------------------------------------------------------------
         /// <summary>
@@ -161,7 +170,7 @@ namespace inonego.Xeri.UI.TEST.Core
 
     #endregion
 
-    #region UGUI 표시·수명주기
+    #region C: UGUI 표시와 수명
 
         // ------------------------------------------------------------
         /// <summary>
@@ -289,7 +298,7 @@ namespace inonego.Xeri.UI.TEST.Core
 
     #endregion
 
-    #region UGUI 클리핑·입력
+    #region D: UGUI 클리핑과 입력
 
         // --------------------------------------------------------------------------------
         /// <summary>
@@ -635,7 +644,7 @@ namespace inonego.Xeri.UI.TEST.Core
 
     #endregion
 
-    #region UGUI 메시 갱신
+    #region E: UGUI 메시 갱신
 
         // ----------------------------------------------------------------------
         /// <summary>
@@ -708,7 +717,7 @@ namespace inonego.Xeri.UI.TEST.Core
 
     #endregion
 
-    #region UITK 표시·수명주기
+    #region F: UITK 표시와 수명
 
         // ----------------------------------------------------------------------
         /// <summary>
@@ -807,7 +816,11 @@ namespace inonego.Xeri.UI.TEST.Core
                 Assert.IsTrue(element.ContainsPoint(dimPoint));
 
                 target.style.display = DisplayStyle.None;
-                yield return null;
+                var refreshDeadline = Time.realtimeSinceStartupAsDouble + 1.0;
+                while (element.HoleCount != 0 && Time.realtimeSinceStartupAsDouble < refreshDeadline)
+                {
+                    yield return null;
+                }
 
                 Assert.AreEqual(0, element.HoleCount);
                 Assert.AreEqual(PickingMode.Ignore, element.pickingMode);
@@ -824,7 +837,7 @@ namespace inonego.Xeri.UI.TEST.Core
 
     #endregion
 
-    #region UITK 스크롤 및 클리핑
+    #region G: UITK Scroll과 Clipping
 
         // ----------------------------------------------------------------------
         /// <summary>
@@ -887,8 +900,16 @@ namespace inonego.Xeri.UI.TEST.Core
                 Assert.IsTrue(spotlight.ContainsPoint(oldPoint));
 
                 scroll.style.translate = new Translate(160f, 0f);
-                yield return null;
-                yield return null;
+                var refreshDeadline = Time.realtimeSinceStartupAsDouble + 1.0;
+                while
+                (
+                    !spotlight.ContainsPoint(newPoint) &&
+                    Time.realtimeSinceStartupAsDouble < refreshDeadline
+                )
+                {
+                    yield return null;
+                }
+
                 Assert.IsTrue(spotlight.ContainsPoint(newPoint));
                 Assert.IsFalse
                 (
@@ -897,7 +918,7 @@ namespace inonego.Xeri.UI.TEST.Core
 
                 scroll.scrollOffset = new Vector2(0f, 250f);
                 // Panel 예약은 밀리초 기준이므로 빠른 batch 프레임 수로 갱신을 가정하지 않는다.
-                var refreshDeadline = Time.realtimeSinceStartupAsDouble + 1.0;
+                refreshDeadline = Time.realtimeSinceStartupAsDouble + 1.0;
                 while (spotlight.HoleCount != 0 && Time.realtimeSinceStartupAsDouble < refreshDeadline)
                 {
                     yield return null;

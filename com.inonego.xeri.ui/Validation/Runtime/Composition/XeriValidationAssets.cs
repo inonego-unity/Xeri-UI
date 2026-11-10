@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : XeriValidationAssets.cs
-수정일 : 2026-10-28
+수정일 : 2026-11-02
 
 # 설명
 통합 Validation Scene이 사용하는 UXML, USS, PanelSettings와 Application child Layout을 한 Asset에서 참조한다.

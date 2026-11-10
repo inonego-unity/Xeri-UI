@@ -1,13 +1,14 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : TEST_XeriWindowStateTransitioner.cs
-수정일 : 2026-11-08
+수정일 : 2026-11-10
 
 # 설명
 Xeri window 상태 전환 transitioner 테스트.
 
 # 테스트 구성
- I: Immediate transitioner
- U: UITK transitioner
+ A–C: 테스트 대역
+ D: 즉시 전환과 롤백
+ E–K: UITK 전환·완료·실패·재진입
 ========================================================================= BLOCK_HEADER_END */
 
 using System;
@@ -37,7 +38,7 @@ namespace inonego.Xeri.UI.TEST.Window
     public class TEST_XeriWindowStateTransitioner
     {
 
-    #region 테스트 Driver
+    #region A: 테스트 Driver
 
         // ============================================================
         /// <summary>
@@ -118,7 +119,7 @@ namespace inonego.Xeri.UI.TEST.Window
 
     #endregion
 
-    #region 테스트 Animation Target
+    #region B: 테스트 Animation Target
 
         // ============================================================
         /// <summary>
@@ -141,7 +142,7 @@ namespace inonego.Xeri.UI.TEST.Window
 
     #endregion
 
-    #region 테스트 Animator
+    #region C: 테스트 Animator
 
         // ============================================================
         /// <summary>
@@ -199,7 +200,7 @@ namespace inonego.Xeri.UI.TEST.Window
 
     #endregion
 
-    #region 즉시 전환과 롤백
+    #region D: 즉시 전환과 롤백
 
         // ----------------------------------------------------------------------
         /// <summary>
@@ -328,9 +329,88 @@ namespace inonego.Xeri.UI.TEST.Window
             Assert.AreEqual(1f, driver.Alpha.Modified);
         }
 
+        // ----------------------------------------------------------------------
+        /// <summary>
+        /// Driver callback이 요청을 변경해도 즉시 전환은 시작 시점의 계약을 따른다.
+        /// </summary>
+        // ----------------------------------------------------------------------
+        [Test]
+        public void TEST_XeriImmediateWindowStateTransitioner_Driver재진입_요청Snapshot유지()
+        {
+            var driver = new TestWindowDriver();
+            var otherDriver = new TestWindowDriver();
+            var transitioner = new XeriImmediateWindowStateTransitioner();
+            var completed = false;
+            var changedCompleted = false;
+            var request = new XeriWindowStateTransitionRequest
+            {
+                Driver = driver,
+                PreviousState = XeriWindowState.Normal,
+                NextState = XeriWindowState.Minimized,
+                OnComplete = () => completed = true,
+            };
+
+            driver.OnCommitState = _ =>
+            {
+                request.Driver = otherDriver;
+                request.PreviousState = XeriWindowState.Maximized;
+                request.NextState = XeriWindowState.Maximized;
+                request.OnComplete = () => changedCompleted = true;
+            };
+
+            Assert.IsTrue(transitioner.Transition(request));
+
+            Assert.AreEqual(XeriWindowState.Minimized, driver.State);
+            Assert.IsFalse(driver.Visible);
+            Assert.IsFalse(driver.MaximizedBoundsApplied);
+            Assert.AreEqual(XeriWindowState.Normal, otherDriver.State);
+            Assert.IsTrue(completed);
+            Assert.IsFalse(changedCompleted);
+        }
+
+        // ----------------------------------------------------------------------
+        /// <summary>
+        /// Driver 실패 도중 요청이 변경돼도 최초 상태로 복원하고 최초 오류 콜백에 알린다.
+        /// </summary>
+        // ----------------------------------------------------------------------
+        [Test]
+        public void TEST_XeriImmediateWindowStateTransitioner_실패중요청변경_원래상태로복원()
+        {
+            var driver = new TestWindowDriver();
+            var transitioner = new XeriImmediateWindowStateTransitioner();
+            var errorReported = false;
+            var changedErrorReported = false;
+            var request = new XeriWindowStateTransitionRequest
+            {
+                Driver = driver,
+                PreviousState = XeriWindowState.Normal,
+                NextState = XeriWindowState.Minimized,
+                OnError = _ => errorReported = true,
+            };
+
+            driver.OnCommitState = state =>
+            {
+                if (state != XeriWindowState.Minimized) return;
+
+                request.PreviousState = XeriWindowState.Maximized;
+                request.NextState = XeriWindowState.Closed;
+                request.OnError = _ => changedErrorReported = true;
+                throw new InvalidOperationException("injected commit failure");
+            };
+
+            Assert.Throws<InvalidOperationException>(() => transitioner.Transition(request));
+
+            Assert.AreEqual(XeriWindowState.Normal, driver.State);
+            Assert.AreEqual(XeriWindowState.Normal, driver.VisualState);
+            Assert.IsFalse(driver.MaximizedBoundsApplied);
+            Assert.IsTrue(driver.Visible);
+            Assert.IsTrue(errorReported);
+            Assert.IsFalse(changedErrorReported);
+        }
+
     #endregion
 
-    #region UITK 전환 진행·완료 및 실패 복원
+    #region E: UITK 전환 진행·완료 및 실패 복원
 
         // ----------------------------------------------------------------------
         /// <summary>
@@ -345,6 +425,8 @@ namespace inonego.Xeri.UI.TEST.Window
             var animator = new TestAnimator();
             var transitioner = new XeriUITKWindowStateTransitioner(animator);
 
+            Assert.AreEqual(XeriWindowTransitionStatus.Idle, transitioner.Status);
+
             transitioner.Transition
             (
                 new XeriWindowStateTransitionRequest
@@ -356,6 +438,7 @@ namespace inonego.Xeri.UI.TEST.Window
             );
 
             Assert.IsTrue(transitioner.IsRunning);
+            Assert.AreEqual(XeriWindowTransitionStatus.Running, transitioner.Status);
             Assert.AreEqual(XeriWindowState.Maximized, transitioner.PendingState);
             Assert.AreEqual(XeriWindowState.Normal, driver.State);
             Assert.AreEqual(XeriWindowState.Maximized, driver.VisualState);
@@ -389,6 +472,7 @@ namespace inonego.Xeri.UI.TEST.Window
             animator.CompleteAction.Invoke();
 
             Assert.IsFalse(transitioner.IsRunning);
+            Assert.AreEqual(XeriWindowTransitionStatus.Idle, transitioner.Status);
             Assert.IsNull(transitioner.PendingState);
             Assert.IsTrue(driver.MaximizedBoundsApplied);
             Assert.AreEqual(XeriWindowState.Maximized, driver.State);
@@ -426,6 +510,7 @@ namespace inonego.Xeri.UI.TEST.Window
             animator.ErrorAction.Invoke(new Exception("animation fail"));
 
             Assert.IsFalse(transitioner.IsRunning);
+            Assert.AreEqual(XeriWindowTransitionStatus.Idle, transitioner.Status);
             Assert.IsNull(transitioner.PendingState);
             Assert.AreEqual(XeriWindowState.Normal, driver.State);
             Assert.AreEqual(XeriWindowState.Normal, driver.VisualState);
@@ -517,7 +602,7 @@ namespace inonego.Xeri.UI.TEST.Window
 
     #endregion
 
-    #region UITK 즉시 완료와 콜백 예외
+    #region F: UITK 즉시 완료와 콜백 예외
 
         // ------------------------------------------------------------
         /// <summary>
@@ -593,7 +678,7 @@ namespace inonego.Xeri.UI.TEST.Window
 
     #endregion
 
-    #region UITK 중복 요청과 교체
+    #region G: UITK 중복 요청과 교체
 
         // ----------------------------------------------------------------------
         /// <summary>
@@ -670,7 +755,7 @@ namespace inonego.Xeri.UI.TEST.Window
 
     #endregion
 
-    #region UITK 시작 실패와 취소 재진입
+    #region H: UITK 시작 실패와 취소 재진입
 
         // ----------------------------------------------------------------------
         /// <summary>
@@ -801,7 +886,7 @@ namespace inonego.Xeri.UI.TEST.Window
 
     #endregion
 
-    #region UITK 요청 Snapshot과 실행 소유권
+    #region I: UITK 요청 Snapshot과 실행 소유권
 
         // ----------------------------------------------------------------------
         /// <summary>
@@ -952,7 +1037,7 @@ namespace inonego.Xeri.UI.TEST.Window
 
     #endregion
 
-    #region UITK Animator 시작과 즉시 완료
+    #region J: UITK Animator 시작과 즉시 완료
 
         // ----------------------------------------------------------------------
         /// <summary>
@@ -1049,9 +1134,112 @@ namespace inonego.Xeri.UI.TEST.Window
             Assert.IsTrue(completed);
         }
 
+        // ----------------------------------------------------------------------
+        /// <summary>
+        /// Animation 비활성 시 Maximize라도 목표 Bounds 조회를 수행하지 않는다.
+        /// </summary>
+        // ----------------------------------------------------------------------
+        [Test]
+        public void TEST_XeriUITKWindowStateAnimator_Disabled_Maximize_NoTargetLookup()
+        {
+            var driver = new TestWindowDriver();
+            var provider = new TestAnimationTargetProvider
+            {
+                FailureCount = 1,
+            };
+            var animator = new XeriUITKWindowStateAnimator
+            (
+                new VisualElement(),
+                XeriWindowAnimationOptions.Immediate(),
+                provider
+            );
+            var context = new XeriWindowStateTransitionContext
+            (
+                new XeriWindowStateTransitionRequest
+                {
+                    Driver = driver,
+                    PreviousState = XeriWindowState.Normal,
+                    NextState = XeriWindowState.Maximized,
+                }
+            );
+            var completed = false;
+
+            Assert.DoesNotThrow
+            (
+                () => animator.Play(context, () => completed = true, null)
+            );
+
+            Assert.IsTrue(completed);
+            Assert.AreEqual(1, provider.FailureCount);
+            Assert.IsFalse(animator.IsRunning);
+            Assert.AreEqual(1f, driver.Alpha.Modified);
+        }
+
+        // ----------------------------------------------------------------------
+        /// <summary>
+        /// NaN과 무한대 duration은 animation 완료 불능 상태를 만들므로 거부한다.
+        /// </summary>
+        // ----------------------------------------------------------------------
+        [Test]
+        public void TEST_XeriUITKWindowStateAnimator_NonFiniteDuration_생성거부()
+        {
+            var values = new[]
+            {
+                float.NaN,
+                float.PositiveInfinity,
+                float.NegativeInfinity,
+            };
+
+            foreach (var duration in values)
+            {
+                var options = new XeriWindowAnimationOptions
+                {
+                    Enabled = true,
+                    Duration = duration,
+                    HiddenOpacity = 0f,
+                };
+
+                Assert.Throws<ArgumentOutOfRangeException>
+                (
+                    () => new XeriUITKWindowStateAnimator(new VisualElement(), options)
+                );
+            }
+        }
+
+        // ------------------------------------------------------------
+        /// <summary>
+        /// 유효하지 않은 hidden opacity는 Window alpha 보간 전에 거부한다.
+        /// </summary>
+        // ------------------------------------------------------------
+        [Test]
+        public void TEST_XeriUITKWindowStateAnimator_NonFiniteOpacity_생성거부()
+        {
+            var values = new[]
+            {
+                float.NaN,
+                float.PositiveInfinity,
+                float.NegativeInfinity,
+            };
+
+            foreach (var opacity in values)
+            {
+                var options = new XeriWindowAnimationOptions
+                {
+                    Enabled = true,
+                    Duration = 0.1f,
+                    HiddenOpacity = opacity,
+                };
+
+                Assert.Throws<ArgumentOutOfRangeException>
+                (
+                    () => new XeriUITKWindowStateAnimator(new VisualElement(), options)
+                );
+            }
+        }
+
     #endregion
 
-    #region UITK Animator 완료 통지와 Bounds 처리
+    #region K: UITK Animator 완료 통지와 Bounds 처리
 
         // ----------------------------------------------------------------------
         /// <summary>

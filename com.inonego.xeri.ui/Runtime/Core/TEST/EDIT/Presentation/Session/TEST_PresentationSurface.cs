@@ -1,17 +1,18 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : TEST_PresentationSurface.cs
-수정일 : 2026-10-03
+수정일 : 2026-11-10
 
 # 설명
 PresentationSurface가 embedded/shared-output containment와 Layer lifetime만 소유하는지 검증한다.
 Ordering policy는 Resolver/Plan에 남고 Surface는 resolved Plan 순서를 hierarchy에 반영한다.
 
 # 테스트 구성
- O: resolved Plan order 반영
- N: nested Surface hierarchy 격리
- U: UGUI embedded hierarchy
- T: UITK Layer validation
- L: Surface 소유 Layer 종료 순서
+ A: Surface 테스트 지원
+ B: Plan 적용 순서
+ C: UITK 중첩 계층 격리
+ D: UGUI 내장 계층
+ E: UITK Layer 검증
+ F: Layer 실패 롤백과 역순 반환
 ========================================================================= BLOCK_HEADER_END */
 
 using System;
@@ -38,24 +39,51 @@ namespace inonego.Xeri.UI.TEST.Core
     public sealed class TEST_PresentationSurface
     {
 
-    #region 헬퍼
+    #region A: Surface 테스트 지원
 
         private sealed class TestLayerDriver : IPresentationLayerDriver<object>
         {
+
+            // ------------------------------------------------------------
+            /// <summary>
+            /// 테스트 Layer의 배치 Root를 반환한다.
+            /// </summary>
+            // ------------------------------------------------------------
             public object Root { get; }
+
+            // ------------------------------------------------------------
+            /// <summary>
+            /// 테스트 Layer의 논리 활성 상태를 반환한다.
+            /// </summary>
+            // ------------------------------------------------------------
             public bool IsActive { get; private set; }
 
+            // ------------------------------------------------------------
+            /// <summary>
+            /// 지정 Root를 사용하는 테스트 Layer를 생성한다.
+            /// </summary>
+            // ------------------------------------------------------------
             public TestLayerDriver(object root)
             {
                 Root = root;
             }
 
+            // ------------------------------------------------------------
+            /// <summary>
+            /// 테스트 Layer의 Root 유효성을 검사한다.
+            /// </summary>
+            // ------------------------------------------------------------
             public bool Validate(out string error)
             {
                 error = Root == null ? "invalid" : "";
                 return string.IsNullOrEmpty(error);
             }
 
+            // ------------------------------------------------------------
+            /// <summary>
+            /// 테스트 Layer의 논리 활성 상태를 적용한다.
+            /// </summary>
+            // ------------------------------------------------------------
             public void SetActive(bool active)
             {
                 IsActive = active;
@@ -64,17 +92,38 @@ namespace inonego.Xeri.UI.TEST.Core
 
         private sealed class TestPresentationSurface : PresentationSurface
         {
+
+            // ------------------------------------------------------------
+            /// <summary>
+            /// 현재 Surface에 적용된 Layer 순서를 반환한다.
+            /// </summary>
+            // ------------------------------------------------------------
             public IReadOnlyList<IPresentationLayerDriver> OrderedDrivers => orderedDrivers;
 
             private readonly List<IPresentationLayerDriver> orderedDrivers = new();
 
+            // ------------------------------------------------------------
+            /// <summary>
+            /// Layer 적용 중 주입할 실패 횟수를 지정한다.
+            /// </summary>
+            // ------------------------------------------------------------
             public int ApplyFailureCount { get; set; } = 0;
 
+            // ------------------------------------------------------------
+            /// <summary>
+            /// 테스트용 Presentation Surface를 생성한다.
+            /// </summary>
+            // ------------------------------------------------------------
             public TestPresentationSurface()
             {
                 // NONE
             }
 
+            // ------------------------------------------------------------
+            /// <summary>
+            /// Resolved Plan Layer와 Driver를 테스트 Surface에 추가한다.
+            /// </summary>
+            // ------------------------------------------------------------
             public void Add
             (
                 PresentationPlanLayer plan,
@@ -114,6 +163,11 @@ namespace inonego.Xeri.UI.TEST.Core
             return PresentationTestScope.CreateLayer(id, layerOrder, backend);
         }
 
+        // ------------------------------------------------------------
+        /// <summary>
+        /// 테스트 Surface와 관련 객체를 정리한다.
+        /// </summary>
+        // ------------------------------------------------------------
         [TearDown]
         public void TearDown()
         {
@@ -130,7 +184,7 @@ namespace inonego.Xeri.UI.TEST.Core
 
     #endregion
 
-    #region O-1: 해석된 플랜 순서
+    #region B: Plan 적용 순서
 
         // ------------------------------------------------------------
         /// <summary>
@@ -155,7 +209,7 @@ namespace inonego.Xeri.UI.TEST.Core
 
     #endregion
 
-    #region N-1: UITK 중첩 계층 격리
+    #region C: UITK 중첩 계층 격리
 
         // ----------------------------------------------------------------------
         /// <summary>
@@ -245,7 +299,7 @@ namespace inonego.Xeri.UI.TEST.Core
 
     #endregion
 
-    #region U-1: UGUI 내장 계층
+    #region D: UGUI 내장 계층
 
         // ----------------------------------------------------------------------
         /// <summary>
@@ -277,7 +331,7 @@ namespace inonego.Xeri.UI.TEST.Core
 
     #endregion
 
-    #region T-1: UITK 레이어 검증
+    #region E: UITK Layer 검증
 
         // ----------------------------------------------------------------------
         /// <summary>
@@ -296,7 +350,7 @@ namespace inonego.Xeri.UI.TEST.Core
 
     #endregion
 
-    #region L-1: 표면 수명
+    #region F: Layer 실패 롤백과 역순 반환
 
         // --------------------------------------------------------------------------------
         /// <summary>
@@ -328,7 +382,17 @@ namespace inonego.Xeri.UI.TEST.Core
                 )
             );
 
-            Assert.GreaterOrEqual(exception.InnerExceptions.Count, 2);
+            Assert.AreEqual(2, exception.InnerExceptions.Count);
+            StringAssert.Contains
+            (
+                "injected surface order failure",
+                exception.InnerExceptions[0].Message
+            );
+            StringAssert.Contains
+            (
+                "injected surface release failure",
+                exception.InnerExceptions[1].Message
+            );
             Assert.AreEqual(1, releaseCount);
             Assert.AreEqual(1, surface.OrderedDrivers.Count);
             Assert.AreSame(first, surface.OrderedDrivers[0]);

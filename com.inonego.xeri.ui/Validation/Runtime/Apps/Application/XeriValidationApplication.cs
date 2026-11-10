@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : XeriValidationApplication.cs
-수정일 : 2026-10-19
+수정일 : 2026-11-02
 
 # 설명
 Application Window의 Child PresentationSession과 Child UIContext 안에서 Home/Detail Screen, nested Modal과 Focus 복원을 행사한다.

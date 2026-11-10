@@ -1,16 +1,20 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : TEST_PresentationLayerRegistry.cs
-수정일 : 2026-10-06
+수정일 : 2026-11-10
 
 # 설명
 PresentationLayerRegistry의 stable LayerID 조회, usage lifetime과 종료 경계를 검증한다.
 Ordering과 authoring asset identity가 Registry 책임에서 제거됐는지도 계약으로 고정한다.
 
 # 테스트 구성
- R: stable ID 등록과 조회
- U: Layer usage lifetime
- L: Registry 종료와 backend 비활성화
- X: 등록 중 재진입 실패 경계
+ A: Layer Driver 테스트 지원
+ B: 테스트 Root 수명
+ C: Layer ID 등록과 반환
+ D: Layer ID 중복 거부
+ E: Registration Handle의 Usage 보호
+ F: Registry 종료의 Usage 보호
+ G: Registry 선종료
+ H: 등록 중 재진입
 ========================================================================= BLOCK_HEADER_END */
 
 using System;
@@ -36,22 +40,68 @@ namespace inonego.Xeri.UI.TEST.Core
     public sealed class TEST_PresentationLayerRegistry
     {
 
-    #region 헬퍼
+    #region A: Layer Driver 테스트 지원
 
         private sealed class TestLayerDriver : IPresentationLayerDriver<Transform>
         {
+
+            // ------------------------------------------------------------
+            /// <summary>
+            /// 테스트 Layer가 관리하는 배치 Root를 반환한다.
+            /// </summary>
+            // ------------------------------------------------------------
             public Transform Root { get; }
+
+            // ------------------------------------------------------------
+            /// <summary>
+            /// 테스트 Layer의 현재 활성 상태를 반환한다.
+            /// </summary>
+            // ------------------------------------------------------------
             public bool IsActive { get; private set; }
+
+            // ------------------------------------------------------------
+            /// <summary>
+            /// 테스트 Layer의 비활성화 횟수를 반환한다.
+            /// </summary>
+            // ------------------------------------------------------------
             public int DeactivateCount { get; private set; }
+
+            // ------------------------------------------------------------
+            /// <summary>
+            /// 활성 상태 변경 시 호출할 테스트 콜백을 지정한다.
+            /// </summary>
+            // ------------------------------------------------------------
             public Action<bool> ActiveChanged { get; set; }
+
+            // ------------------------------------------------------------
+            /// <summary>
+            /// 활성 변경 콜백 후 실제 상태를 적용할지 설정한다.
+            /// </summary>
+            // ------------------------------------------------------------
             public bool ApplyAfterCallback { get; set; }
+
+            // ------------------------------------------------------------
+            /// <summary>
+            /// Layer 유효성 확인 시 실행할 테스트 콜백을 지정한다.
+            /// </summary>
+            // ------------------------------------------------------------
             public Action Validating { get; set; }
 
+            // ------------------------------------------------------------
+            /// <summary>
+            /// 지정 Transform을 배치 Root로 사용하는 테스트 Layer를 만든다.
+            /// </summary>
+            // ------------------------------------------------------------
             public TestLayerDriver(Transform root)
             {
                 Root = root;
             }
 
+            // ------------------------------------------------------------
+            /// <summary>
+            /// 테스트 Layer의 Root 유효성을 검사한다.
+            /// </summary>
+            // ------------------------------------------------------------
             public bool Validate(out string error)
             {
                 Validating?.Invoke();
@@ -59,6 +109,11 @@ namespace inonego.Xeri.UI.TEST.Core
                 return string.IsNullOrEmpty(error);
             }
 
+            // ------------------------------------------------------------
+            /// <summary>
+            /// 테스트 Layer의 논리 활성 상태와 콜백 순서를 적용한다.
+            /// </summary>
+            // ------------------------------------------------------------
             public void SetActive(bool active)
             {
                 if (!ApplyAfterCallback)
@@ -91,8 +146,13 @@ namespace inonego.Xeri.UI.TEST.Core
 
     #endregion
 
-    #region 픽스처
+    #region B: 테스트 Root 수명
 
+        // ------------------------------------------------------------
+        /// <summary>
+        /// 등록된 테스트 객체의 수명을 종료한다.
+        /// </summary>
+        // ------------------------------------------------------------
         [TearDown]
         public void TearDown()
         {
@@ -109,7 +169,7 @@ namespace inonego.Xeri.UI.TEST.Core
 
     #endregion
 
-    #region R-1: 고정 ID 등록과 해제
+    #region C: Layer ID 등록과 반환
 
         // --------------------------------------------------------------------------------
         /// <summary>
@@ -137,7 +197,7 @@ namespace inonego.Xeri.UI.TEST.Core
 
     #endregion
 
-    #region R-2: 레지스트리 전체 ID 고유성
+    #region D: Layer ID 중복 거부
 
         // ------------------------------------------------------------
         /// <summary>
@@ -170,7 +230,7 @@ namespace inonego.Xeri.UI.TEST.Core
 
     #endregion
 
-    #region U-1: 등록 핸들 해제 전 사용 수명 선검사
+    #region E: Registration Handle의 Usage 보호
 
         // --------------------------------------------------------------------------------
         /// <summary>
@@ -197,7 +257,7 @@ namespace inonego.Xeri.UI.TEST.Core
 
     #endregion
 
-    #region U-2: 레지스트리 종료 전 사용 수명 선검사
+    #region F: Registry 종료의 Usage 보호
 
         // ------------------------------------------------------------
         /// <summary>
@@ -225,7 +285,7 @@ namespace inonego.Xeri.UI.TEST.Core
 
     #endregion
 
-    #region L-1: 레지스트리 선종료
+    #region G: Registry 선종료
 
         // --------------------------------------------------------------------------------
         /// <summary>
@@ -252,7 +312,7 @@ namespace inonego.Xeri.UI.TEST.Core
 
     #endregion
 
-    #region X-1: 활성화 콜백 재진입
+    #region H: 등록 중 재진입
 
         // --------------------------------------------------------------------------------
         /// <summary>

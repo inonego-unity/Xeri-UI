@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : UITKPresentationLayer.cs
-수정일 : 2026-11-08
+수정일 : 2026-11-10
 
 # 설명
 UITK Presentation Layer의 현재 Root, 논리 활성 상태와 런타임 콘텐츠 재연결을 관리한다.
@@ -108,7 +108,7 @@ namespace inonego.Xeri.UI
             {
                 try
                 {
-                    layer.Root.Add(content);
+                    layer.Root.contentContainer.Add(content);
                 }
                 catch
                 {
@@ -269,7 +269,7 @@ namespace inonego.Xeri.UI
                 if (!ReferenceEquals(Root, destination)) continue;
                 if (destination == null) return;
 
-                destination.Add(content);
+                container.Add(content);
 
                 if (!ownedContents.Contains(content))
                 {
@@ -334,7 +334,7 @@ namespace inonego.Xeri.UI
             }
             else if (!ReferenceEquals(content.parent, root.contentContainer))
             {
-                root.Add(content);
+                root.contentContainer.Add(content);
             }
         }
 

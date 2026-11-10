@@ -1,6 +1,6 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : XeriUIValidationScene.cs
-수정일 : 2026-10-05
+수정일 : 2026-11-02
 
 # 설명
 Xeri UI 통합 Validation Scene의 명시적 composition root.
@@ -137,7 +137,7 @@ namespace inonego.Xeri.UI.Validation
         // ------------------------------------------------------------
         private void OnDisable()
         {
-            if (!Application.isPlaying)
+            if (!UnityEngine.Application.isPlaying)
             {
                 return;
             }

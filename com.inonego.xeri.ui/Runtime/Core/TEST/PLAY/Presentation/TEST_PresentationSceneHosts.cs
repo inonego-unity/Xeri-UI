@@ -1,13 +1,16 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : TEST_PresentationSceneHosts.cs
-수정일 : 2026-10-21
+수정일 : 2026-11-10
 
 # 설명
 PanelRenderer와 VisualElementReference를 사용하는 scene-authored UITK Presentation Host의
 borrow, LocalOrder 적용, authored state 복원 계약을 PlayMode에서 검증한다.
 
 # 테스트 구성
- H: UITK authored Host, Native 트리 재생성과 포커스 재연결
+ A: Scene Host Fixture와 Observer
+ B: 테스트 Plan과 참조 지원
+ C: Scene 작성 Host와 Placement
+ D: Native 트리 재생성과 Focus 재연결
 ========================================================================= BLOCK_HEADER_END */
 
 using System;
@@ -37,7 +40,7 @@ namespace inonego.Xeri.UI.TEST.Core
     public sealed class TEST_PresentationSceneHosts
     {
 
-    #region 헬퍼 타입
+    #region A: Scene Host Fixture와 Observer
 
         private const int MANAGED_ROOT_AUTHORING_ID = 120;
         private const int LATE_PLACEMENT_AUTHORING_ID = 130;
@@ -52,13 +55,54 @@ namespace inonego.Xeri.UI.TEST.Core
         // ============================================================
         private sealed class HostFixture : IDisposable
         {
+
+            // ------------------------------------------------------------
+            /// <summary>
+            /// Fixture의 Unity Root GameObject를 반환한다.
+            /// </summary>
+            // ------------------------------------------------------------
             public GameObject Root { get; }
+
+            // ------------------------------------------------------------
+            /// <summary>
+            /// Fixture가 생성한 Layer GameObject를 반환한다.
+            /// </summary>
+            // ------------------------------------------------------------
             public GameObject LayerObject { get; }
+
+            // ------------------------------------------------------------
+            /// <summary>
+            /// Fixture에 연결한 원본 PanelSettings를 반환한다.
+            /// </summary>
+            // ------------------------------------------------------------
             public PanelSettings OriginalPanelSettings { get; }
+
+            // ------------------------------------------------------------
+            /// <summary>
+            /// Fixture의 PanelRenderer를 반환한다.
+            /// </summary>
+            // ------------------------------------------------------------
             public PanelRenderer Renderer { get; }
+
+            // ------------------------------------------------------------
+            /// <summary>
+            /// Fixture의 Native UITK Output을 반환한다.
+            /// </summary>
+            // ------------------------------------------------------------
             public UITKPresentationOutput Output { get; }
+
+            // ------------------------------------------------------------
+            /// <summary>
+            /// Fixture의 UITK Layer Host를 반환한다.
+            /// </summary>
+            // ------------------------------------------------------------
             public UITKPresentationLayerHost LayerHost { get; }
 
+            // ------------------------------------------------------------
+            /// <summary>
+            /// 테스트용 Scene Layer와 PanelRenderer를 구성한다.
+            /// </summary>
+            // ------------------------------------------------------------
             public HostFixture()
             {
                 Root = new GameObject("Presentation Runtime Root");
@@ -88,6 +132,11 @@ namespace inonego.Xeri.UI.TEST.Core
                 LayerObject.SetActive(true);
             }
 
+            // ----------------------------------------------------------------------
+            /// <summary>
+            /// 지정 Presentation ID와 Authoring ID의 Placement Host를 생성한다.
+            /// </summary>
+            // ----------------------------------------------------------------------
             public UITKPresentationPlacementHost CreatePlacementHost
             (
                 string presentationID,
@@ -106,6 +155,11 @@ namespace inonego.Xeri.UI.TEST.Core
                 return host;
             }
 
+            // ------------------------------------------------------------
+            /// <summary>
+            /// Fixture가 생성한 Scene 객체를 해제한다.
+            /// </summary>
+            // ------------------------------------------------------------
             public void Dispose()
             {
                 UnityEngine.Object.Destroy(Root);
@@ -120,10 +174,21 @@ namespace inonego.Xeri.UI.TEST.Core
         // ======================================================================
         private sealed class ReferenceObserver : IDisposable
         {
+
+            // ------------------------------------------------------------
+            /// <summary>
+            /// 마지막으로 확인된 VisualElement 참조를 반환한다.
+            /// </summary>
+            // ------------------------------------------------------------
             public VisualElement Value { get; private set; }
 
             private readonly VisualElementReference reference;
 
+            // ------------------------------------------------------------
+            /// <summary>
+            /// 지정 Authoring 경로를 관찰하는 Reference Observer를 생성한다.
+            /// </summary>
+            // ------------------------------------------------------------
             public ReferenceObserver
             (
                 PanelRenderer renderer,
@@ -152,6 +217,11 @@ namespace inonego.Xeri.UI.TEST.Core
                 }
             }
 
+            // ------------------------------------------------------------
+            /// <summary>
+            /// 테스트 VisualElement 참조의 이벤트 구독을 해제한다.
+            /// </summary>
+            // ------------------------------------------------------------
             public void Dispose()
             {
                 reference.UnregisterReferenceResolvedCallback(HandleResolved);
@@ -163,7 +233,7 @@ namespace inonego.Xeri.UI.TEST.Core
 
     #endregion
 
-    #region 헬퍼
+    #region B: 테스트 Plan과 참조 지원
 
         // ------------------------------------------------------------
         /// <summary>
@@ -270,7 +340,7 @@ namespace inonego.Xeri.UI.TEST.Core
 
     #endregion
 
-    #region H-1: UITK 씬 작성 호스트
+    #region C: Scene 작성 Host와 Placement
 
         // --------------------------------------------------------------------------------
         /// <summary>
@@ -562,7 +632,7 @@ namespace inonego.Xeri.UI.TEST.Core
 
     #endregion
 
-    #region H-2: Native 트리 재생성과 입력 재연결
+    #region D: Native 트리 재생성과 Focus 재연결
 
         // ----------------------------------------------------------------------
         /// <summary>

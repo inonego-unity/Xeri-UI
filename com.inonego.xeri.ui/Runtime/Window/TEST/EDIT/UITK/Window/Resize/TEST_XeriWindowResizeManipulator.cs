@@ -1,18 +1,15 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : TEST_XeriWindowResizeManipulator.cs
-수정일 : 2026-11-08
+수정일 : 2026-11-10
 
 # 설명
 XeriWindowResizeManipulator의 bounds 변환, 상태 차단과 입력 수명을 검증한다.
 
 # 테스트 구성
-- B-1: Edge/Corner bounds 변환
-- S-1: Window 상태 차단
-- P-1: 포인터 시작·예외 및 데이터 보존
-- P-2: 캡처 소유권과 종료
-- P-3: 복합 버튼 종료 정책
-- L-1: Attach/Detach 정리와 cursor 수명
-- L-2: 다중 Window 커서 소유권
+ A: 테스트 지원
+ B–C: 경계 변환과 상태 차단
+ D–F: 포인터 입력과 캡처
+ G–H: 연결·해제와 커서 소유권
 ========================================================================= BLOCK_HEADER_END */
 
 using System;
@@ -40,7 +37,7 @@ namespace inonego.Xeri.UI.TEST.Window
     public class TEST_XeriWindowResizeManipulator
     {
 
-    #region 헬퍼
+    #region A: 헬퍼
 
         // ============================================================
         /// <summary>
@@ -330,7 +327,7 @@ namespace inonego.Xeri.UI.TEST.Window
 
     #endregion
 
-    #region B-1: 가장자리와 모서리 경계 변환
+    #region B: 가장자리와 모서리 경계 변환
 
         // ----------------------------------------------------------------------
         /// <summary>
@@ -382,7 +379,7 @@ namespace inonego.Xeri.UI.TEST.Window
 
     #endregion
 
-    #region S-1: 창 상태 차단
+    #region C: 창 상태 차단
 
         // --------------------------------------------------------------------------------
         /// <summary>
@@ -426,7 +423,7 @@ namespace inonego.Xeri.UI.TEST.Window
 
     #endregion
 
-    #region P-1: 포인터 시작·예외 및 데이터 보존
+    #region D: 포인터 시작·예외 및 데이터 보존
 
         // --------------------------------------------------------------------------------
         /// <summary>
@@ -678,7 +675,7 @@ namespace inonego.Xeri.UI.TEST.Window
 
     #endregion
 
-    #region P-2: 캡처 소유권과 종료
+    #region E: 캡처 소유권과 종료
 
         // ------------------------------------------------------------
         /// <summary>
@@ -861,7 +858,7 @@ namespace inonego.Xeri.UI.TEST.Window
 
     #endregion
 
-    #region P-3: 복합 버튼 종료 정책
+    #region F: 복합 버튼 종료 정책
 
         // ------------------------------------------------------------
         /// <summary>
@@ -960,7 +957,7 @@ namespace inonego.Xeri.UI.TEST.Window
 
     #endregion
 
-    #region L-1: 연결·분리와 커서 수명
+    #region G: 연결·분리와 커서 수명
 
         // ----------------------------------------------------------------------
         /// <summary>
@@ -1029,7 +1026,7 @@ namespace inonego.Xeri.UI.TEST.Window
 
     #endregion
 
-    #region L-2: 다중 Window 커서 소유권
+    #region H: 다중 Window 커서 소유권
 
         // ----------------------------------------------------------------------
         /// <summary>

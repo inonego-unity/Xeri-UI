@@ -1,13 +1,16 @@
 /* BLOCK_HEADER_BEGIN =======================================================================
 파일명 : UITKSafeAreaLayout.cs
-수정일 : 2026-11-05
+수정일 : 2026-11-11
 # 설명
-화면·Panel 크기와 Native Output Root 재연결을 관찰해 지정 VisualElement에 Safe Area를 반영한다.
+화면 Safe Area를 부모 로컬 좌표계로 투영하고 안전한 최대 축 정렬 영역을 배치한다.
+부모 Transform과 Native Output Root 재연결을 관찰하며 콘텐츠 Transform은 변경하지 않는다.
+
+# 제약사항
+Safe Area Root는 자체 Transform·고정 크기 없이 레이아웃 경계로 사용한다.
+자식 Overflow와 조상 Clipping에 의한 최종 시각 영역은 이 레이아웃에서 제어하지 않는다.
 ========================================================================= BLOCK_HEADER_END */
 
 using System;
-using System.Collections;
-using System.Collections.Generic;
 
 using UnityEngine;
 using UnityEngine.UIElements;
@@ -41,6 +44,8 @@ namespace inonego.Xeri.UI
         private Rect lastSafeArea = default;
         private Vector2Int lastScreenSize = default;
         private Vector2 lastPanelSize = default;
+        private Matrix4x4 lastParentWorldTransform = default;
+        private Rect lastParentContentRect = default;
         private bool isDisposed = false;
 
     #endregion
@@ -91,25 +96,42 @@ namespace inonego.Xeri.UI
             var area = Screen.safeArea;
             var parent = root.parent;
             var panel = root.panel;
-            var panelTopLeft = RuntimePanelUtils.ScreenToPanel
+            var topLeft = parent.WorldToLocal
             (
-                panel,
-                new Vector2(area.xMin, Screen.height - area.yMax)
+                RuntimePanelUtils.ScreenToPanel
+                (
+                    panel, new Vector2(area.xMin, Screen.height - area.yMax)
+                )
             );
-            var panelBottomRight = RuntimePanelUtils.ScreenToPanel
+            var topRight = parent.WorldToLocal
             (
-                panel,
-                new Vector2(area.xMax, Screen.height - area.yMin)
+                RuntimePanelUtils.ScreenToPanel
+                (
+                    panel, new Vector2(area.xMax, Screen.height - area.yMax)
+                )
             );
-            var topLeft = parent.WorldToLocal(panelTopLeft);
-            var bottomRight = parent.WorldToLocal(panelBottomRight);
+            var bottomRight = parent.WorldToLocal
+            (
+                RuntimePanelUtils.ScreenToPanel
+                (
+                    panel, new Vector2(area.xMax, Screen.height - area.yMin)
+                )
+            );
+            var bottomLeft = parent.WorldToLocal
+            (
+                RuntimePanelUtils.ScreenToPanel
+                (
+                    panel, new Vector2(area.xMin, Screen.height - area.yMin)
+                )
+            );
+            var safeRect = FindInscribedRect(topLeft, topRight, bottomRight, bottomLeft);
             var parentRect = parent.contentRect;
 
             root.style.position = Position.Absolute;
-            root.style.left = topLeft.x - parentRect.xMin;
-            root.style.top = topLeft.y - parentRect.yMin;
-            root.style.right = parentRect.xMax - bottomRight.x;
-            root.style.bottom = parentRect.yMax - bottomRight.y;
+            root.style.left = safeRect.xMin - parentRect.xMin;
+            root.style.top = safeRect.yMin - parentRect.yMin;
+            root.style.right = parentRect.xMax - safeRect.xMax;
+            root.style.bottom = parentRect.yMax - safeRect.yMax;
 
             lastSafeArea = area;
             lastScreenSize = new Vector2Int
@@ -118,8 +140,126 @@ namespace inonego.Xeri.UI
                 Mathf.Max(1, Screen.height)
             );
             lastPanelSize = panel.visualTree.contentRect.size;
+            lastParentWorldTransform = parent.worldTransform;
+            lastParentContentRect = parentRect;
 
             NotifyLayoutChanged();
+        }
+
+        // ----------------------------------------------------------------------
+        /// <summary>
+        /// <br/> 역투영된 Safe Area 안에서 최대 면적의 축 정렬 Rect를 구한다.
+        /// <br/> 부모와 콘텐츠의 Transform은 변경하지 않는다.
+        /// </summary>
+        // ----------------------------------------------------------------------
+        private static Rect FindInscribedRect
+        (
+            Vector2 topLeft, Vector2 topRight,
+            Vector2 bottomRight, Vector2 bottomLeft
+        )
+        {
+            var center = (topLeft + topRight + bottomRight + bottomLeft) * 0.25f;
+            var horizontal = (topRight - topLeft + bottomRight - bottomLeft) * 0.25f;
+            var vertical = (bottomLeft - topLeft + bottomRight - topRight) * 0.25f;
+            var determinant = Math.Abs
+            (
+                (double)horizontal.x * vertical.y -
+                (double)horizontal.y * vertical.x
+            );
+
+            if (determinant <= 0d || double.IsNaN(determinant) || double.IsInfinity(determinant))
+            {
+                throw new InvalidOperationException
+                (
+                    "부모 좌표계에서 Safe Area의 유효한 면적을 계산할 수 없습니다."
+                );
+            }
+
+            // 역행렬의 두 축 제약을 만족하는 중심 정렬 직사각형만 후보로 취급한다.
+            var widthA = Math.Abs((double)vertical.y);
+            var heightA = Math.Abs((double)vertical.x);
+            var widthB = Math.Abs((double)horizontal.y);
+            var heightB = Math.Abs((double)horizontal.x);
+            var bestHalfWidth = 0d;
+            var bestHalfHeight = 0d;
+            var bestArea = 0d;
+
+            void Consider(double halfWidth, double halfHeight)
+            {
+                if (halfWidth <= 0d || halfHeight <= 0d) return;
+
+                // 두 축의 제약이 허용하는 범위로 후보를 비례 축소해 내접 조건을 유지한다.
+                var constraintScale = Math.Max
+                (
+                    widthA * halfWidth + heightA * halfHeight,
+                    widthB * halfWidth + heightB * halfHeight
+                ) / determinant;
+
+                if
+                (
+                    constraintScale <= 0d ||
+                    double.IsNaN(constraintScale) ||
+                    double.IsInfinity(constraintScale)
+                ) return;
+
+                if (constraintScale > 1d)
+                {
+                    halfWidth /= constraintScale;
+                    halfHeight /= constraintScale;
+                }
+
+                var area = halfWidth * halfHeight;
+                if (area <= bestArea) return;
+
+                bestArea = area;
+                bestHalfWidth = halfWidth;
+                bestHalfHeight = halfHeight;
+            }
+
+            // 최대 넓이는 각 제약 직선의 접점이나 두 직선의 교점에서 발생한다.
+            if (widthA > 0d && heightA > 0d)
+            {
+                Consider
+                (
+                    determinant / (2d * widthA),
+                    determinant / (2d * heightA)
+                );
+            }
+
+            if (widthB > 0d && heightB > 0d)
+            {
+                Consider
+                (
+                    determinant / (2d * widthB),
+                    determinant / (2d * heightB)
+                );
+            }
+
+            var intersection = widthA * heightB - widthB * heightA;
+            if (intersection != 0d)
+            {
+                Consider
+                (
+                    determinant * (heightB - heightA) / intersection,
+                    determinant * (widthA - widthB) / intersection
+                );
+            }
+
+            if (bestArea <= 0d)
+            {
+                throw new InvalidOperationException
+                (
+                    "Safe Area 안에 배치할 수 있는 로컬 직사각형이 없습니다."
+                );
+            }
+
+            return Rect.MinMaxRect
+            (
+                center.x - (float)bestHalfWidth,
+                center.y - (float)bestHalfHeight,
+                center.x + (float)bestHalfWidth,
+                center.y + (float)bestHalfHeight
+            );
         }
 
         // --------------------------------------------------------------------------------
@@ -323,12 +463,16 @@ namespace inonego.Xeri.UI
                 Mathf.Max(1, Screen.height)
             );
             var panelSize = observedRoot.panel.visualTree.contentRect.size;
+            var parent = observedRoot.parent;
 
             if
             (
+                parent != null &&
                 screenSize == lastScreenSize &&
                 Screen.safeArea == lastSafeArea &&
-                panelSize == lastPanelSize
+                panelSize == lastPanelSize &&
+                parent.worldTransform == lastParentWorldTransform &&
+                parent.contentRect == lastParentContentRect
             )
             {
                 return;
