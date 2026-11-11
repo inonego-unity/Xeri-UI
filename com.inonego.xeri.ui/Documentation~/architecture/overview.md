@@ -4,12 +4,13 @@ Xeri UI는 Unity UI Toolkit/UGUI를 대체하는 renderer가 아니다.
 Unity의 rendering, event dispatch, native focus와 authoring을 사용하면서
 application-level topology, lifecycle과 authority를 관리한다.
 
-## 문서 상태
+## 문서 사용
 
-현재 구현의 상세 계약은 [Presentation Architecture](presentation.md)가 source of truth다.
+이 페이지는 Xeri UI의 책임·구성 단위를 설명합니다. 실제 프로젝트에 설치하고 시작하려면 [프로젝트 설정과 시작](../getting-started/setup.md)을 사용합니다.
 
-[Presentation Composition Contract](presentation-composition.md)는
-Presentation Target 해석과 Layer Lease 수명의 책임 경계와 검증 기준을 현재형으로 정리한다.
+- [Presentation Architecture](presentation.md): Layout/Plan, materialization, Session, Focus/Input의 상세 불변식
+- [Presentation Composition Contract](presentation-composition.md): Target 해석, Layer Lease, Host, Scene-authored Layer 계약
+- [Core](../core/index.md), [Window](../window/index.md): 일반 사용자가 호출할 API와 반환해야 할 수명
 
 ## 현재 핵심 구조
 

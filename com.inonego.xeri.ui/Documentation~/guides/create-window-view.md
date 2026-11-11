@@ -1,145 +1,143 @@
-# Window와 View Source 연결하기
+# 저장 가능한 Window 만들기
 
-이 가이드는 저장 가능한 Window를 `IXeriUIViewSource`와 연결하는 흐름을 설명합니다.
+이 가이드는 **UI Toolkit View Source를 등록하고 Window를 열어 UI 상태를 저장하는 최소 구성**을 설명합니다. Runtime과 `Window` Presentation Destination은 [프로젝트 설정과 시작](../getting-started/setup.md)에 따라 준비돼 있다고 가정합니다.
 
-## 1. UI Session
+## 1. UI-local 상태 데이터
 
-View 재생성 사이에 유지할 UI-local state가 있으면 `IXeriUISession` 구현을 준비합니다.
+Window의 위치·크기·상태는 `XeriWindowRecord`가 소유합니다. View 안의 입력값처럼 Window 내용을 다시 만들어도 유지할 데이터만 `IXeriUISession`에 둡니다.
 
 ```csharp
 [Serializable]
-public sealed class SampleViewSession : IXeriUISession
+public sealed class SearchWindowSession : IXeriUISession
 {
     public string SearchText = string.Empty;
-    public int SelectedIndex = -1;
 }
 ```
 
-Window 위치/크기/상태는 `XeriWindowRecord`가 소유하므로 UISession에 중복 저장하지 않습니다.
+이 Session은 `XeriWindowRecord.UISession`에 저장됩니다.
 
-## 2. View Source
+## 2. View Source 구현
+
+다음 예시는 현재 검색어를 `TextField`에 표시하고 `SaveSession`에서 **기존 Session 객체를 갱신**합니다. Source의 저장 대상 View는 Window별 Scope로 구분합니다.
 
 ```csharp
-public sealed class SampleViewSource : IXeriUIViewSource, IXeriUIViewSessionPersistence
+public sealed class SearchViewSource :
+    IXeriUIViewSource, IXeriUIViewSessionPersistence
 {
-    public string ID => "sample.view";
+    public string ID => "search.view";
+
+    private readonly Dictionary<XeriUIViewScope, TextField> fields = new();
+
+    public void LoadSession(XeriUIViewScope scope)
+    {
+        if (scope.UISession is SearchWindowSession state)
+        {
+            state.SearchText ??= string.Empty;
+        }
+    }
 
     public VisualElement AcquireView(XeriUIViewScope scope)
     {
         var root = new VisualElement();
-        root.Add(new Label("Sample"));
+        var field = new TextField("Search")
+        {
+            value = (scope.UISession as SearchWindowSession)?.SearchText
+                ?? string.Empty,
+        };
+        root.Add(field);
+        fields.Add(scope, field);
         return root;
-    }
-
-    public void ReleaseView(
-        XeriUIViewScope scope,
-        VisualElement view)
-    {
-        // callback/presenter/pool resource 반환
-    }
-
-    public void LoadSession(XeriUIViewScope scope)
-    {
-        // AcquireView 전에 session state 준비
     }
 
     public void SaveSession(XeriUIViewScope scope)
     {
-        // 현재 UI-local state 기록
+        if (scope.UISession is SearchWindowSession state &&
+            fields.TryGetValue(scope, out var field))
+        {
+            state.SearchText = field.value;
+        }
+    }
+
+    public void ReleaseView(XeriUIViewScope scope, VisualElement view)
+    {
+        fields.Remove(scope);
+        // 프로젝트 Presenter, event binding, pool 자원도 여기서 해제합니다.
     }
 }
 ```
 
-이 예제는 저장 기능을 포함하므로 `IXeriUIViewSessionPersistence`를 구현합니다. Workspace는 `LoadSession`을 View 획득 전에, `SaveSession`을 Window 종료 또는 `CaptureRecords()` 시 호출합니다. `scope.UISession`은 Record와 공유하는 동일 인스턴스이므로 상태를 새 객체로 교체하지 말고 그 필드를 갱신합니다. 저장 기능이 필요 없다면 `IXeriUIViewSource`만 구현하고 두 메서드는 생략합니다.
+예제에는 `System`, `System.Collections.Generic`, `UnityEngine.UIElements`, `inonego.Xeri.UI.Window` 관련 using이 필요합니다. View 객체는 **다른 부모에 연결되지 않은 상태**로 반환해야 합니다. 상태 저장이 필요 없다면 `IXeriUIViewSessionPersistence` 자체를 구현하지 않습니다.
 
-## 3. Resolver
+## 3. Resolver와 Workspace
 
 ```csharp
 var resolver = new XeriUIViewResolver();
-resolver.Register(new SampleViewSource());
-```
+resolver.Register(new SearchViewSource());
 
-## 4. Workspace
-
-Workspace가 사용할 Presentation target을 정합니다. app-wide Window Layer를 쓰는 경우 Settings의 destination mapping에서 예를 들어 `Window → Desktop.Windows`를 구성합니다.
-
-Workspace 생성:
-
-```csharp
 var workspace = new XeriWindowWorkspace(
     runtime.Main,
     PresentationTarget.Host("Window"),
     viewResolver: resolver);
 ```
 
-Child/local composition 안에서는 `PresentationTarget.Local(layerID)`를 사용할 수 있습니다.
+`Window` Destination은 Settings에 미리 매핑된 UITK Root Layer를 가리킵니다. Child/local 구성이라면 `PresentationTarget.Local(layerID)`를 사용합니다.
 
-## 5. Record
+## 4. Window Record와 생성
 
 ```csharp
 var record = new XeriWindowRecord
 {
-    ID = "sample.window",
-    Title = "Sample Window",
+    ID = "search.window",
+    Title = "Search",
     Pos = new Vector2(80f, 80f),
     Size = new Vector2(480f, 320f),
     NormalPos = new Vector2(80f, 80f),
     NormalSize = new Vector2(480f, 320f),
-    ViewSourceID = "sample.view",
-    ViewDataKey = "sample-window",
-    UISession = new SampleViewSession(),
+    ViewSourceID = "search.view",
+    ViewDataKey = "search-window",
+    UISession = new SearchWindowSession(),
 };
 
-XeriWindowSession window =
-    workspace.OpenWindow(record);
+XeriWindowSession window = workspace.OpenWindow(record);
 ```
 
-Workspace lifecycle:
+Record의 `ViewSourceID`가 Resolver에 등록돼 있어야 합니다. Source는 UI 내용만 만들고 Window Chrome·Title Bar·Resize Handles는 Workspace가 생성합니다.
 
-```text
-LoadSession
-→ AcquireView
-→ ContentRoot attach
-→ Window lifetime
-→ SaveSession
-→ detach
-→ ReleaseView
-```
-
-## 6. Snapshot
+## 5. 현재 Window 상태 캡처
 
 ```csharp
 IReadOnlyList<XeriWindowRecord> records =
     workspace.CaptureRecords();
 ```
 
-캡처 시 현재 Window 상태를 먼저 복사하고 View Source의 `SaveSession`으로 공유된 `UISession` 값을 갱신합니다. 반환된 Record의 직렬화 방식과 저장 시점은 프로젝트가 결정합니다.
+Capture는 현재 Window 목록과 적용된 테마·상태를 먼저 기록한 뒤 각 View Source의 `SaveSession`을 호출합니다. 위 예제는 `SearchWindowSession.SearchText`를 같은 객체에 갱신합니다. 프로젝트는 결과를 실제 저장 포맷으로 직렬화하고, 다음 실행에서 Record와 Session을 복원해 다시 `OpenWindow(record)`를 호출합니다.
 
-## 7. Application Window
+`CaptureRecords()`는 Window를 닫지 않습니다. `UISession`을 deep copy하지 않기 때문에 불변 스냅샷이 필요하면 프로젝트에서 값을 별도로 복사합니다.
 
-독립 Screen/Modal stack이 필요한 Window는 Child Layout을 사용합니다.
-
-```csharp
-var appOptions =
-    new XeriWindowApplicationOptions(appLayout);
-
-XeriWindowSession app = workspace.OpenApplicationWindow(
-    "inventory.app",
-    "Inventory",
-    new Vector2(100f, 100f),
-    new Vector2(720f, 560f),
-    appOptions);
-
-app.Context.Screens.Open("Inventory.Home");
-```
-
-Application Window는 `ContentRoot → Child PresentationSession → Child UIContext` 구조를 소유합니다.
-
-## 8. 종료
+## 6. Window 종료와 프로젝트 정리
 
 ```csharp
 window.Close();
 workspace.Dispose();
 ```
 
-더 자세한 계약은 [Window](../window/index.md)와 [Window View Source](../window/view-source.md)를 참고합니다.
+Window 종료 시 SaveSession → detach → ReleaseView 순서로 Source를 반환합니다. `workspace.Dispose()`는 아직 열린 Window Session을 정리합니다. View Source가 별도 서비스나 Pool을 소유하면 프로젝트 owner가 그 수명도 정리합니다.
+
+## 독립적인 Application Window가 필요하면
+
+일반 View를 넘어 Screen/Modal을 독립적으로 운영해야 하는 경우, 별도 Child Layout을 가진 Application Window를 선택합니다.
+
+```csharp
+var applicationOptions =
+    new XeriWindowApplicationOptions(childLayout);
+
+XeriWindowSession app = workspace.OpenApplicationWindow(
+    "search.app", "Search",
+    new Vector2(100f, 100f),
+    new Vector2(720f, 560f),
+    applicationOptions);
+```
+
+Application Window의 `app.Context`에 Screen을 등록한 뒤 `app.Context.Screens.Open(id)`로 조작합니다. Source 기반 Simple Window와는 **다른 ownership 모델**입니다.
+
+전체 상태·테마·Tray 명세는 [Window](../window/index.md), 선택적 Session 수명은 [View Source](../window/view-source.md)를 참고합니다.

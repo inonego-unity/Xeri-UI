@@ -1,6 +1,6 @@
 # Screen과 입력
 
-Screen은 `UIContext` 안의 navigation/lifecycle stack state입니다. 화면 크기나 full-screen 여부가 Screen을 정의하지 않습니다.
+Screen은 `UIContext` 안의 **navigation·lifecycle stack 상태**입니다. 전체 화면인지, 팝업처럼 일부 영역만 사용하는지는 Screen을 정의하지 않습니다. Screen ID는 navigation을, `PresentationTarget`은 실제 표시 위치를, `ScreenSession`은 열린 화면의 수명을 나타냅니다.
 
 ## ScreenOptions
 
@@ -115,6 +115,8 @@ public void Release(ScreenInstance instance)
 Source에는 backend-specific 최종 Layer Driver만 전달합니다.
 
 Acquire가 성공하기 전에 실패하면 그 호출에서 생성한 resource를 즉시 rollback합니다. 성공한 `ScreenInstance`는 `Release`가 대칭적으로 반환합니다.
+
+위 예제는 Layer Driver와 Presenter 생성 관계를 설명하는 **계약 발췌**입니다. 실제 Source 구현에서는 Root의 hierarchy 연결, 이벤트 binding, presenter/driver와 생성한 자원을 해당 `ScreenInstance`에 대응해 보관하고, `Release`에서 분리·해제해야 합니다. 생성 중 실패 경로도 동일하게 정리합니다.
 
 ## Focus
 

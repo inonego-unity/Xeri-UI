@@ -2,9 +2,9 @@
   href: index.md
 - name: Getting Started
   items:
-  - name: 설치
+  - name: 설치와 의존성
     href: getting-started/installation.md
-  - name: 설정과 시작
+  - name: 프로젝트 설정과 시작
     href: getting-started/setup.md
 - name: Architecture
   items:
@@ -22,6 +22,10 @@
     href: core/screens.md
   - name: Presentation
     href: core/presentation.md
+  - name: Splash
+    href: core/splash.md
+  - name: Spotlight
+    href: core/spotlight.md
   - name: 문제 해결
     href: core/troubleshooting.md
 - name: Window

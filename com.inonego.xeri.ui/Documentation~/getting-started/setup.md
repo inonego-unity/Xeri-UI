@@ -1,127 +1,100 @@
-# 설정과 시작
+# 프로젝트 설정과 시작
 
-Xeri UI Runtime은 `PresentationLayout`, `UISettingsAsset`, Runtime Host와 Bootstrapper를 조합해 시작합니다.
+Xeri UI를 사용하는 프로젝트는 **Presentation Layout → UI Settings → Runtime Host → 시작 Scene**을 연결합니다. Unity의 렌더링·이벤트 시스템은 그대로 사용하고 UI의 표시·입력·수명은 `UIRuntime`이 관리합니다.
 
-## 1. PresentationLayout
+## 1. Presentation Layout 작성
 
-`Assets > Create > Xeri > UI > Presentation Layout`에서 Root Layout을 만듭니다.
+`Assets > Create > Xeri > UI > Presentation Layout`에서 `PresentationLayout`을 만듭니다.
 
-Layer는 top-level presentation domain을 정의합니다.
+| 항목 | 의미 |
+| --- | --- |
+| `LayerID` | 같은 Presentation Session에서 고유한 ID |
+| `DisplayName` | Inspector에서 식별할 이름 |
+| `LayerOrder` | 같은 Layout의 Layer 간 표시 순서 |
+| `Backend` | UI Toolkit 또는 UGUI |
+| `Placements` | Scene-authored 고정 위치가 필요할 때만 사용 |
 
-- `LayerID`: Session 안의 stable ID
-- `DisplayName`: authoring 이름
-- `LayerOrder`: 같은 Layout 안 Layer ordering
-- `Backend`: Layer를 materialize할 UI backend
+Placement의 `PresentationID`는 Session 안의 고유 ID이고, `LocalOrder`는 소속 Layer 안의 순서입니다. 일반 Screen/Modal/Splash처럼 나타났다 사라지는 UI에는 Placement를 예약하지 않고 표시 대상 Layer를 동적으로 획득합니다.
 
-Placement는 Scene-authored/static placement root처럼 **Session topology에 고정되어야 하는** 위치만 정의합니다.
-
-- `PresentationID`: Session-local authored placement ID
-- `LayerID`: 소속 Layer
-- `LocalOrder`: 같은 Layer 안 authored placement 순서
-
-일반 Screen/Modal/Window/Fade 같은 transient UI는 Placement를 미리 만들지 않고 `PresentationTarget`으로 Layer 또는 Host destination을 resolve합니다.
-
-예:
+예시:
 
 ```text
-Layers
-├─ Application    order 100   UITK
-├─ Overlay        order 300   UITK
-├─ Modal          order 400   UITK
-└─ SystemFade     order 10000 UGUI
-
-Static Placements
-└─ Desktop.Taskbar → Application / local 30
+Application  — UITK, order 100
+Overlay      — UITK, order 300
+Modal        — UITK, order 400
+SystemFade   — UGUI, order 10000
 ```
 
-## 2. UISettingsAsset
+이 이름과 Order는 예시입니다. 실제 등록된 Layer ID와 아래 Destination 매핑이 일치해야 합니다.
 
-`Assets > Create > Xeri > UI > Settings`에서 Settings를 만듭니다.
+## 2. UI Settings 작성
 
-| 필드 | 의미 |
-|---|---|
-| `DefaultLayout` | Runtime lifetime 동안 사용할 Root Layout |
-| `UITKPanelSettingsTemplate` | generated UITK Layer의 PanelSettings template |
-| `UGUIOutputTemplate` | generated UGUI output template |
-| `Presentation Destinations` (`DestinationDefinitions`) | app-wide semantic destination → Root Layer 매핑 |
-| `BackendSupport` | Runtime bootstrap에서 지원할 UITK/UGUI capability |
-| `HighPrecisionOutput` | 지원되는 URP/HDRP 카메라에 고정밀 UI 출력을 요청하는 옵션 |
-| `UIPostProcessing` | UI를 후처리 이전 또는 이후에 합성할지 선택하는 독립 정책 |
-| `DefaultFadeColor` | 기본 Fade 색 |
-| `DefaultFadeDuration` | 기본 Fade 시간 |
-| `UIActionsAsset` / `UIActionMap` | UI input action source |
-| `GameplayActionsAsset` / `GameplayActionMap` | gameplay input policy source |
-| `ReleaseActionNames` | Screen 종료 뒤 release barrier가 관찰할 action |
+`Assets > Create > Xeri > UI > Settings`에서 `UISettingsAsset`을 만들고 다음 값을 연결합니다.
 
-UI Action Map과 Gameplay Action Map은 서로 다른 map을 사용합니다.
+| 속성 | 설정 |
+| --- | --- |
+| `DefaultLayout` | 위에서 만든 Root Layout |
+| `UITKPanelSettingsTemplate` | generated UITK Layer의 PanelSettings |
+| `UGUIOutputTemplate` | 선택적 UGUI output template, 없으면 패키지 기본값 |
+| `DestinationDefinitions` | semantic Host Destination ID → Root Layer ID |
+| `BackendSupport` | 프로젝트가 지원할 UITK/UGUI capability |
+| `UIActionsAsset` / `UIActionMap` | UI 입력 액션과 맵 |
+| `GameplayActionsAsset` / `GameplayActionMap` | Gameplay 입력 액션과 맵 |
+| `ReleaseActionNames` | Screen 종료 시 입력 해제를 기다릴 Action 이름 |
+| `DefaultFadeColor` / `DefaultFadeDuration` | Scene Fade 기본값 |
+| `HighPrecisionOutput` / `UIPostProcessing` | 선택적 URP/HDRP 출력 정책 |
 
-출력 정책은 프로젝트 단위로 적용됩니다. 고정밀 출력과 후처리 적용에는 파이프라인별 설치 및 지원되는 카메라·버퍼가 필요하며, 조건이 맞지 않으면 Native 출력을 유지합니다. [Native UI 출력 정책](../core/presentation.md#native-ui-출력-정책)에서 공통 정책과 URP/HDRP별 설정을 확인합니다.
+**`System` Destination은 필수**입니다. Scene Fade가 이 Destination의 Root Layer를 사용합니다. Window나 Splash처럼 프로젝트에서 필요한 사용자 정의 Destination ID도 등록할 수 있습니다.
 
-## 3. Runtime Host
+`BackendSupport`는 현재 열려 있는 Layer가 아니라 **프로젝트가 사용할 backend capability 전체**를 나타냅니다. UITK-only 구성은 UGUI EventSystem이 필수가 아니며, UGUI를 포함하면 Host의 `EventSystem + InputSystemUIInputModule`을 검사합니다. UI Action Map과 Gameplay Action Map은 서로 분리합니다.
 
-기본 Host prefab:
+## 3. Runtime Host 연결
 
-```text
-Runtime/Core/Assets/Host/UIHost.prefab
-```
+패키지의 기본 Host prefab은 `Runtime/Core/Assets/Host/UIHost.prefab`입니다.
 
-`UIRuntime`은 Host 안에서 다음 경계를 사용합니다.
-
-- Presentation parent root
-- Focus Driver
-- Screen Input Driver
-- Scene Fade Source
-- optional explicit `PresentationLayerHost[]`
-
-### UITK-only
-
-`BackendSupport = UITK`이면 Scene `EventSystem`과 `InputSystemUIInputModule`을 필수로 요구하지 않습니다.
-
-### UGUI mixed
-
-`BackendSupport`에 UGUI가 포함되면 같은 Host의 `EventSystem + InputSystemUIInputModule`을 mixed input path로 검증합니다.
-
-지원 capability는 Runtime bootstrap에서 고정되며 현재 active Layout의 Layer만 보고 추론하지 않습니다.
-
-## 4. Scene-authored Layer
-
-Scene hierarchy 자체를 presentation output으로 사용할 Layer만 explicit Host를 연결합니다.
+Host에는 Presentation root, Focus Driver, Screen Input Driver, Scene Fade Source가 연결돼야 합니다. Scene에 직접 authored Layer를 배치하는 경우 `PresentationLayerHost[]`를 Runtime composition에 **명시적으로** 전달합니다.
 
 - UGUI: `UGUIPresentationLayerHost`
 - UITK: `UITKPresentationLayerHost` + `PanelRenderer` + `VisualElementReference`
+- authored Placement까지 사용한다면 `PresentationPlacementHost`
 
-`PresentationLayerHost`는 `LayerID`, Native Output, `LayerRoot`, `ManagedRoot`의 physical boundary를 제공합니다.
+Scene을 이름으로 전체 검색해 누락된 Host를 자동 연결하지 않습니다. generated output의 자원 소유권과 scene-authored output의 대여·복원은 [Presentation](../core/presentation.md)을 참고합니다.
 
-`ManagedRoot`는 LayerRoot 아래의 distinct descendant subtree입니다. authored static content는 ManagedRoot 밖에 둘 수 있습니다.
+## 4. UniXeri Bootstrapper 연결
 
-특정 placement root까지 Scene에서 authoring할 때만 `PresentationPlacementHost`를 사용합니다. PlacementHost는 `PresentationID`와 physical root만 제공하며 LayerID/LocalOrder를 변경하지 않습니다.
+일반 프로젝트에서는 **UniXeri의 Build Profiles Bootstrapper 확장에서 제공하는 Scene 생성·등록 기능**을 사용합니다.
 
-Host는 `UIRuntime` composition에서 명시적으로 연결합니다. Scene 전체를 ID로 검색하지 않습니다.
+1. UniXeri Build Profiles에서 Bootstrapper Scene을 생성·등록합니다.
+2. `Assets/Resources/BootstrapperSettings.asset`에서 **Bootstrapper Scene Index**와 **Initial Application Scene Index**를 지정합니다.
+3. Build Settings의 Scene 목록을 확인합니다. 표준 구성은 `Assets/Bootstrapper.unity`가 **0번**, 첫 Application Scene이 **1번**입니다.
+4. `Assets > Create > Xeri > Bootstrapper > UI Module`에서 `UIBootstrapperModuleAsset`을 생성합니다.
+5. Module의 **Host Prefab**과 **Settings**에 위 자산을 지정하고, UniXeri Bootstrapper Settings의 Module 목록에 등록합니다.
 
-## 5. Bootstrapper
+`UIBootstrapperModuleAsset`은 `AfterInitialScene` 단계에서 `StartAsync(ApplicationContext, CancellationToken)`로 실행됩니다. 최초 Scene에 **Scene-owned `UIRuntime`**이 있거나 이미 초기화된 Runtime이 있으면 별도 Host를 생성하지 않습니다. 그렇지 않으면 Host prefab을 생성·초기화하고, **UniXeri Application Scope가 생성한 Host의 종료 수명**을 소유합니다.
 
-`Assets > Create > Xeri > Bootstrapper > UI Module`에서 `UIBootstrapperModuleAsset`을 만듭니다.
+Validation처럼 Scene이 Runtime composition을 직접 포함하는 구성은 별도 Host를 중복 생성하지 않습니다. 두 방식을 한 Scene에서 동시에 초기화하지 마세요.
 
-1. `Host Prefab`을 지정합니다.
-2. `Settings`에 `UISettingsAsset`을 지정합니다.
-3. Module을 Xeri Bootstrapper Settings에 등록합니다.
+## 5. Runtime 사용
 
-Module은 Host를 생성하고 `UIRuntime.Initialize(settings)`를 호출합니다.
-
-## 6. Runtime 사용
+Bootstrapper가 최초 Application Scene을 로드하고 UI Runtime이 초기화된 후에 사용합니다.
 
 ```csharp
 UIRuntime runtime = UIRuntime.Current;
 UIContext context = runtime.Main;
+
+ScreenOpenResponse response = context.Screens.Open("Inventory.Home");
 ```
 
-이후 일반 기능은 `UIContext`의 Tier 1 Feature API에서 시작합니다.
+예시의 `Inventory.Home`은 사용자가 미리 등록한 Screen ID여야 합니다. 등록 방법은 [Screen과 입력](../core/screens.md)에 설명합니다.
 
-```csharp
-context.RegisterScreen(options, target, source);
-context.Screens.Open(...);
-context.AcquirePresentation(target, source);
-UITKModal.Open(context, target, root);
-```
+`UIRuntime.Main`, `RootPresentation`, `SceneFader`는 Runtime-owned 서비스입니다. 기능 소비자는 개별 Screen/Modal/Window/Layer Lease만 자신이 가진 수명 경계에서 반환하고, Runtime 소유 서비스를 직접 `Dispose()`하지 않습니다.
 
-세부 구조는 [Core 개요](../core/index.md)와 [Presentation Architecture](../architecture/presentation.md)를 참고합니다.
+## 초기 구성 점검
+
+- 두 Bootstrapper Scene 인덱스가 모두 지정됐는가?
+- Root Layout Layer와 `DestinationDefinitions`의 ID가 맞는가?
+- generated UITK Layer가 있다면 PanelSettings가 유효한가?
+- UGUI capability가 있다면 EventSystem과 InputSystemUIInputModule이 있는가?
+- DOTween Runtime 및 Modules 어셈블리를 해석할 수 있는가?
+
+직접 조작해 볼 환경은 [Validation Desktop](../validation.md), 오류별 해결은 [문제 해결](../core/troubleshooting.md)을 참고합니다.

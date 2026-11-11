@@ -1,15 +1,10 @@
 # Presentation Architecture
 
-> 상태: Current Architecture Contract
-> 갱신일: 2026-10-07
-> 범위: Xeri UI Core Presentation / Screen / Focus / Input / Window / Scene-authored UI / Editor authoring
->
-> 이 문서는 **현재 구현이 지켜야 하는 구조와 계약의 source of truth**다.
-> PresentationTarget → AcquireLayer → PresentationLayerLease composition도 현재 구현 계약에 포함된다.
-> 세부 composition 책임과 검증 기준은
-> [Presentation Composition Contract](presentation-composition.md)에 정리한다.
+이 문서는 Xeri UI의 **현재 Presentation topology, Session 수명, Screen/Focus/Input authority, Window와 Scene-authored UI의 구성 계약**을 정의합니다. 실제 프로젝트 초기 구성은 [프로젝트 설정과 시작](../getting-started/setup.md), 일반 API 사용은 [Core](../core/index.md)에서 시작합니다.
 
-## 0. 문서 역할
+`PresentationTarget → AcquireLayer → PresentationLayerLease`의 상세 Composition 계약은 [Presentation Composition Contract](presentation-composition.md)에서 설명합니다.
+
+## 문서 범위
 
 이 문서는 **현재 구현이 보장하는 시스템 상태를 현재형으로 정의**한다.
 
@@ -840,22 +835,9 @@ Window coarse z-group은 Window-specific ordering domain이다.
 
 ## 30. Editor authoring
 
-Unity 7 in-scene UI authoring / UI staging / Scene hierarchy / Inspector를 기본 visual authoring surface로 사용한다.
+Unity 7의 Scene Hierarchy와 Inspector를 사용해 `PresentationLayout`, `UISettingsAsset`, `PresentationLayerHost`, `PresentationPlacementHost`를 직접 작성합니다. Layer ID, 순서, Backend와 Scene 참조의 유효성은 실제 Runtime 초기화 시 검증합니다.
 
-Xeri Editor는 Unity가 모르는 semantic만 보완한다.
-
-- Layout tree
-- LayerOrder
-- LocalOrder
-- backend capability validation
-- PresentationID → Layer placement 탐색
-- generated/Scene-authored LayerHost materialization 진단
-- optional PlacementHost와 Plan placement의 일치 여부 진단
-- LayerRoot / ManagedRoot containment 진단
-- resolved Plan debug
-- 관련 authored UI로 navigation
-
-별도 full UXML/Prefab Preview Stage는 public authoring contract에 포함하지 않는다.
+Xeri UI 패키지가 제공하는 별도 Editor 기능은 URP/HDRP Native UI 출력의 **설정 미리보기·적용·해제**입니다. 일반 Layout Tree 전용 창, Plan 탐색기, Scene Placement 탐색·진단 UI나 독자적인 UXML/Prefab Preview Stage는 현재 패키지에 포함되지 않습니다. 출력 설치 절차는 [설치와 의존성](../getting-started/installation.md#native-ui-출력-통합선택)을 참고합니다.
 
 ## 31. Tray / Bar native-first
 
@@ -956,7 +938,7 @@ Source는 공통적으로 "획득하고 반환한다"는 정신모델을 가진�
 
 - IPresentationSource = transient presentation view lifetime
 - IScreenSource = ScreenInstance acquisition
-- IXeriUIViewSource = Window view + persistence/session lifecycle
+- IXeriUIViewSource = Window View 획득·반환; UI-local 상태 저장은 선택적 IXeriUIViewSessionPersistence 계약
 - IXeriTraySource = Tray data source
 
 Acquire/Release 언어를 우선한다.

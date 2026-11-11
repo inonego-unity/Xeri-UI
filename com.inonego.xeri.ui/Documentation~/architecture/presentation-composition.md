@@ -1,10 +1,8 @@
 # Presentation Composition Contract
 
-> 상태: Current Architecture Contract
-> 기준일: 2026-10-07
-> 범위: Core Presentation / UIContext / Screen / Modal / Focus / Input / Window / Scene-authored Host / Validation
->
-> 이 문서는 Target 해석, Layer Lease, destination, static authored Placement의 현재 책임과 검증 기준을 정의한다.
+Presentation Composition은 **UI를 어디에 표시할지 요청하는 Target, 실제 Layer의 사용 수명을 보유하는 Lease, local topology를 소유하는 Session, 공통 Destination을 해석하는 Host**를 분리합니다.
+
+이 문서는 `UIContext`, Screen, Modal, Window, Scene-authored Host가 사용하는 현재 Composition 계약과 허용 범위를 정의합니다. 이용자가 설정하는 실제 Layer와 Destination 예시는 [프로젝트 설정과 시작](../getting-started/setup.md)을 참고합니다.
 
 ## 1. 핵심 모델
 
@@ -324,84 +322,10 @@ backend/platform 확장은 Layer가 Unity에서 어떻게 materialize되고 동�
 
 Tier 2의 Source가 Layer Driver 계약을 소비할 수는 있지만, Driver의 backend 의미와 materialization을 구현하는 책임은 Tier 3에 있다.
 
-## 18. Composition 계약
+## 현재 계약의 적용
 
-- ownership, local topology, requested destination, resolved Layer usage는 서로 다른 책임이다.
-- Screen identity는 `PresentationTarget`이나 Layer identity가 아니다.
-- Root Layout Placement는 Scene-authored/static topology만 표현한다.
-- `PresentationHost`는 stable destination registry를 제공한다.
-- `PresentationLayerLease`는 resolved Layer consumer lifetime만 소유한다.
-- Screen registration이 `PresentationTarget`을 소유하고 ScreenController가 Context를 통해 Layer를 획득한다.
-- UITK Modal, DragVisual, SceneFader는 Target → `AcquireLayer` 경로를 사용한다.
-- Child Context는 logical ownership을 표현한다.
-- Window embedded content는 direct Child PresentationSession containment를 유지한다.
-- Host target으로 획득한 Layer Lease는 해당 feature/session lifetime에 종속된다.
-- BackendSupport는 Runtime bootstrap infrastructure 계약이다.
-- Scene validation은 지원 가능한 infrastructure를 검증한다.
-- project-defined destination은 Settings의 명시적 mapping으로 제공한다.
-- arbitrary mutable Layer graph는 public composition contract에 포함하지 않는다.
+일반 Screen·Modal·Transient UI의 표시 위치는 `PresentationTarget`으로 요청합니다. 직접 Layer를 조립하는 사용자는 `PresentationLayerLease`를 반환해야 합니다. Scene-authored 고정 위치는 `UIContext.AcquirePlacement(...)`, Window 내부의 독립 UI는 Child `PresentationSession`으로 구성합니다.
 
-## 19. 검증 기준
+`UISettingsAsset`의 Destination 매핑과 `BackendSupport`는 명시적으로 지정해야 하며, Placement의 이름이나 현재 활성 Layer로 추론하지 않습니다.
 
-자동 테스트 최소 경계:
-
-- Layer Lease 획득·반환이 immutable Plan을 변경하지 않음
-- Context parent와 physical destination이 달라도 authority 유지
-- Screen Layer 획득 실패가 stack/session/source를 공개하지 않고 rollback
-- Modal Layer Lease가 ModalSession과 함께 종료
-- Overlay 종료 후 필요한 backend state/hierarchy 복원
-- Root Session 종료는 live `PresentationLayerLease` consumer가 있으면 거부
-- Focus layer binding이 materialization과 대칭
-- mixed backend capability가 bootstrap contract와 일치
-- Context/Runtime shutdown이 획득한 Layer Lease를 누락 없이 정리
-- callback 재진입 중 topology snapshot/terminal ownership 유지
-- borrowed scene surface authored state 복원
-
-Validation Desktop 추가 시나리오:
-
-- runtime Layer 획득 기반 overlay/modal
-- Window child가 global overlay 사용
-- Scene Fade가 Root Layout placement 없이 동작
-- UITK-only composition과 mixed UGUI capability 구성
-- sibling Context ownership + global destination에서도 Focus/Input authority 유지
-
-## 20. 구조 원칙
-
-PresentationSession.CreateChild(...)는 local embedded composition을 위해 유지한다.
-
-local fixed placement가 필요한 authored/static composition은 public `UIContext.AcquirePlacement(...)`를 사용한다.
-Session 내부에서는 resolved Plan placement를 통해 같은 usage lifetime을 획득한다.
-
-Tier 1 Feature API의 Screen/Modal/Transient 경로는 `PresentationTarget`을 입력으로 받고 내부에서 Layer를 획득한다.
-`PresentationLayerLease`를 직접 다루는 것은 Project Composition 경계다.
-Screen identity와 Root transient slot의 암묵적 결합은 지원하지 않는다.
-
-`UISettingsAsset`은 현재 계약만 직렬화한다.
-`PresentationDestinationID`와 `BackendSupport`는 명시적으로 설정되어야 하며,
-다른 설정이나 Placement 이름에서 암묵적으로 추론하지 않는다.
-
-## 21. 보장 상태
-
-현재 계약은 다음 상태를 보장한다.
-
-- Root Layout의 transient Placement 없이 Overlay/Modal/System UI가 runtime Layer를 획득 가능
-- local Plan topology는 immutable/deterministic 유지
-- Window embedded child world semantic 유지
-- Screen identity와 표시 destination 분리
-- Context ownership과 physical destination 분리
-- backend capability와 active composition 분리
-- scene-authored/generated surface가 같은 lifetime/failure 계약 사용
-- 문서, Validation, EditMode/PlayMode 테스트가 같은 구조 설명
-
-## 22. 고정 계약
-
-- destination identity: stable string ID
-- target identity: `PresentationTargetScope.Local | Host` + ID
-- Layer Lease ownership: resolved Layer driver + consumer lifetime
-- Source/View ownership: `UIContext.AcquirePresentation` 또는 각 feature Session이 소유
-- Root Host destination: Settings의 destination → Root Layer 명시 매핑
-- local Window application: Child PresentationSession + Local Layer target 유지
-- backend capability: `UISettingsAsset.BackendSupport`
-- app-wide custom destination ordering은 현재 별도 mutable graph로 확장하지 않음
-
-이 결정들은 immutable local Plan과 terminal lifetime invariant를 유지한다.
+실제 Scene에서 조작 가능한 기능은 [Validation Desktop](../validation.md), 자동 테스트와 수동 검증의 구분은 해당 문서의 [검증 범위](../validation.md#검증-범위의-한계)를 참고합니다.
